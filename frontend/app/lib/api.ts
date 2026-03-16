@@ -35,7 +35,8 @@ export interface Proof {
   id?: number;
   transactionHash: string;
   artifactHash: string;
-  blockNumber: number;
+  stacksBlockHeight: number;
+  blockNumber?: number;   // legacy field — use stacksBlockHeight
   timestamp: number;
   skillScores: number[];
   createdAt?: string;
@@ -175,10 +176,10 @@ class ApiClient {
   }
 
   // Payment methods
-  async createPaymentIntent(username: string, planType: string, currency: string = "eth"): Promise<{ paymentIntent: any }> {
+  async createPaymentIntent(username: string, planType: string, currency: string = "stx", billingPeriod: number = 1): Promise<{ paymentIntent: any }> {
     return this.request<{ paymentIntent: any }>(`/api/payments/create?username=${username}`, {
       method: "POST",
-      body: JSON.stringify({ planType, currency }),
+      body: JSON.stringify({ planType, currency, billingPeriod }),
     });
   }
 
@@ -191,6 +192,13 @@ class ApiClient {
 
   async getPaymentStatus(txHash: string): Promise<{ status: string; transaction?: any }> {
     return this.request<{ status: string; transaction?: any }>(`/api/payments/status/${txHash}`);
+  }
+
+  async createStripeCheckout(username: string, planType: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>(`/api/payments/stripe/checkout?username=${username}`, {
+      method: "POST",
+      body: JSON.stringify({ planType }),
+    });
   }
 
 }

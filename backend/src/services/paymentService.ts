@@ -1,14 +1,23 @@
 import { dbService } from "./database";
-import { currencyService } from "./currencyService";
 import { subscriptionService, PlanType } from "./subscriptionService";
-import { ethers } from "ethers";
 
 export interface PaymentIntent {
   address: string;
-  amount: string;
-  currency: "eth" | "usdc";
+  amount: string;      // in STX (decimal)
+  currency: "stx";
   planType: PlanType;
-  network: "base-sepolia" | "base";
+  billingPeriod: number;
+  network: "mainnet" | "testnet" | "devnet";
+}
+
+function getStacksApiUrl(): string {
+  return process.env.STACKS_API_URL || "http://localhost:3999";
+}
+
+function getNetworkName(): "mainnet" | "testnet" | "devnet" {
+  const n = process.env.STACKS_NETWORK || "devnet";
+  if (n === "mainnet" || n === "testnet") return n;
+  return "devnet";
 }
 
 export class PaymentService {
@@ -20,89 +29,108 @@ export class PaymentService {
     return address;
   }
 
-  async createPaymentIntent(planType: PlanType, currency: "eth" | "usdc" = "eth"): Promise<PaymentIntent> {
+  async createPaymentIntent(planType: PlanType, billingPeriod: number = 1): Promise<PaymentIntent> {
     const plan = subscriptionService.getPlan(planType);
 
     if (planType === "free") {
       throw new Error("Free plan does not require payment");
     }
 
-    let amount: string;
-    if (currency === "eth") {
-      amount = await currencyService.convertUsdToEth(plan.price);
-    } else {
-      amount = plan.price.toString();
-    }
-
     const address = this.getPaymentAddress();
+
+    const DISCOUNTS: Record<number, number> = { 1: 0, 3: 0.10, 6: 0.20, 12: 0.30 };
+    const months = [1, 3, 6, 12].includes(billingPeriod) ? billingPeriod : 1;
+    const discount = DISCOUNTS[months] ?? 0;
+    const monthlyStx = parseFloat(plan.priceInStx);
+    const totalStx = Math.round(monthlyStx * months * (1 - discount));
 
     return {
       address,
-      amount,
-      currency,
+      amount: totalStx.toString(),
+      currency: "stx",
       planType,
-      network: process.env.NODE_ENV === "production" ? "base" : "base-sepolia",
+      billingPeriod: months,
+      network: getNetworkName(),
     };
   }
 
-  async verifyPayment(txHash: string, network: "base-sepolia" | "sepolia" = "base-sepolia"): Promise<{
+  /**
+   * Verify a Stacks STX transfer by checking the Stacks API.
+   * Returns verified=true only if the tx is confirmed and sent to our payment address.
+   */
+  async verifyPayment(txId: string): Promise<{
     verified: boolean;
+    status: "pending" | "confirmed" | "failed" | "not_found";
     amount?: string;
     currency?: string;
-    blockNumber?: number;
+    blockHeight?: number;
   }> {
     try {
-      // Determine RPC URL based on network
-      let rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org";
-      if (network === "sepolia") {
-        rpcUrl = process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org";
+      const apiUrl = getStacksApiUrl();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.HIRO_API_KEY) headers["x-api-key"] = process.env.HIRO_API_KEY;
+
+      // Normalise txId — Hiro API accepts with or without 0x prefix
+      const normalizedTxId = txId.startsWith("0x") ? txId : `0x${txId}`;
+      const res = await fetch(`${apiUrl}/extended/v1/tx/${normalizedTxId}`, { headers });
+
+      if (res.status === 404) return { verified: false, status: "not_found" };
+      if (!res.ok) return { verified: false, status: "failed" };
+
+      const data = await res.json() as any;
+
+      // Transaction exists but not yet mined
+      if (data.tx_status === "pending" || data.tx_status === "submitted") {
+        return { verified: false, status: "pending" };
       }
 
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-      const tx = await provider.getTransaction(txHash);
-      if (!tx) {
-        return { verified: false };
+      if (data.tx_status !== "success") {
+        return { verified: false, status: "failed" };
       }
 
-      const receipt = await provider.getTransactionReceipt(txHash);
-      if (!receipt || receipt.status !== 1) {
-        return { verified: false };
+      if (data.tx_type !== "token_transfer") {
+        return { verified: false, status: "failed" };
       }
 
-      const value = ethers.formatEther(tx.value || 0);
-
-      const paymentAddress = this.getPaymentAddress().toLowerCase();
-      if (tx.to?.toLowerCase() !== paymentAddress) {
-        console.error(`Payment address mismatch: expected ${paymentAddress}, got ${tx.to}`);
-        return { verified: false };
+      const paymentAddress = this.getPaymentAddress();
+      if (data.token_transfer?.recipient_address !== paymentAddress) {
+        console.error(
+          `Payment address mismatch: expected ${paymentAddress}, got ${data.token_transfer?.recipient_address}`
+        );
+        return { verified: false, status: "failed" };
       }
+
+      const microStx = Number(data.token_transfer?.amount || 0);
+      const stx = (microStx / 1_000_000).toFixed(6);
 
       return {
         verified: true,
-        amount: value,
-        currency: "eth",
-        blockNumber: receipt.blockNumber,
+        status: "confirmed",
+        amount: stx,
+        currency: "stx",
+        blockHeight: data.block_height,
       };
     } catch (error) {
       console.error("Payment verification error:", error);
-      return { verified: false };
+      return { verified: false, status: "failed" };
     }
   }
 
   async processPayment(
     username: string,
-    txHash: string,
-    planType: PlanType,
-    network: "base-sepolia" | "sepolia" = "base-sepolia"
-  ): Promise<{ success: boolean; message?: string }> {
+    txId: string,
+    planType: PlanType
+  ): Promise<{ success: boolean; status?: string; message?: string }> {
     try {
-      const verification = await this.verifyPayment(txHash, network);
+      const verification = await this.verifyPayment(txId);
       if (!verification.verified) {
-        return { success: false, message: "Payment verification failed" };
+        if (verification.status === "pending" || verification.status === "not_found") {
+          return { success: false, status: "pending", message: "Transaction is still pending confirmation" };
+        }
+        return { success: false, status: "failed", message: "Payment verification failed — transaction may have been rejected" };
       }
 
-      const existing = await dbService.getPaymentTransaction(txHash);
+      const existing = await dbService.getPaymentTransaction(txId);
       if (existing && existing.status === "confirmed") {
         return { success: false, message: "Payment already processed" };
       }
@@ -110,21 +138,16 @@ export class PaymentService {
       if (!existing) {
         await dbService.savePaymentTransaction(
           username,
-          txHash,
+          txId,
           verification.amount || "0",
-          verification.currency || "eth",
+          "stx",
           planType,
-          verification.blockNumber
+          verification.blockHeight
         );
       }
 
-      await dbService.updatePaymentTransactionStatus(
-        txHash,
-        "confirmed",
-        verification.blockNumber
-      );
-
-      await subscriptionService.upgradePlan(username, planType, txHash);
+      await dbService.updatePaymentTransactionStatus(txId, "confirmed", verification.blockHeight);
+      await subscriptionService.upgradePlan(username, planType, txId);
 
       return { success: true };
     } catch (error: any) {
@@ -133,15 +156,14 @@ export class PaymentService {
     }
   }
 
-  async getPaymentStatus(txHash: string): Promise<{
+  async getPaymentStatus(txId: string): Promise<{
     status: "pending" | "confirmed" | "failed" | "not_found";
     transaction?: any;
   }> {
-    const transaction = await dbService.getPaymentTransaction(txHash);
+    const transaction = await dbService.getPaymentTransaction(txId);
     if (!transaction) {
       return { status: "not_found" };
     }
-
     return {
       status: transaction.status as "pending" | "confirmed" | "failed",
       transaction,
@@ -150,4 +172,3 @@ export class PaymentService {
 }
 
 export const paymentService = new PaymentService();
-

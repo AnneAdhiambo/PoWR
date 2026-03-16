@@ -7,7 +7,7 @@ const router = express.Router();
 // Create payment intent
 router.post("/create", async (req, res) => {
   try {
-    const { planType, currency } = req.body;
+    const { planType, billingPeriod } = req.body;
     const { username } = req.query;
 
     if (!username) {
@@ -20,7 +20,7 @@ router.post("/create", async (req, res) => {
 
     const paymentIntent = await paymentService.createPaymentIntent(
       planType as PlanType,
-      currency || "eth"
+      typeof billingPeriod === "number" ? billingPeriod : 1
     );
 
     res.json({ paymentIntent });
@@ -43,18 +43,46 @@ router.post("/verify", async (req, res) => {
     const result = await paymentService.processPayment(
       username as string,
       txHash,
-      planType as PlanType,
-      req.body.network // Optional network param
+      planType as PlanType
     );
 
     if (result.success) {
       res.json({ success: true, message: "Payment verified and subscription activated" });
     } else {
-      res.status(400).json({ success: false, error: result.message });
+      // Return 200 so the frontend can read the status without throwing.
+      // 400 is reserved for malformed requests (missing params), not business-logic failures.
+      res.json({ success: false, status: result.status ?? "failed", message: result.message });
     }
   } catch (error: any) {
     console.error("Payment verification error:", error);
     res.status(500).json({ error: error.message || "Failed to verify payment" });
+  }
+});
+
+// Stripe checkout session
+router.post("/stripe/checkout", async (req, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(503).json({ error: "Stripe not configured" });
+    }
+
+    const { planType } = req.body;
+    const { username } = req.query;
+
+    if (!username || !planType) {
+      return res.status(400).json({ error: "Username and planType required" });
+    }
+
+    // Stripe integration: install `stripe` package and configure STRIPE_SECRET_KEY
+    // const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+    // const prices = { basic: "price_xxx", pro: "price_yyy" };
+    // const session = await stripe.checkout.sessions.create({ ... });
+    // return res.json({ url: session.url });
+
+    res.status(503).json({ error: "Stripe not configured" });
+  } catch (error: any) {
+    console.error("Stripe checkout error:", error);
+    res.status(500).json({ error: error.message || "Failed to create checkout session" });
   }
 });
 

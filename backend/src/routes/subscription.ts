@@ -8,7 +8,16 @@ const router = express.Router();
 router.get("/plans", async (req, res) => {
   try {
     const plans = await subscriptionService.getAvailablePlans();
-    res.json({ plans });
+    // Normalize to the shape the frontend Plan type expects
+    const normalized = plans.map((p) => ({
+      type: p.type,
+      name: p.name,
+      price: p.price,
+      priceInCrypto: { stx: p.priceInStx },
+      updateFrequency: p.updateFrequency,
+      features: p.features,
+    }));
+    res.json({ plans: normalized });
   } catch (error: any) {
     console.error("Get plans error:", error);
     res.status(500).json({ error: "Failed to get plans" });
