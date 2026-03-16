@@ -1,3 +1,7 @@
+// Force IPv4 DNS resolution — required in WSL2 where IPv6 is unreachable
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -41,6 +45,7 @@ import subscriptionRoutes from "./routes/subscription";
 import paymentRoutes from "./routes/payments";
 import webhookRoutes from "./routes/webhooks";
 import systemRoutes from "./routes/system";
+import recruiterRoutes from "./routes/recruiter";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -48,6 +53,7 @@ app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/system", systemRoutes);
+app.use("/api/recruiter", recruiterRoutes);
 
 // Start scheduler service
 import { schedulerService } from "./services/schedulerService";

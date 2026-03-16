@@ -5,59 +5,61 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "../components/layout/Sidebar";
 import { PlanCard, Plan } from "../components/subscription/PlanCard";
 import { PaymentFlow } from "../components/subscription/PaymentFlow";
+import {
+  BillingPeriodSelector,
+  BillingPeriod,
+  calcStxTotal,
+} from "../components/subscription/BillingPeriodSelector";
 import { apiClient } from "../lib/api";
 import { X } from "phosphor-react";
 import toast from "react-hot-toast";
+import { ConnectWalletButton } from "../components/subscription/ConnectWalletButton";
+import { useStacksWallet } from "../lib/stacksWallet";
 
-// Default plans when API is unavailable
 const defaultPlans: Plan[] = [
   {
     type: "free",
     name: "Free",
     price: 0,
-    priceInCrypto: { eth: "0", usdc: "0" },
-    updateFrequency: "Manual updates only",
+    priceInCrypto: { stx: "0" },
+    updateFrequency: "Twice monthly (1st & 15th)",
     features: [
       "Basic PoW profile",
-      "GitHub integration",
-      "Manual proof anchoring",
+      "Up to 10 on-chain proofs/day",
       "Public profile page",
     ],
   },
   {
     type: "basic",
     name: "Basic",
-    price: 9,
-    priceInCrypto: { eth: "0.003", usdc: "9" },
-    updateFrequency: "Weekly updates",
+    price: 6,
+    priceInCrypto: { stx: "20" },
+    updateFrequency: "Weekly (every Monday)",
     features: [
-      "Everything in Free",
-      "Weekly automatic updates",
-      "Skill percentile tracking",
+      "All free features",
+      "Unlimited on-chain proofs",
+      "Weekly profile updates",
       "Priority support",
-      "Advanced analytics",
     ],
   },
   {
     type: "pro",
     name: "Pro",
-    price: 29,
-    priceInCrypto: { eth: "0.01", usdc: "29" },
-    updateFrequency: "Daily updates",
+    price: 15,
+    priceInCrypto: { stx: "50" },
+    updateFrequency: "Real-time (GitHub webhooks)",
     features: [
-      "Everything in Basic",
-      "Daily automatic updates",
-      "Real-time notifications",
-      "Custom profile badges",
+      "All basic features",
+      "Real-time updates on commits/PRs",
+      "Advanced analytics",
       "API access",
-      "Team collaboration",
-      "Priority job matching",
     ],
   },
 ];
 
 export default function SubscriptionPage() {
   const router = useRouter();
+  const { address: walletAddress } = useStacksWallet();
   const [username, setUsername] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
   const [displayName, setDisplayName] = useState<string>("");
@@ -67,22 +69,15 @@ export default function SubscriptionPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [paymentIntent, setPaymentIntent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(1);
 
   useEffect(() => {
-    // Get username from localStorage (set by auth callback)
     const storedUsername = localStorage.getItem("github_username");
     const storedEmail = localStorage.getItem("github_email");
-
-    if (!storedUsername) {
-      router.push("/auth");
-      return;
-    }
-
+    if (!storedUsername) { router.push("/auth"); return; }
     setUsername(storedUsername);
     setDisplayName(storedUsername);
-    if (storedEmail) {
-      setUserEmail(storedEmail);
-    }
+    if (storedEmail) setUserEmail(storedEmail);
     loadSubscriptionData(storedUsername);
   }, [router]);
 
@@ -93,15 +88,10 @@ export default function SubscriptionPage() {
         apiClient.getSubscriptionPlans().catch(() => ({ plans: defaultPlans })),
         apiClient.getCurrentSubscription(user).catch(() => ({ subscription: null, plan: null })),
       ]);
-
-      if (plansData.plans && plansData.plans.length > 0) {
-        setPlans(plansData.plans);
-      }
+      if (plansData.plans?.length > 0) setPlans(plansData.plans);
       setCurrentSubscription(subscriptionData.subscription);
       setCurrentPlan(subscriptionData.subscription?.planType || "free");
-    } catch (error) {
-      console.error("Failed to load subscription data:", error);
-      // Use default plans on error
+    } catch {
       setPlans(defaultPlans);
     } finally {
       setLoading(false);
@@ -110,59 +100,47 @@ export default function SubscriptionPage() {
 
   const handleSelectPlan = async (planType: string) => {
     if (planType === "free") {
-      // Downgrade to free
       try {
         toast.loading("Downgrading to free plan...", { id: "downgrade" });
         await apiClient.upgradeSubscription(username, "free").catch(() => {
-          // Mock success if API unavailable
           setCurrentPlan("free");
           setCurrentSubscription({ planType: "free", status: "active" });
         });
-        toast.success("Downgraded to free plan successfully", { id: "downgrade" });
+        toast.success("Downgraded to free plan", { id: "downgrade" });
       } catch (error: any) {
         toast.error(`Failed to downgrade: ${error.message}`, { id: "downgrade" });
       }
       return;
     }
 
-    // For paid plans, create payment intent
+    const planData = plans.find((p) => p.type === planType);
+    const monthlyStx = parseInt(planData?.priceInCrypto?.stx ?? "0", 10);
+    const totalStx = calcStxTotal(monthlyStx, billingPeriod).toString();
+
     try {
-      toast.loading("Creating payment...", { id: "payment-intent" });
-      const result = await apiClient.createPaymentIntent(username, planType, "eth");
+      toast.loading("Preparing payment...", { id: "payment-intent" });
+      const result = await apiClient.createPaymentIntent(
+        username, planType, "stx", billingPeriod
+      );
       setPaymentIntent(result.paymentIntent);
       setSelectedPlan(planType);
-      toast.success("Payment ready", { id: "payment-intent" });
-    } catch (error: any) {
-      // For demo purposes, show a mock payment flow
       toast.dismiss("payment-intent");
-      const selectedPlanData = plans.find(p => p.type === planType);
-      toast((t) => (
-        <div className="flex flex-col gap-2">
-          <span className="font-medium">Upgrade to {selectedPlanData?.name}</span>
-          <span className="text-sm text-gray-400">
-            Price: ${selectedPlanData?.price}/month ({selectedPlanData?.priceInCrypto.eth} ETH)
-          </span>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => {
-                setCurrentPlan(planType);
-                setCurrentSubscription({ planType, status: "active" });
-                toast.dismiss(t.id);
-                toast.success(`Upgraded to ${selectedPlanData?.name} plan!`);
-              }}
-              className="px-3 py-1 bg-[#3b76ef] text-white text-sm rounded-lg"
-            >
-              Confirm (Demo)
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1 bg-gray-600 text-white text-sm rounded-lg"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ), { duration: 10000 });
+    } catch {
+      toast.dismiss("payment-intent");
+      const paymentAddress = process.env.NEXT_PUBLIC_PAYMENT_WALLET_ADDRESS;
+      if (!paymentAddress || !planData) {
+        toast.error("Payment not available — PAYMENT_WALLET_ADDRESS not configured.");
+        return;
+      }
+      setPaymentIntent({
+        address: paymentAddress,
+        amount: totalStx,
+        currency: "stx" as const,
+        planType,
+        billingPeriod,
+        network: process.env.NEXT_PUBLIC_STACKS_NETWORK || "testnet",
+      });
+      setSelectedPlan(planType);
     }
   };
 
@@ -175,7 +153,7 @@ export default function SubscriptionPage() {
       setSelectedPlan(null);
       toast.success("Subscription upgraded successfully!", { id: "upgrade" });
     } catch (error: any) {
-      toast.error(`Failed to upgrade subscription: ${error.message}`, { id: "upgrade" });
+      toast.error(`Failed to upgrade: ${error.message}`, { id: "upgrade" });
     }
   };
 
@@ -187,13 +165,9 @@ export default function SubscriptionPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        <Sidebar 
-          username={username} 
-          email={userEmail || undefined}
-          displayName={displayName}
-        />
+        <Sidebar username={username} email={userEmail || undefined} displayName={displayName} />
         <div className="flex-1 ml-60 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -201,18 +175,19 @@ export default function SubscriptionPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex">
-      <Sidebar 
-        username={username} 
-        email={userEmail || undefined}
-        displayName={displayName}
-      />
+      <Sidebar username={username} email={userEmail || undefined} displayName={displayName} />
       <div className="flex-1 ml-60 p-8 overflow-y-auto">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Subscription Plans</h1>
-            <p className="text-gray-400">
-              Choose a plan that fits your needs. All plans include onchain proof anchoring.
-            </p>
+        <div className="max-w-5xl mx-auto">
+
+          {/* Header */}
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Billing</h1>
+              <p className="text-gray-400">
+                Pay with STX. Lock in a longer period for a bigger discount.
+              </p>
+            </div>
+            <ConnectWalletButton />
           </div>
 
           {paymentIntent ? (
@@ -230,33 +205,45 @@ export default function SubscriptionPage() {
                 paymentIntent={paymentIntent}
                 onPaymentVerified={handlePaymentVerified}
                 onCancel={handleCancelPayment}
+                walletAddress={walletAddress ?? undefined}
               />
             </div>
           ) : (
             <>
-              {currentSubscription && (
-                <div className="mb-6 p-4 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-400">Current Plan</p>
-                      <p className="text-lg font-semibold text-white capitalize">
-                        {currentSubscription.planType}
+              {/* Current subscription banner */}
+              {currentSubscription && currentPlan !== "free" && (
+                <div className="mb-6 p-4 rounded-xl bg-[rgba(255,85,0,0.06)] border border-[rgba(255,85,0,0.2)] flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">Current Plan</p>
+                    <p className="text-base font-semibold text-white capitalize">
+                      {currentSubscription.planType}
+                    </p>
+                    {currentSubscription.nextUpdateDate && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Next update: {new Date(currentSubscription.nextUpdateDate).toLocaleDateString()}
                       </p>
-                      {currentSubscription.nextUpdateDate && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          Next update: {new Date(currentSubscription.nextUpdateDate).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                    {currentSubscription.status === "active" && (
-                      <span className="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">
-                        Active
-                      </span>
                     )}
                   </div>
+                  {currentSubscription.status === "active" && (
+                    <span className="px-3 py-1 rounded-full bg-[rgba(255,85,0,0.15)] text-[#FF5500] text-xs font-medium">
+                      Active
+                    </span>
+                  )}
                 </div>
               )}
 
+              {/* Billing period selector */}
+              <div className="mb-8 flex flex-col gap-2">
+                <p className="text-sm text-gray-400">Billing period</p>
+                <BillingPeriodSelector value={billingPeriod} onChange={setBillingPeriod} />
+                {billingPeriod > 1 && (
+                  <p className="text-xs text-[#FF5500] mt-1">
+                    Paying {billingPeriod} months upfront — prices below reflect your discount.
+                  </p>
+                )}
+              </div>
+
+              {/* Plan cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map((plan) => (
                   <PlanCard
@@ -264,9 +251,17 @@ export default function SubscriptionPage() {
                     plan={plan}
                     currentPlan={currentPlan}
                     onSelect={handleSelectPlan}
+                    billingPeriod={billingPeriod}
                   />
                 ))}
               </div>
+
+              {/* Savings callout for multi-month */}
+              {billingPeriod > 1 && (
+                <p className="text-center text-xs text-gray-600 mt-6">
+                  Prices are charged as a single STX transaction. No recurring charges.
+                </p>
+              )}
             </>
           )}
         </div>
@@ -274,4 +269,3 @@ export default function SubscriptionPage() {
     </div>
   );
 }
-

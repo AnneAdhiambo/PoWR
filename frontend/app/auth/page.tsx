@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../components/ui";
 import { Github } from "lucide-react";
 
-export default function AuthPage() {
+function AuthContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const error = searchParams.get("error");
+    if (error) setAuthError(decodeURIComponent(error));
+  }, [searchParams]);
 
   useEffect(() => {
     // Check if user is already logged in with valid token
@@ -64,6 +71,12 @@ export default function AuthPage() {
             </p>
           </div>
 
+          {authError && (
+            <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+              {authError}
+            </div>
+          )}
+
           <Button
             onClick={handleGitHubLogin}
             className="w-full flex items-center justify-center gap-2"
@@ -79,6 +92,15 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+import { Suspense } from "react";
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0A0B0D]" />}>
+      <AuthContent />
+    </Suspense>
   );
 }
 

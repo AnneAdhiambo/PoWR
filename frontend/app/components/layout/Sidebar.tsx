@@ -14,10 +14,13 @@ import {
   Star,
   User,
   CaretUp,
-  ShieldCheck
+  ShieldCheck,
+  Medal,
+  Crown,
+  Lightning,
 } from "phosphor-react";
-import { PricingModal } from "../subscription/PricingModal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { apiClient } from "../../lib/api";
 import toast from "react-hot-toast";
 
 interface SidebarProps {
@@ -35,10 +38,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const [showPricingModal, setShowPricingModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [githubAvatarUrl, setGithubAvatarUrl] = useState<string | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<"free" | "basic" | "pro">("free");
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Close profile menu when clicking outside
@@ -98,6 +101,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [username]);
 
+  useEffect(() => {
+    if (!username) return;
+    apiClient.getCurrentSubscription(username)
+      .then((data) => {
+        const plan = data.subscription?.planType;
+        if (plan === "basic" || plan === "pro") setCurrentPlan(plan);
+      })
+      .catch(() => {});
+  }, [username]);
+
   const handleLogout = () => {
     // Clear all auth data
     localStorage.removeItem("github_token");
@@ -123,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { icon: Star, label: "Saved", href: "/saved" },
     { icon: ChatCircle, label: "Chat", href: "/chat" },
     { icon: Bell, label: "Notification", href: "/notifications" },
+    { icon: Medal, label: "Billing", href: "/subscription" },
   ];
 
   const isActive = (href: string) => {
@@ -231,20 +245,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
         )}
-        <button
-          onClick={() => setShowPricingModal(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#12141a] hover:bg-[#161922] text-white text-sm font-medium transition-colors border border-[rgba(255,255,255,0.04)]"
-        >
-          <ArrowSquareOut className="w-4 h-4" weight="regular" />
-          Upgrade to Pro
-        </button>
+        {currentPlan === "pro" ? (
+          /* Pro — current plan badge, no upgrade button */
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,85,0,0.08)] border border-[rgba(255,85,0,0.2)]">
+            <Crown className="w-4 h-4 text-[#FF5500] flex-shrink-0" weight="fill" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-[#FF5500]">Pro Plan</p>
+              <p className="text-[10px] text-gray-500 leading-tight">Real-time updates</p>
+            </div>
+          </div>
+        ) : currentPlan === "basic" ? (
+          /* Basic — badge + small upgrade nudge */
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[rgba(255,85,0,0.06)] border border-[rgba(255,85,0,0.15)]">
+              <Medal className="w-4 h-4 text-[#FF5500] flex-shrink-0" weight="fill" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-[#FF5500]">Basic Plan</p>
+                <p className="text-[10px] text-gray-500 leading-tight">Weekly updates</p>
+              </div>
+            </div>
+            <button
+              onClick={() => router.push("/subscription")}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-[#FF5500] hover:bg-[rgba(255,85,0,0.08)] transition-colors border border-[rgba(255,85,0,0.15)]"
+            >
+              <Crown className="w-3 h-3" weight="fill" />
+              Upgrade to Pro
+            </button>
+          </div>
+        ) : (
+          /* Free — prominent upgrade button */
+          <button
+            onClick={() => router.push("/subscription")}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors"
+          >
+            <Lightning className="w-4 h-4" weight="fill" />
+            Upgrade to Pro
+          </button>
+        )}
       </div>
-
-      <PricingModal
-        isOpen={showPricingModal}
-        onClose={() => setShowPricingModal(false)}
-        username={username}
-      />
 
       <ConfirmDialog
         isOpen={showLogoutConfirm}
