@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   // Prevent pino / thread-stream (pulled in by @stacks/connect → @walletconnect)
@@ -13,11 +12,6 @@ const nextConfig: NextConfig = {
     "@walletconnect/universal-provider",
     "@walletconnect/logger",
   ],
-
-  turbopack: {
-    // Pin the workspace root so Turbopack doesn't confuse sibling lockfiles.
-    root: path.resolve(__dirname),
-  },
 };
 
 export default nextConfig;
