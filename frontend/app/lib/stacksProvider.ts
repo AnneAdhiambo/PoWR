@@ -53,6 +53,47 @@ export async function connectWallet(): Promise<string | null> {
   return stx?.address ?? null;
 }
 
+/** Sends a SIP-010 fungible token transfer and returns the txid. */
+export async function transferSip10Token(
+  contractId: string,
+  recipient: string,
+  amountBaseUnits: string
+): Promise<string> {
+  const provider = getProvider();
+  if (!provider) {
+    throw new Error("No Stacks wallet found. Please install Leather or Xverse.");
+  }
+  const senderAddress = await getConnectedAddress();
+  if (!senderAddress) throw new Error("Connect your wallet first.");
+
+  // Dynamically import @stacks/transactions to encode Clarity values for stx_callContract
+  const { standardPrincipalCV, uintCV, noneCV, serializeCV } = await import(
+    "@stacks/transactions"
+  );
+  const toHex = (cv: any): string =>
+    Buffer.from(serializeCV(cv)).toString("hex");
+
+  const functionArgs = [
+    toHex(uintCV(BigInt(amountBaseUnits))),
+    toHex(standardPrincipalCV(senderAddress)),
+    toHex(standardPrincipalCV(recipient)),
+    toHex(noneCV()),
+  ];
+
+  const [contractAddress, contractName] = contractId.split(".");
+  const res = await provider.request("stx_callContract", {
+    contractAddress,
+    contractName,
+    functionName: "transfer",
+    functionArgs,
+  });
+
+  const txid =
+    res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
+  if (!txid) throw new Error("Wallet did not return a transaction ID.");
+  return txid;
+}
+
 /** Sends an STX transfer and returns the txid. */
 export async function transferStx(
   recipient: string,

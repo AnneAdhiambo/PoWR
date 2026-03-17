@@ -1,5 +1,5 @@
 import express from "express";
-import { paymentService } from "../services/paymentService";
+import { paymentService, Currency } from "../services/paymentService";
 import { subscriptionService, PlanType } from "../services/subscriptionService";
 
 const router = express.Router();
@@ -7,7 +7,7 @@ const router = express.Router();
 // Create payment intent
 router.post("/create", async (req, res) => {
   try {
-    const { planType, billingPeriod } = req.body;
+    const { planType, billingPeriod, currency } = req.body;
     const { username } = req.query;
 
     if (!username) {
@@ -18,9 +18,13 @@ router.post("/create", async (req, res) => {
       return res.status(400).json({ error: "Invalid plan type" });
     }
 
+    const validCurrencies: Currency[] = ["stx", "sbtc", "usdcx"];
+    const selectedCurrency: Currency = validCurrencies.includes(currency) ? currency : "stx";
+
     const paymentIntent = await paymentService.createPaymentIntent(
       planType as PlanType,
-      typeof billingPeriod === "number" ? billingPeriod : 1
+      typeof billingPeriod === "number" ? billingPeriod : 1,
+      selectedCurrency
     );
 
     res.json({ paymentIntent });
@@ -33,17 +37,21 @@ router.post("/create", async (req, res) => {
 // Verify payment transaction
 router.post("/verify", async (req, res) => {
   try {
-    const { txHash, planType } = req.body;
+    const { txHash, planType, currency } = req.body;
     const { username } = req.query;
 
     if (!username || !txHash || !planType) {
       return res.status(400).json({ error: "Username, txHash, and planType required" });
     }
 
+    const validCurrencies: Currency[] = ["stx", "sbtc", "usdcx"];
+    const selectedCurrency: Currency = validCurrencies.includes(currency) ? currency : "stx";
+
     const result = await paymentService.processPayment(
       username as string,
       txHash,
-      planType as PlanType
+      planType as PlanType,
+      selectedCurrency
     );
 
     if (result.success) {
