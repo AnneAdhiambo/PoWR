@@ -6,6 +6,9 @@ import {
   broadcastTransaction,
   principalCV,
   uintCV,
+  bufferCV,
+  listCV,
+  stringAsciiCV,
   PostConditionMode,
 } from "@stacks/transactions";
 import { STACKS_TESTNET, STACKS_MAINNET } from "@stacks/network";
@@ -234,10 +237,76 @@ export class BlockchainService {
   }
 
   /**
-   * Check if Stacks oracle key is configured for badge minting
+   * Check if Stacks oracle key is configured for badge minting / proof anchoring
    */
   isStacksConfigured(): boolean {
-    return !!process.env.ORACLE_PRIVATE_KEY;
+    return !!(process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY);
+  }
+
+  /**
+   * Anchor a PoW snapshot to the Stacks powr-registry contract.
+   * Uses the oracle key to call anchor-snapshot on behalf of the user.
+   *
+   * @param artifacts   Artifacts that were analyzed
+   * @param profile     Generated PoW profile
+   * @param username    GitHub username (stored as github-identity on-chain)
+   * @param userPrincipal  Stacks principal of the developer (defaults to oracle address)
+   */
+  async anchorSnapshotStacks(
+    artifacts: Artifact[],
+    profile: PoWProfile,
+    username: string,
+    userPrincipal?: string
+  ): Promise<{ txId: string; artifactHash: string; skillScores: number[] }> {
+    const oraclePrivateKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
+    if (!oraclePrivateKey) {
+      throw new Error("STACKS_ORACLE_PRIVATE_KEY not configured");
+    }
+
+    const contractAddress =
+      process.env.POWR_REGISTRY_CONTRACT_ADDRESS ||
+      "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
+    const oracleAddress =
+      process.env.STACKS_ORACLE_ADDRESS ||
+      "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
+    const network =
+      process.env.STACKS_NETWORK === "mainnet" ? STACKS_MAINNET : STACKS_TESTNET;
+
+    // Generate artifact hash (keccak256 hex → 32-byte buffer)
+    const artifactHashHex = this.generateArtifactHash(artifacts);
+    const hashBytes = Buffer.from(artifactHashHex.slice(2), "hex");
+
+    // Extract skill scores (max 10 per contract)
+    const skillScores = this.extractSkillScores(profile).slice(0, 10);
+
+    const txOptions = {
+      contractAddress,
+      contractName: "powr-registry",
+      functionName: "anchor-snapshot",
+      functionArgs: [
+        principalCV(userPrincipal || oracleAddress),
+        bufferCV(hashBytes),
+        listCV(skillScores.map((s) => uintCV(BigInt(s)))),
+        stringAsciiCV(username.slice(0, 64)),
+      ],
+      senderKey: oraclePrivateKey,
+      network,
+      postConditionMode: PostConditionMode.Allow,
+    };
+
+    const transaction = await makeContractCall(txOptions);
+    const broadcastResponse = await broadcastTransaction({ transaction, network });
+
+    if ("error" in broadcastResponse) {
+      throw new Error(
+        `Stacks broadcast failed: ${broadcastResponse.error}${broadcastResponse.reason ? ` — ${broadcastResponse.reason}` : ""}`
+      );
+    }
+
+    console.log(
+      `[Blockchain] Proof anchored for ${username} txId=${broadcastResponse.txid}`
+    );
+    return { txId: broadcastResponse.txid, artifactHash: artifactHashHex, skillScores };
   }
 
   /**
