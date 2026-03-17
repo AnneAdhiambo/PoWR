@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   HourglassHigh,
 } from "phosphor-react";
-import { request } from "@stacks/connect";
+// @stacks/connect imported dynamically inside handlePay to avoid chunk eval crash
 
 interface PaymentFlowProps {
   paymentIntent: {
@@ -63,7 +63,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     ).toString();
 
     try {
-      // Uses native @stacks/connect v8 request API (stx_transferStx)
+      // Dynamically import to avoid Turbopack chunk evaluation crash
+      const { request } = await import("@stacks/connect");
       const result = await request("stx_transferStx", {
         recipient: paymentIntent.address,
         amount: microStx,
