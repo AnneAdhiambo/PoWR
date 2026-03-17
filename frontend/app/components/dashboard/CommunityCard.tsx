@@ -20,7 +20,7 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
   buttonText,
   buttonLink,
   icon,
-  bgColor = "bg-[#3b76ef]",
+  bgColor = "bg-[#FF5500]",
   onDismiss,
 }) => {
   const [dismissed, setDismissed] = useState(false);

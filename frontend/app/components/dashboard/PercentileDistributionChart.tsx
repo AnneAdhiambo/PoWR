@@ -108,7 +108,7 @@ export const PercentileDistributionChart: React.FC<PercentileDistributionChartPr
               y1="0"
               x2="0"
               y2="100"
-              stroke="#3b76ef"
+              stroke="#FF5500"
               strokeWidth="0.4"
               vectorEffect="non-scaling-stroke"
             />
@@ -125,7 +125,7 @@ export const PercentileDistributionChart: React.FC<PercentileDistributionChartPr
                   cx="0"
                   cy={dotY}
                   r="1.8"
-                  fill="#3b76ef"
+                  fill="#FF5500"
                   stroke="#0A0B0D"
                   strokeWidth="0.3"
                   vectorEffect="non-scaling-stroke"

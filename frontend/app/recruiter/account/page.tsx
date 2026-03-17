@@ -77,7 +77,7 @@ export default function RecruiterAccountPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function RecruiterAccountPage() {
                 <Crown className="w-4 h-4 text-gray-500" weight="regular" />
                 <span className="text-sm capitalize text-white">{recruiter.plan} plan</span>
                 {recruiter.plan !== "free" && (
-                  <span className="px-2 py-0.5 rounded-full text-xs bg-[rgba(59,118,239,0.15)] text-[#3b76ef] border border-[#3b76ef]/30 capitalize">
+                  <span className="px-2 py-0.5 rounded-full text-xs bg-[rgba(255,85,0,0.15)] text-[#FF5500] border border-[#FF5500]/30 capitalize">
                     Active
                   </span>
                 )}
@@ -126,14 +126,14 @@ export default function RecruiterAccountPage() {
                   key={plan.id}
                   className={`relative rounded-xl p-5 flex flex-col ${
                     isCurrent
-                      ? "bg-[rgba(59,118,239,0.08)] border-2 border-[#3b76ef]/40"
+                      ? "bg-[rgba(255,85,0,0.08)] border-2 border-[#FF5500]/40"
                       : plan.highlight
-                      ? "bg-[rgba(255,255,255,0.03)] border border-[rgba(59,118,239,0.2)]"
+                      ? "bg-[rgba(255,255,255,0.03)] border border-[rgba(255,85,0,0.2)]"
                       : "bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]"
                   }`}
                 >
                   {isCurrent && (
-                    <span className="absolute top-3 right-3 text-[10px] px-2 py-0.5 rounded-full bg-[rgba(59,118,239,0.2)] text-[#3b76ef] font-semibold">
+                    <span className="absolute top-3 right-3 text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,85,0,0.2)] text-[#FF5500] font-semibold">
                       Current
                     </span>
                   )}
@@ -145,7 +145,7 @@ export default function RecruiterAccountPage() {
                   <ul className="space-y-2 flex-1 mb-5">
                     {plan.features.map((f) => (
                       <li key={f} className="flex items-start gap-2 text-sm text-gray-300">
-                        <Check className="w-3.5 h-3.5 text-[#3b76ef] mt-0.5 flex-shrink-0" weight="bold" />
+                        <Check className="w-3.5 h-3.5 text-[#FF5500] mt-0.5 flex-shrink-0" weight="bold" />
                         {f}
                       </li>
                     ))}
@@ -157,8 +157,8 @@ export default function RecruiterAccountPage() {
                       isCurrent
                         ? "bg-[rgba(255,255,255,0.05)] text-gray-500 cursor-not-allowed"
                         : plan.highlight
-                        ? "bg-[#3b76ef] hover:bg-[#3265cc] text-white"
-                        : "border border-[#3b76ef]/30 text-[#3b76ef] hover:bg-[rgba(59,118,239,0.08)]"
+                        ? "bg-[#FF5500] hover:bg-[#e04d00] text-white"
+                        : "border border-[#FF5500]/30 text-[#FF5500] hover:bg-[rgba(255,85,0,0.08)]"
                     }`}
                   >
                     {isCurrent ? "Current Plan" : `Get ${plan.name}`}

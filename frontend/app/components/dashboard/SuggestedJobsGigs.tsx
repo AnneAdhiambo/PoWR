@@ -96,7 +96,7 @@ export const SuggestedJobsGigs: React.FC<SuggestedJobsGigsProps> = ({
                       const getTagColor = (tag: string) => {
                         const tagLower = tag.toLowerCase();
                         if (tagLower.includes('devops') || tagLower.includes('infrastructure')) 
-                          return 'border-blue-500/30 text-blue-400/60';
+                          return 'border-[#FF5500]/30 text-[#FF6B2B]/60';
                         if (tagLower.includes('backend') || tagLower.includes('node')) 
                           return 'border-emerald-500/30 text-emerald-400/60';
                         if (tagLower.includes('react') || tagLower.includes('frontend') || tagLower.includes('typescript')) 

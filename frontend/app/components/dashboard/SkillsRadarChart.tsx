@@ -62,15 +62,15 @@ export const SkillsRadarChart: React.FC<SkillsRadarChartProps> = ({ skills }) =>
             <Radar
               name="Score"
               dataKey="score"
-              stroke="#3b76ef"
+              stroke="#FF5500"
               strokeWidth={2.5}
-              fill="#3b76ef"
+              fill="#FF5500"
               fillOpacity={0.25}
               dot={{ 
                 r: 4, 
-                fill: '#3b76ef',
+                fill: '#FF5500',
                 fillOpacity: 1,
-                stroke: '#3b76ef',
+                stroke: '#FF5500',
                 strokeWidth: 2
               }}
               animationDuration={350}

@@ -49,7 +49,7 @@ function ScoreRing({ value }: { value: number }) {
         />
         <defs>
           <linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#3b76ef" />
+            <stop offset="0%" stopColor="#FF5500" />
             <stop offset="100%" stopColor="#B19EEF" />
           </linearGradient>
         </defs>
@@ -112,7 +112,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -145,7 +145,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
       {/* ── Hero banner ── */}
       <div className="relative rounded-2xl border border-white/8 bg-white/3 overflow-hidden mb-6">
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#3b76ef]/10 via-transparent to-[#B19EEF]/8 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#FF5500]/10 via-transparent to-[#B19EEF]/8 pointer-events-none" />
 
         <div className="relative p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
           {/* Avatar + name */}
@@ -161,7 +161,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
                 }}
               />
               {isVerified && (
-                <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-[#3b76ef] flex items-center justify-center border-2 border-[#0A0B0D]">
+                <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-[#FF5500] flex items-center justify-center border-2 border-[#0A0B0D]">
                   <ShieldCheck size={12} weight="fill" className="text-white" />
                 </div>
               )}
@@ -171,7 +171,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-black text-white">@{username}</h1>
                 {isVerified && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3b76ef]/15 text-[#3b76ef] border border-[#3b76ef]/30 font-semibold uppercase tracking-wide">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/30 font-semibold uppercase tracking-wide">
                     Verified
                   </span>
                 )}
@@ -199,7 +199,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
           <div className="flex flex-col gap-2 shrink-0 w-44">
             <button
               onClick={() => setContactOpen(true)}
-              className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-semibold transition-colors"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-semibold transition-colors"
             >
               <PaperPlaneTilt size={14} weight="fill" />
               Request to Connect
@@ -216,7 +216,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
       {profile?.artifactSummary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {[
-            { icon: <Folder size={16} weight="fill" className="text-[#3b76ef]" />, label: "Repos",   value: profile.artifactSummary.repos },
+            { icon: <Folder size={16} weight="fill" className="text-[#FF5500]" />, label: "Repos",   value: profile.artifactSummary.repos },
             { icon: <GitCommit size={16} weight="fill" className="text-[#B19EEF]" />, label: "Commits", value: profile.artifactSummary.commits },
             { icon: <GitPullRequest size={16} weight="fill" className="text-[#FF9FFC]" />, label: "Pull Requests", value: profile.artifactSummary.pullRequests },
             { icon: <Lightning size={16} weight="fill" className="text-[#60efbc]" />, label: "Merged PRs", value: profile.artifactSummary.mergedPRs },
@@ -300,7 +300,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
                           className="h-full rounded-full transition-all duration-700"
                           style={{
                             width: `${pct}%`,
-                            background: `linear-gradient(90deg, #3b76ef, ${TIER_COLORS[tier] || "#5b96ff"})`,
+                            background: `linear-gradient(90deg, #FF5500, ${TIER_COLORS[tier] || "#5b96ff"})`,
                           }}
                         />
                       </div>
@@ -358,7 +358,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
                 onChange={(e) => setContactMsg(e.target.value)}
                 placeholder="Introduce yourself and your opportunity…"
                 rows={4}
-                className="w-full px-4 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#3b76ef]/50 resize-none transition-colors"
+                className="w-full px-4 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FF5500]/50 resize-none transition-colors"
               />
               <div className="flex gap-3">
                 <button
@@ -371,7 +371,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
                 <button
                   type="submit"
                   disabled={sending || !contactMsg.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-semibold transition-colors disabled:opacity-50"
                 >
                   {sending ? "Sending…" : "Send Request"}
                 </button>

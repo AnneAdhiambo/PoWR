@@ -46,7 +46,7 @@ export const RecruiterSidebar: React.FC = () => {
         <Link href="/recruiter/search" className="flex items-center gap-2.5">
           <img src="/logo.png" alt="PoWR" className="h-9 w-auto" />
           <span className="text-lg font-semibold text-white tracking-tight">PoWR</span>
-          <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[rgba(59,118,239,0.15)] text-[#3b76ef] border border-[#3b76ef]/30">Recruiter</span>
+          <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[rgba(255,85,0,0.15)] text-[#FF5500] border border-[#FF5500]/30">Recruiter</span>
         </Link>
       </div>
 
@@ -62,9 +62,9 @@ export const RecruiterSidebar: React.FC = () => {
                   : "text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.04)]"
               }`}>
               {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#3b76ef] rounded-full" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#FF5500] rounded-full" />
               )}
-              <Icon className={`w-4.5 h-4.5 ${active ? "text-[#3b76ef]" : ""}`} weight={active ? "fill" : "regular"} />
+              <Icon className={`w-4.5 h-4.5 ${active ? "text-[#FF5500]" : ""}`} weight={active ? "fill" : "regular"} />
               <span className="text-sm font-medium">{label}</span>
             </Link>
           );
@@ -85,8 +85,8 @@ export const RecruiterSidebar: React.FC = () => {
           )}
           <button onClick={() => setShowMenu(v => !v)}
             className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[rgba(59,118,239,0.15)] border border-[#3b76ef]/30 flex items-center justify-center flex-shrink-0">
-              <Buildings className="w-5 h-5 text-[#3b76ef]" weight="fill" />
+            <div className="w-10 h-10 rounded-full bg-[rgba(255,85,0,0.15)] border border-[#FF5500]/30 flex items-center justify-center flex-shrink-0">
+              <Buildings className="w-5 h-5 text-[#FF5500]" weight="fill" />
             </div>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-white truncate">{company || "My Company"}</p>

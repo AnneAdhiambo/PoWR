@@ -202,7 +202,7 @@ export default function ChatPage() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#3b76ef]"
+                className="w-full pl-10 pr-4 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]"
               />
             </div>
           </div>
@@ -221,7 +221,7 @@ export default function ChatPage() {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3b76ef] to-[#4d85f0] flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FF5500] to-[#4d85f0] flex items-center justify-center flex-shrink-0">
                       <span className="text-white font-semibold text-lg">
                         {conv.name.charAt(0).toUpperCase()}
                       </span>
@@ -240,7 +240,7 @@ export default function ChatPage() {
                           {conv.lastMessage}
                         </p>
                         {conv.unread > 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-[#3b76ef] text-white text-xs font-medium flex-shrink-0 ml-2">
+                          <span className="px-2 py-0.5 rounded-full bg-[#FF5500] text-white text-xs font-medium flex-shrink-0 ml-2">
                             {conv.unread}
                           </span>
                         )}
@@ -260,7 +260,7 @@ export default function ChatPage() {
               {/* Chat Header */}
               <div className="p-4 border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3b76ef] to-[#4d85f0] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF5500] to-[#4d85f0] flex items-center justify-center">
                     <span className="text-white font-semibold">
                       {activeConv.name.charAt(0).toUpperCase()}
                     </span>
@@ -287,7 +287,7 @@ export default function ChatPage() {
                     <div
                       className={`max-w-[70%] ${
                         message.isOwn
-                          ? "bg-[#3b76ef] text-white"
+                          ? "bg-[#FF5500] text-white"
                           : "bg-[rgba(255,255,255,0.03)] text-gray-200 border border-[rgba(255,255,255,0.04)]"
                       } rounded-lg px-4 py-2`}
                     >
@@ -299,7 +299,7 @@ export default function ChatPage() {
                       <p className="text-sm">{message.text}</p>
                       <p
                         className={`text-xs mt-1 ${
-                          message.isOwn ? "text-blue-100" : "text-gray-500"
+                          message.isOwn ? "text-orange-100" : "text-gray-500"
                         }`}
                         style={{ opacity: 0.7 }}
                       >
@@ -320,11 +320,11 @@ export default function ChatPage() {
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     placeholder="Type a message..."
-                    className="flex-1 px-4 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#3b76ef]"
+                    className="flex-1 px-4 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]"
                   />
                   <button
                     onClick={handleSendMessage}
-                    className="p-2 rounded-lg bg-[#3b76ef] hover:bg-[#4d85f0] text-white transition-colors"
+                    className="p-2 rounded-lg bg-[#FF5500] hover:bg-[#4d85f0] text-white transition-colors"
                   >
                     <PaperPlaneTilt className="w-5 h-5" weight="regular" />
                   </button>

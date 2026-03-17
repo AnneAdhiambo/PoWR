@@ -77,7 +77,7 @@ function AuthCallbackContent() {
             <p className="text-gray-400 mb-6">{error}</p>
             <button
               onClick={() => router.push("/auth")}
-              className="px-6 py-3 bg-[#3b76ef] text-white rounded-full hover:bg-[#2d5fd4] transition-colors cursor-pointer"
+              className="px-6 py-3 bg-[#FF5500] text-white rounded-full hover:bg-[#2d5fd4] transition-colors cursor-pointer"
             >
               Try Again
             </button>
@@ -109,14 +109,14 @@ function AuthCallbackContent() {
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", damping: 15, stiffness: 200 }}
               >
-                <CheckCircle2 className="w-16 h-16 text-[#3b76ef]" />
+                <CheckCircle2 className="w-16 h-16 text-[#FF5500]" />
               </motion.div>
             ) : (
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               >
-                <Github className="w-16 h-16 text-[#3b76ef]" />
+                <Github className="w-16 h-16 text-[#FF5500]" />
               </motion.div>
             )}
 
@@ -142,20 +142,20 @@ function AuthCallbackContent() {
 
             {status === "loading" && (
               <div className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 text-[#3b76ef] animate-spin" />
+                <Loader2 className="w-5 h-5 text-[#FF5500] animate-spin" />
                 <div className="flex gap-1">
                   <motion.div
-                    className="w-2 h-2 bg-[#3b76ef] rounded-full"
+                    className="w-2 h-2 bg-[#FF5500] rounded-full"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 1, repeat: Infinity, delay: 0 }}
                   />
                   <motion.div
-                    className="w-2 h-2 bg-[#3b76ef] rounded-full"
+                    className="w-2 h-2 bg-[#FF5500] rounded-full"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
                   />
                   <motion.div
-                    className="w-2 h-2 bg-[#3b76ef] rounded-full"
+                    className="w-2 h-2 bg-[#FF5500] rounded-full"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
                   />
@@ -174,7 +174,7 @@ export default function AuthCallbackPage() {
     <Suspense fallback={
       <div className="min-h-screen bg-[#0A0B0D] flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-8">
-          <Loader2 className="w-16 h-16 text-[#3b76ef] animate-spin mx-auto" />
+          <Loader2 className="w-16 h-16 text-[#FF5500] animate-spin mx-auto" />
           <p className="text-gray-400 mt-4">Loading...</p>
         </Card>
       </div>

@@ -133,15 +133,15 @@ export default function NotificationsPage() {
       case "error":
         return <XCircle className="w-5 h-5 text-red-500" weight="fill" />;
       case "info":
-        return <Info className="w-5 h-5 text-blue-500" weight="fill" />;
+        return <Info className="w-5 h-5 text-[#FF5500]" weight="fill" />;
       case "warning":
         return <Warning className="w-5 h-5 text-yellow-500" weight="fill" />;
       case "job":
-        return <Briefcase className="w-5 h-5 text-[#3b76ef]" weight="regular" />;
+        return <Briefcase className="w-5 h-5 text-[#FF5500]" weight="regular" />;
       case "message":
-        return <ChatCircle className="w-5 h-5 text-[#3b76ef]" weight="regular" />;
+        return <ChatCircle className="w-5 h-5 text-[#FF5500]" weight="regular" />;
       case "match":
-        return <Star className="w-5 h-5 text-[#3b76ef]" weight="fill" />;
+        return <Star className="w-5 h-5 text-[#FF5500]" weight="fill" />;
       default:
         return <Bell className="w-5 h-5 text-gray-400" weight="regular" />;
     }
@@ -223,7 +223,7 @@ export default function NotificationsPage() {
                 onClick={() => setFilter(type)}
                 className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
                   filter === type
-                    ? "bg-[#3b76ef] text-white"
+                    ? "bg-[#FF5500] text-white"
                     : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
                 }`}
               >
@@ -238,7 +238,7 @@ export default function NotificationsPage() {
               <Card
                 key={notif.id}
                 className={`p-4 hover:bg-[rgba(255,255,255,0.04)] transition-colors ${
-                  !notif.read ? "bg-[rgba(59,118,239,0.05)] border-[rgba(59,118,239,0.2)]" : ""
+                  !notif.read ? "bg-[rgba(255,85,0,0.05)] border-[rgba(255,85,0,0.2)]" : ""
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -256,7 +256,7 @@ export default function NotificationsPage() {
                         </p>
                       </div>
                       {!notif.read && (
-                        <div className="w-2 h-2 rounded-full bg-[#3b76ef] flex-shrink-0 mt-1"></div>
+                        <div className="w-2 h-2 rounded-full bg-[#FF5500] flex-shrink-0 mt-1"></div>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
@@ -272,7 +272,7 @@ export default function NotificationsPage() {
                         {notif.actionUrl && (
                           <button
                             onClick={() => router.push(notif.actionUrl!)}
-                            className="text-xs text-[#3b76ef] hover:text-[#4d85f0] transition-colors"
+                            className="text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors"
                           >
                             View
                           </button>

@@ -42,7 +42,7 @@ function AuthContent() {
       {/* ── Left panel ── */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center p-16">
         {/* Orbs */}
-        <div className="absolute top-[-15%] left-[-15%] w-[70%] h-[70%] rounded-full bg-[#3b76ef]/20 blur-[140px] animate-pulse" />
+        <div className="absolute top-[-15%] left-[-15%] w-[70%] h-[70%] rounded-full bg-[#FF5500]/20 blur-[140px] animate-pulse" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-[#B19EEF]/15 blur-[120px] animate-pulse" style={{ animationDelay: "2s" }} />
         {/* Grid */}
         <div
@@ -57,19 +57,19 @@ function AuthContent() {
         {/* Logo — top left */}
         <div className="absolute top-10 left-10 z-10">
           <span className="text-xl font-bold tracking-tight text-white">
-            Po<span className="text-[#3b76ef]">WR</span>
+            Po<span className="text-[#FF5500]">WR</span>
           </span>
         </div>
 
         {/* Centered copy */}
         <div className="relative z-10 max-w-sm">
-          <p className="text-xs font-mono uppercase tracking-[0.2em] text-[#3b76ef] mb-6">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-[#FF5500] mb-6">
             Proof of Work Reputation
           </p>
           <h2 className="text-6xl font-black text-white leading-[1.05] tracking-tight mb-8">
             Your code<br />
             has a story.<br />
-            <span className="text-[#3b76ef]">Prove it.</span>
+            <span className="text-[#FF5500]">Prove it.</span>
           </h2>
           <p className="text-gray-400 text-lg leading-relaxed">
             Connect GitHub. Get a verifiable,<br />
@@ -100,7 +100,7 @@ function AuthContent() {
           {/* Mobile logo */}
           <div className="lg:hidden mb-10 text-center">
             <span className="text-3xl font-bold text-white">
-              Po<span className="text-[#3b76ef]">WR</span>
+              Po<span className="text-[#FF5500]">WR</span>
             </span>
           </div>
 
@@ -136,7 +136,7 @@ function AuthContent() {
           <div className="mt-12 pt-6 border-t border-white/6 text-center">
             <p className="text-sm text-gray-600">
               Hiring?{" "}
-              <a href="/recruiter/auth" className="text-[#3b76ef] hover:text-white transition-colors font-medium">
+              <a href="/recruiter/auth" className="text-[#FF5500] hover:text-white transition-colors font-medium">
                 Recruiter portal →
               </a>
             </p>

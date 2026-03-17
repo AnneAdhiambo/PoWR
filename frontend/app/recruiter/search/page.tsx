@@ -227,14 +227,14 @@ export default function RecruiterSearchPage() {
               <textarea value={contactMsg} onChange={e => setContactMsg(e.target.value)}
                 placeholder="Introduce yourself and your opportunity..."
                 rows={4}
-                className="w-full px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(59,118,239,0.5)] resize-none" />
+                className="w-full px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(255,85,0,0.5)] resize-none" />
               <div className="flex gap-3">
                 <button type="button" onClick={() => setContactUsername(null)}
                   className="flex-1 py-2.5 rounded-lg bg-[rgba(255,255,255,0.05)] text-gray-300 text-sm font-medium hover:bg-[rgba(255,255,255,0.08)] transition-colors">
                   Cancel
                 </button>
                 <button type="submit" disabled={sending || !contactMsg.trim()}
-                  className="flex-1 py-2.5 rounded-lg bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-medium transition-colors disabled:opacity-50">
+                  className="flex-1 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors disabled:opacity-50">
                   {sending ? "Sending..." : "Send Request"}
                 </button>
               </div>

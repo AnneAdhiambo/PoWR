@@ -183,7 +183,7 @@ function CandidateCard({
           {next && (
             <button
               onClick={onMove}
-              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-[#3b76ef] bg-[rgba(59,118,239,0.1)] hover:bg-[rgba(59,118,239,0.2)] transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-[#FF5500] bg-[rgba(255,85,0,0.1)] hover:bg-[rgba(255,85,0,0.2)] transition-colors"
               title={`Move to ${stageConfig(next).label}`}
             >
               <ArrowRight className="w-3 h-3" weight="bold" />
@@ -376,12 +376,12 @@ function CandidateDrawer({
                 onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
                 placeholder="Add a note… (⌘Enter to save)"
                 rows={3}
-                className="w-full px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(59,118,239,0.4)] resize-none transition-colors"
+                className="w-full px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(255,85,0,0.4)] resize-none transition-colors"
               />
               <button
                 onClick={submit}
                 disabled={!noteText.trim()}
-                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[rgba(59,118,239,0.15)] text-[#3b76ef] hover:bg-[rgba(59,118,239,0.25)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-[#3b76ef]/25"
+                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[rgba(255,85,0,0.15)] text-[#FF5500] hover:bg-[rgba(255,85,0,0.25)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-[#FF5500]/25"
               >
                 <Plus className="w-3.5 h-3.5" weight="bold" />
                 Save Note
@@ -394,7 +394,7 @@ function CandidateDrawer({
         <div className="p-4 border-t border-[rgba(255,255,255,0.06)] flex gap-2">
           <a
             href={`/recruiter/developer/${candidate.username}`}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-white bg-[#3b76ef] hover:bg-[#3265cc] transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-white bg-[#FF5500] hover:bg-[#e04d00] transition-colors"
           >
             View Full Profile
           </a>

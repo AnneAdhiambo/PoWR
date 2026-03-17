@@ -98,7 +98,7 @@ export default function PublicProfilePage() {
 
   const getSkillColor = (index: number) => {
     const colors = [
-      { bar: "bg-blue-500", text: "text-blue-400" },
+      { bar: "bg-[#FF5500]", text: "text-[#FF6B2B]" },
       { bar: "bg-emerald-500", text: "text-emerald-400" },
       { bar: "bg-violet-500", text: "text-violet-400" },
       { bar: "bg-amber-500", text: "text-amber-400" },
@@ -141,7 +141,7 @@ export default function PublicProfilePage() {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-12 h-12 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400 text-sm">Loading profile...</p>
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function PublicProfilePage() {
           {isLoggedIn && (
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-sm hover:bg-blue-500/30 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FF5500]/20 text-[#FF6B2B] text-sm hover:bg-[#FF5500]/30 transition-colors"
             >
               <House className="w-4 h-4" weight="regular" />
               Go to Dashboard
@@ -259,11 +259,11 @@ export default function PublicProfilePage() {
 
         {/* Profile Summary */}
         {profile.summary && (
-          <Card className="p-6 rounded-[16px] mb-6 relative overflow-hidden border border-blue-500/20 bg-blue-500/5">
+          <Card className="p-6 rounded-[16px] mb-6 relative overflow-hidden border border-[#FF5500]/20 bg-[#FF5500]/5">
             <div className="absolute top-4 right-4 opacity-20">
-              <Quotes className="w-12 h-12 text-blue-400" weight="fill" />
+              <Quotes className="w-12 h-12 text-[#FF6B2B]" weight="fill" />
             </div>
-            <h3 className="text-sm font-medium text-blue-400 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-[#FF6B2B] mb-3 flex items-center gap-2">
               <Sparkle className="w-4 h-4" weight="fill" />
               AI Profile Summary
             </h3>
@@ -295,8 +295,8 @@ export default function PublicProfilePage() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
-              <ChartLine className="w-4 h-4 text-blue-400" weight="fill" />
-              <h2 className="text-sm font-medium text-blue-400">Skill Percentiles</h2>
+              <ChartLine className="w-4 h-4 text-[#FF6B2B]" weight="fill" />
+              <h2 className="text-sm font-medium text-[#FF6B2B]">Skill Percentiles</h2>
             </div>
           </div>
           <p className="text-[10px] text-gray-500 mb-4">Ranked against other developers based on verified work artifacts</p>
@@ -416,7 +416,7 @@ export default function PublicProfilePage() {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-500">
-            Powered by <span className="text-blue-400">PoWR</span> - Proof of Work Reputation
+            Powered by <span className="text-[#FF6B2B]">PoWR</span> - Proof of Work Reputation
           </p>
         </div>
       </div>

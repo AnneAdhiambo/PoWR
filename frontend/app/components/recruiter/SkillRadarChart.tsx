@@ -37,8 +37,8 @@ export const SkillRadarChart: React.FC<SkillRadarChartProps> = ({ skills }) => {
         <Radar
           name="Skills"
           dataKey="value"
-          stroke="#3b76ef"
-          fill="#3b76ef"
+          stroke="#FF5500"
+          fill="#FF5500"
           fillOpacity={0.35}
           strokeWidth={1.5}
           dot={{ fill: "#5b96ff", r: 3, strokeWidth: 1, stroke: "rgba(91,150,255,0.5)" }}

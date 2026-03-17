@@ -45,7 +45,7 @@ export default function Home() {
         {/* Animated background — hero only */}
         <div className="absolute inset-0 z-0">
           <LiquidEther
-            colors={["#3b76ef", "#FF9FFC", "#B19EEF"]}
+            colors={["#FF5500", "#FF8C42", "#FFB347"]}
             mouseForce={20}
             cursorSize={100}
             isViscous={false}
@@ -75,7 +75,7 @@ export default function Home() {
           >
             Your Code Speaks.
             <br />
-            <span className="bg-gradient-to-r from-[#3b76ef] via-[#FF9FFC] to-[#B19EEF] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#FF5500] via-[#FF8C42] to-white bg-clip-text text-transparent">
               Now It&apos;s On-Chain.
             </span>
           </motion.h1>
@@ -100,7 +100,7 @@ export default function Home() {
           >
             <Link
               href="/auth"
-              className="px-8 py-4 rounded-xl bg-[#3b76ef] hover:bg-[#2d62d4] text-white font-semibold text-lg transition-all duration-200 shadow-lg shadow-[#3b76ef]/30 hover:shadow-[#3b76ef]/50"
+              className="px-8 py-4 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] text-white font-semibold text-lg transition-all duration-200 shadow-lg shadow-[#FF5500]/30 hover:shadow-[#FF5500]/50"
             >
               Verify My Skills
             </Link>
@@ -165,9 +165,9 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="relative p-8 rounded-2xl border border-white/8 bg-white/3 hover:border-[#3b76ef]/40 transition-colors"
+                className="relative p-8 rounded-2xl border border-white/8 bg-white/3 hover:border-[#FF5500]/40 transition-colors"
               >
-                <div className="text-[#3b76ef] mb-4">{item.icon}</div>
+                <div className="text-[#FF5500] mb-4">{item.icon}</div>
                 <div className="text-xs font-mono text-gray-600 mb-2">{item.step}</div>
                 <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
                 <p className="text-gray-400 text-sm leading-relaxed">{item.desc}</p>
@@ -187,7 +187,7 @@ export default function Home() {
             { value: "Free", label: "to Start" },
           ].map((stat) => (
             <div key={stat.label}>
-              <div className="text-2xl font-bold text-[#3b76ef] mb-1">{stat.value}</div>
+              <div className="text-2xl font-bold text-[#FF5500] mb-1">{stat.value}</div>
               <div className="text-sm text-gray-500">{stat.label}</div>
             </div>
           ))}
@@ -204,7 +204,7 @@ export default function Home() {
             transition={{ duration: 0.5 }}
             className="mb-12"
           >
-            <div className="text-xs font-mono text-[#3b76ef] uppercase tracking-widest mb-3">
+            <div className="text-xs font-mono text-[#FF5500] uppercase tracking-widest mb-3">
               For Developers
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
@@ -244,9 +244,9 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.45, delay: i * 0.08 }}
-                className="flex gap-4 p-6 rounded-xl border border-white/8 bg-white/3 hover:border-[#3b76ef]/30 transition-colors"
+                className="flex gap-4 p-6 rounded-xl border border-white/8 bg-white/3 hover:border-[#FF5500]/30 transition-colors"
               >
-                <div className="text-[#3b76ef] mt-0.5 shrink-0">{item.icon}</div>
+                <div className="text-[#FF5500] mt-0.5 shrink-0">{item.icon}</div>
                 <div>
                   <h3 className="font-semibold mb-1">{item.title}</h3>
                   <p className="text-gray-400 text-sm leading-relaxed">{item.desc}</p>
@@ -264,7 +264,7 @@ export default function Home() {
           >
             <Link
               href="/auth"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#3b76ef] hover:bg-[#2d62d4] text-white font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white font-medium transition-colors"
             >
               Get Your Score — Free <ArrowRight size={16} />
             </Link>
@@ -361,7 +361,7 @@ export default function Home() {
             className="text-3xl sm:text-5xl font-bold mb-6"
           >
             Stop Guessing.{" "}
-            <span className="bg-gradient-to-r from-[#3b76ef] to-[#B19EEF] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#FF5500] to-[#B19EEF] bg-clip-text text-transparent">
               Start Verifying.
             </span>
           </motion.h2>
@@ -383,7 +383,7 @@ export default function Home() {
           >
             <Link
               href="/auth"
-              className="px-8 py-4 rounded-xl bg-[#3b76ef] hover:bg-[#2d62d4] text-white font-semibold text-lg transition-all duration-200 shadow-lg shadow-[#3b76ef]/30"
+              className="px-8 py-4 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] text-white font-semibold text-lg transition-all duration-200 shadow-lg shadow-[#FF5500]/30"
             >
               Get Your Score — Free
             </Link>
@@ -402,7 +402,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
             <div className="text-lg font-bold mb-1">
-              Po<span className="text-[#3b76ef]">WR</span>
+              Po<span className="text-[#FF5500]">WR</span>
             </div>
             <div className="text-xs text-gray-600">Powered by Stacks · Bitcoin-secured</div>
           </div>

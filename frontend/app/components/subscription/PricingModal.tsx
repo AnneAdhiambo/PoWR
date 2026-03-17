@@ -150,7 +150,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                   key={idx}
                   className="p-5 rounded-[16px] bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.03)] transition-colors"
                 >
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3b76ef] to-[#4d85f0] flex items-center justify-center mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FF5500] to-[#4d85f0] flex items-center justify-center mb-4">
                     <Icon className="w-6 h-6 text-white" weight="fill" />
                   </div>
                   <h3 className="text-sm font-semibold text-white mb-2">{benefit.title}</h3>
@@ -164,7 +164,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
 
           {/* Current Plan Indicator */}
           {currentPlan && (
-            <div className="p-4 rounded-[14px] bg-[rgba(59,118,239,0.1)] border border-[rgba(59,118,239,0.2)]">
+            <div className="p-4 rounded-[14px] bg-[rgba(255,85,0,0.1)] border border-[rgba(255,85,0,0.2)]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Current Plan</p>
@@ -173,7 +173,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                   </p>
                 </div>
                 {currentPlan !== "pro" && (
-                  <div className="flex items-center gap-2 text-xs text-[#3b76ef]">
+                  <div className="flex items-center gap-2 text-xs text-[#FF5500]">
                     <span>Upgrade to unlock more</span>
                     <ArrowRight className="w-4 h-4" weight="regular" />
                   </div>
@@ -185,7 +185,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
           {/* Plans Grid */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
