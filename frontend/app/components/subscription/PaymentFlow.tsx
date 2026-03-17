@@ -171,9 +171,11 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     const decimals = token === "sbtc" ? 8 : 6;
     const baseUnits = Math.round(amount * Math.pow(10, decimals)).toString();
     const contract = token === "sbtc" ? SBTC_CONTRACT : USDCX_CONTRACT;
+    const assetName = token === "sbtc" ? "sbtc" : "usdcx";
     try {
       const txId = await transferSip10Token(
         contract,
+        assetName,
         paymentIntent.address,
         baseUnits
       );

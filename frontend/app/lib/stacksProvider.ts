@@ -54,9 +54,12 @@ export async function connectWallet(): Promise<string | null> {
   return stx?.address ?? null;
 }
 
-/** Sends a SIP-010 fungible token transfer and returns the txid. */
+/** Sends a SIP-010 fungible token transfer and returns the txid.
+ *  Tries the wallet's dedicated stx_transferSip010Ft method first (Leather / Xverse),
+ *  then falls back to stx_callContract with Clarity-encoded args. */
 export async function transferSip10Token(
   contractId: string,
+  assetName: string,
   recipient: string,
   amountBaseUnits: string
 ): Promise<string> {
@@ -72,7 +75,24 @@ export async function transferSip10Token(
     throw new Error(`Invalid payment address: ${recipient}. Expected a Stacks address starting with "S".`);
   }
 
-  // Dynamically import @stacks/transactions to encode Clarity values for stx_callContract
+  const network = process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet";
+
+  // Try wallet's high-level SIP-010 transfer method (Leather ≥ 6, Xverse)
+  try {
+    const res = await provider.request("stx_transferSip010Ft", {
+      asset: `${contractId}::${assetName}`,
+      amount: amountBaseUnits,
+      recipient,
+      network,
+    });
+    const txid = res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
+    if (txid) return txid;
+  } catch (e: any) {
+    // Method not supported — fall through to stx_callContract
+    if (!e?.message?.toLowerCase().includes("method") && !e?.code) throw e;
+  }
+
+  // Fallback: encode Clarity args manually and use stx_callContract
   const { standardPrincipalCV, uintCV, noneCV, serializeCV } = await import(
     "@stacks/transactions"
   );
@@ -92,10 +112,10 @@ export async function transferSip10Token(
     contractName,
     functionName: "transfer",
     functionArgs,
+    network,
   });
 
-  const txid =
-    res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
+  const txid = res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
   if (!txid) throw new Error("Wallet did not return a transaction ID.");
   return txid;
 }
