@@ -1,44 +1,51 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import {
+  getProvider,
+  getConnectedAddress,
+  connectWallet,
+} from "./stacksProvider";
 
-// All @stacks/connect imports are deferred to function bodies so the module
-// is never evaluated at chunk load time (avoids Turbopack "factory not available").
+const LS_KEY = "stacks_wallet_address";
 
 export function useStacksWallet() {
   const [address, setAddress] = useState<string | null>(null);
 
-  const loadAddress = useCallback(async () => {
-    if (typeof window === "undefined") return;
-    const { isConnected, getLocalStorage } = await import("@stacks/connect");
-    if (isConnected()) {
-      const data = getLocalStorage();
-      const stxAddress = data?.addresses?.stx?.[0]?.address ?? null;
-      setAddress(stxAddress);
+  // Restore persisted address on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(LS_KEY);
+    if (stored) {
+      setAddress(stored);
     } else {
-      setAddress(null);
+      // Check if provider already has an active session
+      getConnectedAddress().then((addr) => {
+        if (addr) {
+          setAddress(addr);
+          localStorage.setItem(LS_KEY, addr);
+        }
+      });
     }
   }, []);
-
-  useEffect(() => {
-    loadAddress();
-  }, [loadAddress]);
 
   const connect = useCallback(async () => {
-    try {
-      const { connect: stacksConnect } = await import("@stacks/connect");
-      await stacksConnect();
-      await loadAddress();
-    } catch {
-      // user cancelled
+    const addr = await connectWallet();
+    if (addr) {
+      setAddress(addr);
+      localStorage.setItem(LS_KEY, addr);
     }
-  }, [loadAddress]);
-
-  const disconnect = useCallback(async () => {
-    const { disconnect: stacksDisconnect } = await import("@stacks/connect");
-    stacksDisconnect();
-    setAddress(null);
   }, []);
 
-  return { address, isConnected: !!address, connect, disconnect };
+  const disconnect = useCallback(() => {
+    setAddress(null);
+    localStorage.removeItem(LS_KEY);
+  }, []);
+
+  return {
+    address,
+    isConnected: !!address,
+    hasProvider: typeof window !== "undefined" && !!getProvider(),
+    connect,
+    disconnect,
+  };
 }
