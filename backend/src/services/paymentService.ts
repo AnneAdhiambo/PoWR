@@ -136,10 +136,11 @@ export class PaymentService {
       }
 
       // function_args: [amount, sender, recipient, memo]
+      // Clarity repr for a principal is "'SP1234..." — strip the leading apostrophe before comparing
       const args: any[] = cc?.function_args ?? [];
-      const recipientRepr: string = args[2]?.repr ?? "";
+      const recipientRepr: string = (args[2]?.repr ?? "").replace(/^'/, "");
       if (recipientRepr !== expectedRecipient) {
-        console.error(`Recipient mismatch: expected ${expectedRecipient}, got ${recipientRepr}`);
+        console.error(`Recipient mismatch: expected ${expectedRecipient}, got ${args[2]?.repr}`);
         return { verified: false, status: "failed" };
       }
 
