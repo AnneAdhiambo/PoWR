@@ -8,39 +8,42 @@ import toast from "react-hot-toast";
 
 const PLANS = [
   {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    period: "/month",
-    features: [
-      "10 profile views / month",
-      "No outreach",
-      "No saved searches",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
+    id: "starter",
+    name: "Starter",
     price: "$49",
     period: "/month",
     features: [
-      "Unlimited profile views",
-      "50 outreach / month",
+      "50 profile views / month",
+      "10 outreach messages / month",
       "Saved talent pools",
+      "Blockchain-verified profiles",
+    ],
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    price: "$99",
+    period: "/month",
+    features: [
+      "Unlimited profile views",
+      "100 outreach messages / month",
+      "Advanced skill filtering",
       "Export profiles (PDF)",
+      "Priority support",
     ],
     highlight: true,
   },
   {
     id: "enterprise",
     name: "Enterprise",
-    price: "Custom",
-    period: "",
+    price: "$299",
+    period: "/month",
     features: [
-      "Team accounts",
+      "Everything in Growth",
+      "Team accounts (up to 10 seats)",
       "ATS export (JSON / webhook)",
       "API access",
-      "Dedicated support",
+      "Dedicated account manager",
     ],
   },
 ];
@@ -147,29 +150,19 @@ export default function RecruiterAccountPage() {
                       </li>
                     ))}
                   </ul>
-                  {plan.id === "free" ? (
-                    <div className="h-9" />
-                  ) : plan.id === "enterprise" ? (
-                    <a
-                      href="mailto:hello@powr.dev"
-                      className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-[#3b76ef] border border-[#3b76ef]/30 hover:bg-[rgba(59,118,239,0.08)] transition-colors"
-                    >
-                      Contact us
-                      <ArrowSquareOut className="w-3.5 h-3.5" weight="bold" />
-                    </a>
-                  ) : (
-                    <button
-                      disabled={isCurrent}
-                      onClick={() => toast("Stripe checkout coming soon")}
-                      className={`py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isCurrent
-                          ? "bg-[rgba(255,255,255,0.05)] text-gray-500 cursor-not-allowed"
-                          : "bg-[#3b76ef] hover:bg-[#3265cc] text-white"
-                      }`}
-                    >
-                      {isCurrent ? "Current Plan" : "Upgrade to Pro"}
-                    </button>
-                  )}
+                  <button
+                    disabled={isCurrent}
+                    onClick={() => toast("Stripe checkout coming soon")}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isCurrent
+                        ? "bg-[rgba(255,255,255,0.05)] text-gray-500 cursor-not-allowed"
+                        : plan.highlight
+                        ? "bg-[#3b76ef] hover:bg-[#3265cc] text-white"
+                        : "border border-[#3b76ef]/30 text-[#3b76ef] hover:bg-[rgba(59,118,239,0.08)]"
+                    }`}
+                  >
+                    {isCurrent ? "Current Plan" : `Get ${plan.name}`}
+                  </button>
                 </div>
               );
             })}
