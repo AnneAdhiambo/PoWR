@@ -4,6 +4,7 @@ import React from "react";
 import { Card, Button } from "../ui";
 import { Link, CheckCircle, Clock, WarningCircle } from "phosphor-react";
 import { Proof } from "./OnChainProofs";
+import { getExplorerTxUrl, getExplorerContractUrl } from "../../lib/web3";
 
 interface UnpublishedAnalysis {
   lastAnalyzed: string;
@@ -55,13 +56,8 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ proofs, unpublis
     }
   };
 
-  const getExplorerUrl = (txHash: string) => {
-    return `https://sepolia.basescan.org/tx/${txHash}`;
-  };
-
-  const getContractUrl = () => {
-    return `https://sepolia.basescan.org/address/0x8fb4fF2123E9a11fC027c494551794fc75e76980`;
-  };
+  const getExplorerUrl = (txHash: string) => getExplorerTxUrl(txHash);
+  const getContractUrl = () => getExplorerContractUrl();
 
   // Show 1 proof if there's an unpublished analysis, otherwise show 2
   const recentProofs = unpublishedAnalysis ? proofs.slice(0, 1) : proofs.slice(0, 2);
@@ -81,7 +77,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ proofs, unpublis
           rel="noopener noreferrer"
           className="text-[10px] text-gray-400 hover:text-gray-300 transition-colors"
           style={{ opacity: 0.6 }}
-          title="View contract on BaseScan"
+          title="View contract on Hiro Explorer"
         >
           Contract
         </a>

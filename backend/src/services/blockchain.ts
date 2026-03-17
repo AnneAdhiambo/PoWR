@@ -244,6 +244,20 @@ export class BlockchainService {
   }
 
   /**
+   * Normalize a Stacks private key to a format accepted by @stacks/transactions.
+   * Accepts 32-byte (64 hex chars) or 33-byte compressed (66 hex chars ending in 01).
+   * If 66 chars but last byte != 01, strips the last byte.
+   */
+  private normalizePrivateKey(key: string): string {
+    // Strip whitespace, 0x prefix, and any non-hex characters (e.g. embedded newlines)
+    const clean = key.trim().replace(/^0x/i, "").toLowerCase().replace(/[^0-9a-f]/g, "");
+    // Valid 33-byte compressed format (66 hex chars ending in 01) — pass through
+    if (clean.length === 66 && clean.endsWith("01")) return clean;
+    // Everything else: take the first 32 bytes (64 hex chars)
+    return clean.slice(0, 64);
+  }
+
+  /**
    * Anchor a PoW snapshot to the Stacks powr-registry contract.
    * Uses the oracle key to call anchor-snapshot on behalf of the user.
    *
@@ -258,10 +272,11 @@ export class BlockchainService {
     username: string,
     userPrincipal?: string
   ): Promise<{ txId: string; artifactHash: string; skillScores: number[] }> {
-    const oraclePrivateKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
-    if (!oraclePrivateKey) {
+    const rawKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
+    if (!rawKey) {
       throw new Error("STACKS_ORACLE_PRIVATE_KEY not configured");
     }
+    const oraclePrivateKey = this.normalizePrivateKey(rawKey);
 
     const contractAddress =
       process.env.POWR_REGISTRY_CONTRACT_ADDRESS ||
@@ -322,10 +337,11 @@ export class BlockchainService {
     skillType: number,
     tier: number
   ): Promise<{ txId: string; tokenId: number | null }> {
-    const oraclePrivateKey = process.env.ORACLE_PRIVATE_KEY;
-    if (!oraclePrivateKey) {
+    const rawMintKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
+    if (!rawMintKey) {
       throw new Error("ORACLE_PRIVATE_KEY not configured");
     }
+    const oraclePrivateKey = this.normalizePrivateKey(rawMintKey);
 
     const contractAddress =
       process.env.POWR_BADGES_CONTRACT_ADDRESS ||
