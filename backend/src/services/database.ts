@@ -13,6 +13,13 @@ export interface Badge {
   mintedAt: Date;
 }
 
+export interface GithubBadge {
+  id: number;
+  username: string;
+  badgeKey: string;
+  earnedAt: Date;
+}
+
 // Initialize PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -60,16 +67,32 @@ async function initializeTables() {
         updated_at TIMESTAMP DEFAULT NOW()
       );
 
-      -- Migrations: add columns / relax constraints from older schema versions
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id INTEGER;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_updated TIMESTAMP DEFAULT NOW();
-      ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
-      ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_artifact_hash TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS stacks_principal TEXT;
-      ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS company_size TEXT;
-      ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
-      ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free';
+      -- Migrations: safe for both fresh and existing databases
+      DO $$ BEGIN
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id INTEGER;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_updated TIMESTAMP DEFAULT NOW();
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS stacks_principal TEXT;
+        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_artifact_hash TEXT;
+        -- Drop NOT NULL on legacy password column only if it exists
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'password'
+        ) THEN
+          ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+        END IF;
+        -- Alter recruiters only if the table already exists (skip on fresh install)
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables WHERE table_name = 'recruiters'
+        ) THEN
+          ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS company_size TEXT;
+          ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
+          BEGIN
+            ALTER TABLE recruiters ADD COLUMN plan TEXT NOT NULL DEFAULT 'free';
+          EXCEPTION WHEN duplicate_column THEN NULL;
+          END;
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS blockchain_proofs (
         id SERIAL PRIMARY KEY,
@@ -181,6 +204,16 @@ async function initializeTables() {
       CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
       CREATE INDEX IF NOT EXISTS idx_update_schedule_date ON update_schedule(scheduled_date);
       CREATE INDEX IF NOT EXISTS idx_badges_username ON badges(username);
+
+      CREATE TABLE IF NOT EXISTS github_badges (
+        id SERIAL PRIMARY KEY,
+        username TEXT REFERENCES users(username),
+        badge_key TEXT NOT NULL,
+        earned_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(username, badge_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_github_badges_username ON github_badges(username);
     `);
     console.log("PostgreSQL tables initialized successfully");
   } catch (error) {
@@ -618,6 +651,28 @@ export class DatabaseService {
       transactionHash: row.transaction_hash,
       stacksPrincipal: row.stacks_principal,
       mintedAt: row.minted_at,
+    }));
+  }
+
+  async saveGithubBadge(username: string, badgeKey: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO github_badges (username, badge_key)
+       VALUES ($1, $2)
+       ON CONFLICT (username, badge_key) DO NOTHING`,
+      [username, badgeKey]
+    );
+  }
+
+  async getGithubBadges(username: string): Promise<GithubBadge[]> {
+    const result = await pool.query(
+      "SELECT * FROM github_badges WHERE username = $1 ORDER BY earned_at DESC",
+      [username]
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      badgeKey: row.badge_key,
+      earnedAt: row.earned_at,
     }));
   }
 

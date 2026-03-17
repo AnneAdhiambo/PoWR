@@ -1,6 +1,4 @@
 import { dbService } from "./database";
-import { currencyService } from "./currencyService";
-import { ethers } from "ethers";
 
 export type PlanType = "free" | "basic" | "pro";
 
@@ -8,8 +6,8 @@ export interface SubscriptionPlan {
   type: PlanType;
   name: string;
   price: number;
+  priceInStx: string;
   priceInCrypto: {
-    eth: string;
     usdc: string;
   };
   updateFrequency: string;
@@ -22,7 +20,8 @@ export class SubscriptionService {
       type: "free",
       name: "Free",
       price: 0,
-      priceInCrypto: { eth: "0", usdc: "0" },
+      priceInStx: "0",
+      priceInCrypto: { usdc: "0" },
       updateFrequency: "Every two weeks",
       features: [
         "Basic PoW profile",
@@ -34,7 +33,8 @@ export class SubscriptionService {
       type: "basic",
       name: "Basic",
       price: 6,
-      priceInCrypto: { eth: "0.002", usdc: "6" },
+      priceInStx: "20",
+      priceInCrypto: { usdc: "6" },
       updateFrequency: "Weekly (every Monday)",
       features: [
         "All free features",
@@ -46,7 +46,8 @@ export class SubscriptionService {
       type: "pro",
       name: "Pro",
       price: 15,
-      priceInCrypto: { eth: "0.005", usdc: "15" },
+      priceInStx: "50",
+      priceInCrypto: { usdc: "15" },
       updateFrequency: "Real-time (GitHub webhooks)",
       features: [
         "All basic features",
@@ -57,18 +58,10 @@ export class SubscriptionService {
     },
   };
 
-  async getAvailablePlans(): Promise<SubscriptionPlan[]> {
-    const plans = Object.values(SubscriptionService.PLANS);
-
-    return await Promise.all(plans.map(async (plan) => {
-      // Clone to avoid mutating static
-      const p = { ...plan, priceInCrypto: { ...plan.priceInCrypto } };
-
-      if (p.price > 0) {
-        // Calculate dynamic ETH price
-        p.priceInCrypto.eth = await currencyService.convertUsdToEth(p.price);
-      }
-      return p;
+  getAvailablePlans(): SubscriptionPlan[] {
+    return Object.values(SubscriptionService.PLANS).map((plan) => ({
+      ...plan,
+      priceInCrypto: { ...plan.priceInCrypto },
     }));
   }
 
@@ -143,40 +136,6 @@ export class SubscriptionService {
 
       default:
         return null;
-    }
-  }
-
-  async verifyPayment(
-    txHash: string,
-    expectedAmount: string,
-    currency: "eth" | "usdc"
-  ): Promise<boolean> {
-    try {
-      const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org";
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-      const tx = await provider.getTransaction(txHash);
-
-      if (!tx || !tx.blockNumber) {
-        return false;
-      }
-
-      const receipt = await provider.getTransactionReceipt(txHash);
-      if (!receipt || receipt.status !== 1) {
-        return false;
-      }
-
-      const paymentAddress = process.env.PAYMENT_WALLET_ADDRESS?.toLowerCase();
-      if (paymentAddress && tx.to?.toLowerCase() !== paymentAddress) {
-        return false;
-      }
-
-      await dbService.updatePaymentTransactionStatus(txHash, "confirmed", receipt.blockNumber);
-
-      return true;
-    } catch (error) {
-      console.error("Payment verification error:", error);
-      return false;
     }
   }
 

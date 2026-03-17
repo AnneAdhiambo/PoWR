@@ -1,6 +1,14 @@
 import { ethers } from "ethers";
 import { Artifact } from "./artifactIngestion";
 import { PoWProfile } from "./scoringEngine";
+import {
+  makeContractCall,
+  broadcastTransaction,
+  principalCV,
+  uintCV,
+  PostConditionMode,
+} from "@stacks/transactions";
+import { STACKS_TESTNET, STACKS_MAINNET } from "@stacks/network";
 
 // PoWRegistry Contract ABI (simplified)
 const POW_REGISTRY_ABI = [
@@ -218,11 +226,71 @@ export class BlockchainService {
   }
 
   /**
-   * Check if blockchain service is configured
+   * Check if EVM blockchain service is configured
    */
   isConfigured(): boolean {
     this.ensureInitialized();
     return !!this.signer && !!this.contract;
+  }
+
+  /**
+   * Check if Stacks oracle key is configured for badge minting
+   */
+  isStacksConfigured(): boolean {
+    return !!process.env.ORACLE_PRIVATE_KEY;
+  }
+
+  /**
+   * Mint a soulbound skill badge on Stacks via the powr-badges contract.
+   * Idempotent: contract returns existing tokenId if badge already exists.
+   * @param recipient  Developer's Stacks principal
+   * @param skillType  0=Backend 1=Frontend 2=DevOps 3=Architecture (contract validates < 4)
+   * @param tier       1=Bronze 2=Silver 3=Gold
+   * @returns txId and null tokenId (tokenId resolved asynchronously from chain)
+   */
+  async mintBadge(
+    recipient: string,
+    skillType: number,
+    tier: number
+  ): Promise<{ txId: string; tokenId: number | null }> {
+    const oraclePrivateKey = process.env.ORACLE_PRIVATE_KEY;
+    if (!oraclePrivateKey) {
+      throw new Error("ORACLE_PRIVATE_KEY not configured");
+    }
+
+    const contractAddress =
+      process.env.POWR_BADGES_CONTRACT_ADDRESS ||
+      "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
+    const network =
+      process.env.STACKS_NETWORK === "mainnet" ? STACKS_MAINNET : STACKS_TESTNET;
+
+    const txOptions = {
+      contractAddress,
+      contractName: "powr-badges",
+      functionName: "mint-badge",
+      functionArgs: [
+        principalCV(recipient),
+        uintCV(BigInt(skillType)),
+        uintCV(BigInt(tier)),
+      ],
+      senderKey: oraclePrivateKey,
+      network,
+      postConditionMode: PostConditionMode.Allow,
+    };
+
+    const transaction = await makeContractCall(txOptions);
+    const broadcastResponse = await broadcastTransaction({ transaction, network });
+
+    if ("error" in broadcastResponse) {
+      throw new Error(
+        `Stacks broadcast failed: ${broadcastResponse.error}${broadcastResponse.reason ? ` — ${broadcastResponse.reason}` : ""}`
+      );
+    }
+
+    console.log(
+      `[Blockchain] Badge minted for ${recipient} skill=${skillType} tier=${tier} txId=${broadcastResponse.txid}`
+    );
+    return { txId: broadcastResponse.txid, tokenId: null };
   }
 }
 

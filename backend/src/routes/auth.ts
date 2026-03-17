@@ -46,9 +46,19 @@ router.get("/github/callback", async (req, res) => {
       }
     );
     
+    // GitHub returns errors as 200 with an `error` field
+    if (tokenResponse.data.error) {
+      console.error("[Auth] GitHub token exchange error:", tokenResponse.data);
+      return res.status(400).json({
+        error: "GitHub token exchange failed",
+        reason: tokenResponse.data.error_description || tokenResponse.data.error,
+      });
+    }
+
     const { access_token } = tokenResponse.data;
-    
+
     if (!access_token) {
+      console.error("[Auth] No access_token in GitHub response:", tokenResponse.data);
       return res.status(400).json({ error: "Failed to obtain access token" });
     }
     
@@ -71,8 +81,11 @@ router.get("/github/callback", async (req, res) => {
     
     res.redirect(redirectUrl);
   } catch (error: any) {
-    console.error("GitHub OAuth error:", error);
-    res.status(500).json({ error: "Authentication failed" });
+    console.error("[Auth] GitHub OAuth error:", error.response?.data || error.message);
+    res.status(500).json({
+      error: "Authentication failed",
+      reason: error.response?.data?.message || error.message,
+    });
   }
 });
 

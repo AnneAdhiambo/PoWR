@@ -46,6 +46,7 @@ import paymentRoutes from "./routes/payments";
 import webhookRoutes from "./routes/webhooks";
 import systemRoutes from "./routes/system";
 import recruiterRoutes from "./routes/recruiter";
+import badgeRoutes from "./routes/badges";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -54,6 +55,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/recruiter", recruiterRoutes);
+app.use("/api/badges", badgeRoutes);
 
 // Start scheduler service
 import { schedulerService } from "./services/schedulerService";

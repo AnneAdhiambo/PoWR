@@ -348,12 +348,12 @@ export default function ProofsPage() {
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <a
-                                                        href={getBlockUrl(proof.blockNumber)}
+                                                        href={getBlockUrl(proof.stacksBlockHeight ?? proof.blockNumber ?? 0)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="text-xs text-gray-500 hover:text-blue-400 transition-colors"
                                                     >
-                                                        Block #{proof.blockNumber}
+                                                        Block #{proof.stacksBlockHeight ?? proof.blockNumber ?? 0}
                                                     </a>
                                                     <a
                                                         href={getExplorerUrl(proof.transactionHash)}

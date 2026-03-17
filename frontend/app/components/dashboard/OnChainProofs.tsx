@@ -14,7 +14,8 @@ export interface Proof {
   id?: number;
   transactionHash: string;
   artifactHash: string;
-  blockNumber: number;
+  stacksBlockHeight?: number;
+  blockNumber?: number;   // legacy — prefer stacksBlockHeight
   timestamp: number;
   skillScores: number[];
   createdAt?: string;
@@ -113,6 +114,8 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
   const getContractUrl = () => {
     return `https://sepolia.basescan.org/address/${CONTRACT_ADDRESS}`;
   };
+
+  const getBlockNum = (proof: Proof) => proof.stacksBlockHeight ?? proof.blockNumber ?? 0;
 
   const getBlockUrl = (blockNumber: number) => {
     return `https://sepolia.basescan.org/block/${blockNumber}`;
@@ -293,14 +296,14 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <a
-                      href={getBlockUrl(latestProof.blockNumber)}
+                      href={getBlockUrl(getBlockNum(latestProof))}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-gray-400 hover:text-blue-400 text-[10px] transition-colors"
                       style={{ opacity: 0.6 }}
-                      title={`Block #${latestProof.blockNumber}`}
+                      title={`Block #${getBlockNum(latestProof)}`}
                     >
-                      <span>#{latestProof.blockNumber}</span>
+                      <span>#{getBlockNum(latestProof)}</span>
                     </a>
                     <a
                       href={getExplorerUrl(latestProof.transactionHash)}
@@ -368,14 +371,14 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                         </div>
                         <div className="flex items-center gap-2">
                           <a
-                            href={getBlockUrl(proof.blockNumber)}
+                            href={getBlockUrl(getBlockNum(proof))}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-gray-400 hover:text-[#3b76ef] text-[10px] transition-colors"
                             style={{ opacity: 0.6 }}
-                            title={`Block #${proof.blockNumber}`}
+                            title={`Block #${getBlockNum(proof)}`}
                           >
-                            #{proof.blockNumber}
+                            #{getBlockNum(proof)}
                           </a>
                           <a
                             href={getExplorerUrl(proof.transactionHash)}
