@@ -38,6 +38,39 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// DB health check — hit this in browser to diagnose connection issues
+app.get("/health/db", async (req, res) => {
+  try {
+    const { Pool } = await import("pg");
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL?.includes("sslmode=require")
+        ? { rejectUnauthorized: false }
+        : false,
+      connectionTimeoutMillis: 5000,
+    });
+    const result = await pool.query("SELECT NOW() as time");
+    await pool.end();
+    res.json({
+      status: "ok",
+      db_time: result.rows[0].time,
+      database_url_set: !!process.env.DATABASE_URL,
+      github_client_id_set: !!process.env.GITHUB_CLIENT_ID,
+      github_client_secret_set: !!process.env.GITHUB_CLIENT_SECRET,
+      frontend_url: process.env.FRONTEND_URL || "(not set — defaults to localhost:3000)",
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: "error",
+      error: err.message,
+      database_url_set: !!process.env.DATABASE_URL,
+      github_client_id_set: !!process.env.GITHUB_CLIENT_ID,
+      github_client_secret_set: !!process.env.GITHUB_CLIENT_SECRET,
+      frontend_url: process.env.FRONTEND_URL || "(not set)",
+    });
+  }
+});
+
 // Routes
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/user";
