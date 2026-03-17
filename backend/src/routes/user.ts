@@ -432,8 +432,8 @@ router.post("/publish-proof", async (req, res) => {
       return res.status(400).json({ error: "Username required" });
     }
 
-    // Check if blockchain is configured
-    if (!blockchainService.isConfigured()) {
+    // Check if Stacks oracle is configured
+    if (!blockchainService.isStacksConfigured()) {
       return res.status(503).json({
         error: "Blockchain not configured",
         message: "Blockchain publishing is currently unavailable"
@@ -483,29 +483,35 @@ router.post("/publish-proof", async (req, res) => {
       });
     }
 
-    // Anchor to blockchain
+    // Anchor to Stacks blockchain via oracle
+    const { stacksPrincipal } = req.body;
     console.log(`[Publish] Publishing proof for ${username}...`);
-    const proof = await blockchainService.anchorSnapshot(artifacts, profile);
+    const proof = await blockchainService.anchorSnapshotStacks(
+      artifacts,
+      profile,
+      username,
+      stacksPrincipal
+    );
 
-    // Save blockchain proof to database
+    // Save blockchain proof to database (txId as transactionHash, blockNumber 0 until confirmed)
     await dbService.saveBlockchainProof(
       username,
-      proof.transactionHash,
+      proof.txId,
       proof.artifactHash,
-      proof.blockNumber,
-      proof.timestamp,
+      0,
+      Math.floor(Date.now() / 1000),
       proof.skillScores
     );
 
-    console.log(`[Publish] Successfully published proof for ${username}: ${proof.transactionHash}`);
+    console.log(`[Publish] Successfully published proof for ${username}: ${proof.txId}`);
 
     res.json({
       success: true,
       proof: {
-        transactionHash: proof.transactionHash,
+        transactionHash: proof.txId,
         artifactHash: proof.artifactHash,
-        blockNumber: proof.blockNumber,
-        timestamp: proof.timestamp,
+        blockNumber: 0,
+        timestamp: Math.floor(Date.now() / 1000),
         skillScores: proof.skillScores
       },
       message: isFirstPublish
