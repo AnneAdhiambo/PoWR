@@ -42,6 +42,26 @@ export interface Proof {
   createdAt?: string;
 }
 
+export interface Badge {
+  id: number;
+  username: string;
+  tokenId: number | null;
+  skillType: number;
+  tier: number;
+  transactionHash: string | null;
+  stacksPrincipal: string | null;
+  mintedAt: string;
+}
+
+export interface GithubBadge {
+  id: number;
+  username: string;
+  badgeKey: string;
+  earnedAt: string;
+  displayName: string;
+  description: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -199,6 +219,12 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify({ planType }),
     });
+  }
+
+  async getUserBadges(username: string): Promise<{ skillBadges: Badge[]; achievements: GithubBadge[] }> {
+    return this.request<{ skillBadges: Badge[]; achievements: GithubBadge[] }>(
+      `/api/badges/${username}`
+    );
   }
 
 }

@@ -1,22 +1,15 @@
-# fly.toml app configuration file generated for powr-vmilna on 2025-12-15T17:27:28Z
+# fly.toml app configuration file generated for powr-backend on 2026-03-17T13:40:27+03:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'powr-vmilna'
-primary_region = 'sin'
+app = 'powr-backend'
+primary_region = 'fra'
 
 [build]
 
-[[mounts]]
-  source = 'data'
-  destination = '/data'
-  auto_extend_size_threshold = 80
-  auto_extend_size_increment = '1GB'
-  auto_extend_size_limit = '10GB'
-
 [http_service]
-  internal_port = 3000
+  internal_port = 3001
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
@@ -25,6 +18,5 @@ primary_region = 'sin'
 
 [[vm]]
   memory = '1gb'
-  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 1024

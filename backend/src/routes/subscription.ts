@@ -7,7 +7,7 @@ const router = express.Router();
 // Get available plans
 router.get("/plans", async (req, res) => {
   try {
-    const plans = await subscriptionService.getAvailablePlans();
+    const plans = subscriptionService.getAvailablePlans();
     // Normalize to the shape the frontend Plan type expects
     const normalized = plans.map((p) => ({
       type: p.type,

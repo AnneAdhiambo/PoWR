@@ -1,0 +1,17 @@
+[network]
+name = "testnet"
+stacks_node_rpc_address = "https://api.testnet.hiro.so"
+deployment_fee_rate = 10
+
+[accounts.deployer]
+# It is strongly suggested to use encrypted mnemonics to avoid putting
+# seed phrases directly into TOML files.  To do so, run:
+#
+#     clarinet deployments encrypt
+#
+# Enter your seed phrase and a password, then paste the encrypted mnemonic here.
+#
+# Otherwise, use the mnemonic field below:
+#
+mnemonic = "enact melt reunion wild crucial equal client patient grace pluck text fee absorb critic assume giggle crack scheme salute cigar coil sausage weekend song"
+# stx_address: STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA

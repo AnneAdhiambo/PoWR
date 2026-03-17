@@ -52,3 +52,9 @@ data/
 # AI Logs (contain sensitive info)
 ai_logs/droid_factory_ai/
 ai_logs/sensitive/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# Scratch / temp files
+backend/history.txt

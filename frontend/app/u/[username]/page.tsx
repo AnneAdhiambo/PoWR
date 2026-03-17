@@ -21,7 +21,8 @@ import {
   Quotes,
   Sparkle
 } from "phosphor-react";
-import { apiClient, PoWProfile, Artifact, Proof } from "../../lib/api";
+import { apiClient, PoWProfile, Artifact, Proof, Badge, GithubBadge } from "../../lib/api";
+import { BadgeGrid } from "../../components/profile/BadgeGrid";
 import toast from "react-hot-toast";
 
 const PercentileBadge = ({ percentile, score }: { percentile: number; score: number }) => {
@@ -56,6 +57,8 @@ export default function PublicProfilePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [copied, setCopied] = useState(false);
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
+  const [skillBadges, setSkillBadges] = useState<Badge[]>([]);
+  const [achievements, setAchievements] = useState<GithubBadge[]>([]);
 
   useEffect(() => {
     // Check if user is logged in
@@ -63,6 +66,12 @@ export default function PublicProfilePage() {
     setIsLoggedIn(!!token);
 
     loadProfile();
+    apiClient.getUserBadges(username)
+      .then((data) => {
+        setSkillBadges(data.skillBadges);
+        setAchievements(data.achievements);
+      })
+      .catch(() => {});
     // Fetch GitHub avatar
     fetch(`https://api.github.com/users/${username}`)
       .then(res => res.json())
@@ -372,6 +381,13 @@ export default function PublicProfilePage() {
             })}
           </div>
         </div>
+
+        {/* Badges Section */}
+        {(skillBadges.length > 0 || achievements.length > 0) && (
+          <div className="mb-6">
+            <BadgeGrid skillBadges={skillBadges} achievements={achievements} />
+          </div>
+        )}
 
         {/* On-Chain Verification */}
         <Card className="p-5 rounded-[16px]">

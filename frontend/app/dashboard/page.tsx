@@ -10,7 +10,8 @@ import { RecentWorkFeed } from "../components/dashboard/RecentWorkFeed";
 import { OnChainProofs } from "../components/dashboard/OnChainProofs";
 import { SuggestedJobsGigs } from "../components/dashboard/SuggestedJobsGigs";
 import { RecentActivity } from "../components/dashboard/RecentActivity";
-import { apiClient, PoWProfile, Artifact } from "../lib/api";
+import { BadgeGrid } from "../components/profile/BadgeGrid";
+import { apiClient, PoWProfile, Artifact, Badge, GithubBadge } from "../lib/api";
 import { Proof } from "../components/dashboard/OnChainProofs";
 import { Button, Card } from "../components/ui";
 import { ArrowClockwise, Quotes, Sparkle } from "phosphor-react";
@@ -35,6 +36,8 @@ export default function DashboardPage() {
     hasUnpublished: boolean;
     lastAnalyzed: string | null;
   } | null>(null);
+  const [skillBadges, setSkillBadges] = useState<Badge[]>([]);
+  const [achievements, setAchievements] = useState<GithubBadge[]>([]);
 
   // Get from sessionStorage (set by auth callback)
   const [username, setUsername] = useState<string>("");
@@ -187,7 +190,7 @@ export default function DashboardPage() {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:95', message: 'Promise.all start', data: { username }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
-        const [profileData, artifactsData, proofsData, subscriptionData, nextUpdateData, analysisStatusData] = await Promise.all([
+        const [profileData, artifactsData, proofsData, subscriptionData, nextUpdateData, analysisStatusData, badgesData] = await Promise.all([
           apiClient.getUserProfile(username, accessToken).catch(err => {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:96', message: 'getUserProfile error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
@@ -209,6 +212,7 @@ export default function DashboardPage() {
           apiClient.getCurrentSubscription(username).catch(() => ({ subscription: null, plan: null })),
           apiClient.getNextUpdateDate(username).catch(() => ({ nextUpdateDate: null, planType: "free" })),
           apiClient.getAnalysisStatus(username).catch(() => ({ hasProfile: false, hasUnpublished: false, lastAnalyzed: null, lastPublished: null })),
+          apiClient.getUserBadges(username).catch(() => ({ skillBadges: [], achievements: [] })),
         ]);
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:100', message: 'Promise.all complete', data: { hasProfile: !!profileData, hasArtifacts: !!artifactsData, hasProofs: !!proofsData }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
@@ -222,6 +226,8 @@ export default function DashboardPage() {
           hasUnpublished: analysisStatusData.hasUnpublished,
           lastAnalyzed: analysisStatusData.lastAnalyzed
         });
+        setSkillBadges(badgesData.skillBadges);
+        setAchievements(badgesData.achievements);
       }
     } catch (error: any) {
       // #region agent log
@@ -456,6 +462,9 @@ export default function DashboardPage() {
                     } : undefined}
                   />
                 </div>
+
+                {/* Badges Section */}
+                <BadgeGrid skillBadges={skillBadges} achievements={achievements} />
               </div>
 
               {/* Right Rail Column */}

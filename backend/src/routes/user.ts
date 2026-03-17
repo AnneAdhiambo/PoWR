@@ -5,6 +5,7 @@ import { ScoringEngine } from "../services/scoringEngine";
 import { progressTracker } from "../services/progressTracker";
 import { dbService } from "../services/database";
 import { blockchainService } from "../services/blockchain";
+import { badgeService } from "../services/badgeService";
 
 const router = express.Router();
 
@@ -294,6 +295,12 @@ router.post("/analyze", async (req, res) => {
     if (subscription) {
       await subscriptionService.scheduleUpdate(username, subscription.planType as any);
     }
+
+    // Fire-and-forget badge evaluation — does not block the response
+    const stacksPrincipal = await dbService.getUserStacksPrincipal(username).catch(() => null);
+    badgeService.evaluateAll(username, profile, stacksPrincipal).catch((err) =>
+      console.error(`[Analyze] Badge evaluation error for ${username}:`, err.message)
+    );
 
     res.json({
       success: true,
