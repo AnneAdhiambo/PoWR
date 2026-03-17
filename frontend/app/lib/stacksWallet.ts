@@ -12,6 +12,7 @@ export function useStacksWallet() {
   const [address, setAddress] = useState<string | null>(null);
 
   const loadAddress = useCallback(() => {
+    if (typeof window === "undefined") return;
     if (isConnected()) {
       const data = getLocalStorage();
       const stxAddress = data?.addresses?.stx?.[0]?.address ?? null;
