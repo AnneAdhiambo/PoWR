@@ -19,6 +19,37 @@ export function getProvider(): StacksProvider | null {
   );
 }
 
+/** Returns Leather provider if installed, else null */
+export function getLeatherProvider(): StacksProvider | null {
+  return typeof window !== "undefined" ? (window as any).LeatherProvider ?? null : null;
+}
+
+/** Returns Xverse Stacks provider if installed, else null */
+export function getXverseProvider(): StacksProvider | null {
+  return typeof window !== "undefined"
+    ? (window as any).XverseProviders?.StacksProvider ?? null
+    : null;
+}
+
+async function connectProviderInternal(provider: StacksProvider): Promise<string | null> {
+  const res = await provider.request("getAddresses");
+  const addresses: any[] = res?.result?.addresses ?? res?.addresses ?? [];
+  const stx = addresses.find((a) => a.symbol === "STX" && a.address?.startsWith("S"));
+  return stx?.address ?? null;
+}
+
+export async function connectLeather(): Promise<string | null> {
+  const p = getLeatherProvider();
+  if (!p) throw new Error("Leather wallet not found. Please install it.");
+  return connectProviderInternal(p);
+}
+
+export async function connectXverse(): Promise<string | null> {
+  const p = getXverseProvider();
+  if (!p) throw new Error("Xverse wallet not found. Please install it.");
+  return connectProviderInternal(p);
+}
+
 /** Returns the user's Stacks (STX) address, or null if not connected.
  *  Filters strictly for addresses starting with "S" (c32-encoded Stacks addresses)
  *  to avoid accidentally returning a Bitcoin address from the wallet. */
@@ -55,67 +86,62 @@ export async function connectWallet(): Promise<string | null> {
 }
 
 /** Sends a SIP-010 fungible token transfer and returns the txid.
- *  Tries the wallet's dedicated stx_transferSip010Ft method first (Leather / Xverse),
- *  then falls back to stx_callContract with Clarity-encoded args. */
+ *  Uses stx_transferSip10Ft (Leather-native) first, falls back to stx_callContract (Xverse). */
 export async function transferSip10Token(
   contractId: string,
-  assetName: string,
+  _assetName: string,
   recipient: string,
   amountBaseUnits: string
 ): Promise<string> {
-  const provider = getProvider();
-  if (!provider) {
-    throw new Error("No Stacks wallet found. Please install Leather or Xverse.");
-  }
-  const senderAddress = await getConnectedAddress();
-  if (!senderAddress || !senderAddress.startsWith("S")) {
-    throw new Error("Could not get a Stacks address from your wallet. Please connect with Leather or Xverse and ensure a Stacks account is active.");
-  }
   if (!recipient.startsWith("S")) {
-    throw new Error(`Invalid payment address: ${recipient}. Expected a Stacks address starting with "S".`);
+    throw new Error(`Invalid payment address. Expected a Stacks address starting with "S".`);
   }
 
   const network = process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet";
+  const { request } = await import("@stacks/connect");
 
-  // Try wallet's high-level SIP-010 transfer method (Leather ≥ 6, Xverse)
+  // Primary: stx_transferSip10Ft (Leather-native, triggers wallet popup)
   try {
-    const res = await provider.request("stx_transferSip010Ft", {
-      asset: `${contractId}::${assetName}`,
-      amount: amountBaseUnits,
+    const res = await request("stx_transferSip10Ft", {
+      asset: contractId,
+      amount: Number(amountBaseUnits),
       recipient,
       network,
-    });
-    const txid = res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
+    } as any);
+    const r = res as any;
+    const txid = r?.result?.txid ?? r?.txid ?? r?.result?.txId ?? r?.txId;
     if (txid) return txid;
   } catch (e: any) {
-    // Method not supported — fall through to stx_callContract
-    if (!e?.message?.toLowerCase().includes("method") && !e?.code) throw e;
+    const msg = e?.message ?? "";
+    if (
+      msg.toLowerCase().includes("cancel") ||
+      msg.toLowerCase().includes("reject") ||
+      e?.code === 4001
+    ) {
+      throw new Error("Transaction cancelled.");
+    }
+    // method not supported — fall through to stx_callContract for Xverse
   }
 
-  // Fallback: encode Clarity args manually and use stx_callContract
-  const { standardPrincipalCV, uintCV, noneCV, serializeCV } = await import(
-    "@stacks/transactions"
-  );
-  const toHex = (cv: any): string =>
-    Buffer.from(serializeCV(cv)).toString("hex");
+  // Fallback: stx_callContract (Xverse lacks stx_transferSip10Ft)
+  const senderAddress = await getConnectedAddress();
+  if (!senderAddress) throw new Error("Connect your wallet first.");
 
-  const functionArgs = [
-    toHex(uintCV(BigInt(amountBaseUnits))),
-    toHex(standardPrincipalCV(senderAddress)),
-    toHex(standardPrincipalCV(recipient)),
-    toHex(noneCV()),
-  ];
-
-  const [contractAddress, contractName] = contractId.split(".");
-  const res = await provider.request("stx_callContract", {
-    contractAddress,
-    contractName,
+  const { Cl } = await import("@stacks/transactions");
+  const res2 = await request("stx_callContract", {
+    contract: contractId,
     functionName: "transfer",
-    functionArgs,
+    functionArgs: [
+      Cl.uint(BigInt(amountBaseUnits)),
+      Cl.principal(senderAddress),
+      Cl.principal(recipient),
+      Cl.none(),
+    ],
     network,
-  });
+  } as any);
 
-  const txid = res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
+  const r2 = res2 as any;
+  const txid = r2?.result?.txid ?? r2?.txid ?? r2?.result?.txId ?? r2?.txId;
   if (!txid) throw new Error("Wallet did not return a transaction ID.");
   return txid;
 }

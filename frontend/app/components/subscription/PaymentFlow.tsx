@@ -14,7 +14,8 @@ import {
   CurrencyBtc,
   CurrencyDollar,
 } from "phosphor-react";
-import { transferStx, transferSip10Token } from "../../lib/stacksProvider";
+import { transferStx, transferSip10Token, getConnectedAddress } from "../../lib/stacksProvider";
+import { WalletPickerModal } from "./WalletPickerModal";
 
 // Token contracts — mirrors backend defaults
 const SBTC_CONTRACT =
@@ -78,6 +79,9 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [pendingTokenMethod, setPendingTokenMethod] = useState<"sbtc" | "usdcx" | null>(null);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(walletAddress ?? null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clean up polling on unmount
@@ -147,6 +151,12 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   const handlePayStx = async () => {
     setError(null);
+    const addr = connectedAddress || await getConnectedAddress();
+    if (!addr) {
+      setPendingTokenMethod(null);
+      setShowWalletPicker(true);
+      return;
+    }
     const microStx = Math.round(parseFloat(paymentIntent.amount) * 1_000_000).toString();
     try {
       const txId = await transferStx(
@@ -167,6 +177,12 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   const handlePayToken = async (token: "sbtc" | "usdcx") => {
     setError(null);
+    const addr = connectedAddress || await getConnectedAddress();
+    if (!addr) {
+      setPendingTokenMethod(token);
+      setShowWalletPicker(true);
+      return;
+    }
     const amount = calcTokenAmount(paymentIntent.planType, paymentIntent.billingPeriod, token);
     const decimals = token === "sbtc" ? 8 : 6;
     const baseUnits = Math.round(amount * Math.pow(10, decimals)).toString();
@@ -190,6 +206,21 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   };
 
+  const handleWalletConnected = (address: string) => {
+    setConnectedAddress(address);
+    setShowWalletPicker(false);
+    // Auto-proceed with the pending payment
+    if (pendingTokenMethod) {
+      const token = pendingTokenMethod;
+      setPendingTokenMethod(null);
+      setTimeout(() => handlePayToken(token), 0);
+    } else {
+      // was waiting for STX payment
+      setPendingTokenMethod(null);
+      setTimeout(() => handlePayStx(), 0);
+    }
+  };
+
   const handleStripe = async () => {
     setStripeLoading(true);
     setError(null);
@@ -207,12 +238,22 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   };
 
+  const walletPickerModal = (
+    <WalletPickerModal
+      isOpen={showWalletPicker}
+      onClose={() => { setShowWalletPicker(false); setPendingTokenMethod(null); }}
+      onConnected={handleWalletConnected}
+    />
+  );
+
   // ── Payment method chooser ─────────────────────────────────────
   if (method === "choose") {
     const sbtcAmount = calcTokenAmount(paymentIntent.planType, paymentIntent.billingPeriod, "sbtc");
     const usdcxAmount = calcTokenAmount(paymentIntent.planType, paymentIntent.billingPeriod, "usdcx");
 
     return (
+      <>
+        {walletPickerModal}
       <Card className="p-6 rounded-[16px]">
         <h3 className="text-lg font-semibold text-white mb-1">Complete Payment</h3>
         <p className="text-sm text-gray-400 mb-6 capitalize">
@@ -296,12 +337,15 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           Cancel
         </button>
       </Card>
+      </>
     );
   }
 
   // ── Stripe / card ──────────────────────────────────────────────
   if (method === "card") {
     return (
+      <>
+        {walletPickerModal}
       <Card className="p-6 rounded-[16px]">
         <div className="flex items-center gap-3 mb-6">
           <button
@@ -346,12 +390,14 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
         <p className="text-xs text-gray-600 text-center mt-3">Secured by Stripe · 256-bit encryption</p>
       </Card>
+      </>
     );
   }
 
   // ── Token payment screen (sBTC or USDCx) ──────────────────────
   if (method === "sbtc" || method === "usdcx") {
     const isSbtc = method === "sbtc";
+
     const tokenAmount = calcTokenAmount(
       paymentIntent.planType,
       paymentIntent.billingPeriod,
@@ -366,6 +412,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     const label = isSbtc ? "sBTC" : "USDCx";
 
     return (
+      <>
+        {walletPickerModal}
       <Card className="p-6 rounded-[16px]">
         <div className="flex items-center gap-3 mb-4">
           <button
@@ -484,11 +532,14 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           </div>
         </div>
       </Card>
+      </>
     );
   }
 
   // ── STX flow ───────────────────────────────────────────────────
   return (
+    <>
+      {walletPickerModal}
     <Card className="p-6 rounded-[16px]">
       <div className="flex items-center gap-3 mb-4">
         <button
@@ -612,5 +663,6 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         </div>
       </div>
     </Card>
+    </>
   );
 };
