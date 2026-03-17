@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../components/layout/Sidebar";
 import { PlanCard, Plan } from "../components/subscription/PlanCard";
@@ -10,22 +9,11 @@ import {
   BillingPeriod,
   calcStxTotal,
 } from "../components/subscription/BillingPeriodSelector";
+import { ConnectWalletButton } from "../components/subscription/ConnectWalletButton";
+import { PaymentFlow } from "../components/subscription/PaymentFlow";
 import { apiClient } from "../lib/api";
 import { X } from "phosphor-react";
 import toast from "react-hot-toast";
-
-// Dynamically imported to keep @stacks/connect out of the main bundle chunk.
-// The module accesses browser globals at evaluation time and crashes Turbopack
-// when included statically — even inside a "use client" component.
-const ConnectWalletButton = dynamic(
-  () => import("../components/subscription/ConnectWalletButton").then(m => ({ default: m.ConnectWalletButton })),
-  { ssr: false, loading: () => <div className="h-9 w-36 rounded-lg bg-white/5 animate-pulse" /> }
-);
-
-const PaymentFlow = dynamic(
-  () => import("../components/subscription/PaymentFlow").then(m => ({ default: m.PaymentFlow })),
-  { ssr: false, loading: () => <div className="h-40 rounded-xl bg-white/5 animate-pulse" /> }
-);
 
 
 const defaultPlans: Plan[] = [
