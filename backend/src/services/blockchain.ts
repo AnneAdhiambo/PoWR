@@ -249,11 +249,12 @@ export class BlockchainService {
    * If 66 chars but last byte != 01, strips the last byte.
    */
   private normalizePrivateKey(key: string): string {
-    const clean = key.trim().toLowerCase().replace(/^0x/, "");
-    if (clean.length === 66 && !clean.endsWith("01")) {
-      return clean.slice(0, 64);
-    }
-    return clean;
+    // Strip whitespace, 0x prefix, and any non-hex characters (e.g. embedded newlines)
+    const clean = key.trim().replace(/^0x/i, "").toLowerCase().replace(/[^0-9a-f]/g, "");
+    // Valid 33-byte compressed format (66 hex chars ending in 01) — pass through
+    if (clean.length === 66 && clean.endsWith("01")) return clean;
+    // Everything else: take the first 32 bytes (64 hex chars)
+    return clean.slice(0, 64);
   }
 
   /**
