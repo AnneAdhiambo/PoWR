@@ -19,7 +19,9 @@ export function getProvider(): StacksProvider | null {
   );
 }
 
-/** Returns the user's mainnet or testnet STX address, or null if not connected. */
+/** Returns the user's Stacks (STX) address, or null if not connected.
+ *  Filters strictly for addresses starting with "S" (c32-encoded Stacks addresses)
+ *  to avoid accidentally returning a Bitcoin address from the wallet. */
 export async function getConnectedAddress(): Promise<string | null> {
   const provider = getProvider();
   if (!provider) return null;
@@ -27,9 +29,8 @@ export async function getConnectedAddress(): Promise<string | null> {
     const res = await provider.request("getAddresses");
     const addresses: any[] =
       res?.result?.addresses ?? res?.addresses ?? [];
-    // Prefer a P2WPKH (native segwit) STX address; fall back to any STX address
     const stx = addresses.find(
-      (a) => a.symbol === "STX" || a.type === "p2wpkh"
+      (a) => a.symbol === "STX" && a.address?.startsWith("S")
     );
     return stx?.address ?? null;
   } catch {
@@ -48,7 +49,7 @@ export async function connectWallet(): Promise<string | null> {
   const res = await provider.request("getAddresses");
   const addresses: any[] = res?.result?.addresses ?? res?.addresses ?? [];
   const stx = addresses.find(
-    (a) => a.symbol === "STX" || a.type === "p2wpkh"
+    (a) => a.symbol === "STX" && a.address?.startsWith("S")
   );
   return stx?.address ?? null;
 }
@@ -64,7 +65,12 @@ export async function transferSip10Token(
     throw new Error("No Stacks wallet found. Please install Leather or Xverse.");
   }
   const senderAddress = await getConnectedAddress();
-  if (!senderAddress) throw new Error("Connect your wallet first.");
+  if (!senderAddress || !senderAddress.startsWith("S")) {
+    throw new Error("Could not get a Stacks address from your wallet. Please connect with Leather or Xverse and ensure a Stacks account is active.");
+  }
+  if (!recipient.startsWith("S")) {
+    throw new Error(`Invalid payment address: ${recipient}. Expected a Stacks address starting with "S".`);
+  }
 
   // Dynamically import @stacks/transactions to encode Clarity values for stx_callContract
   const { standardPrincipalCV, uintCV, noneCV, serializeCV } = await import(
