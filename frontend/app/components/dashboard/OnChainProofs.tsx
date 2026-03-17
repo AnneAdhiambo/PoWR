@@ -4,11 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Card, Button } from "../ui";
 import { Link, ShieldCheck, CaretDown, CaretUp, Plus, Copy, Check, Cube, ArrowsClockwise, WarningCircle } from "phosphor-react";
 import { apiClient } from "../../lib/api";
-import { verifyHashOnChain, POW_REGISTRY_ADDRESS } from "../../lib/web3";
+import { verifyHashOnChain, POW_REGISTRY_CONTRACT, getExplorerTxUrl, getExplorerContractUrl, getExplorerBlockUrl } from "../../lib/web3";
 import { PricingModal } from "../subscription/PricingModal";
 import toast from "react-hot-toast";
 
-const CONTRACT_ADDRESS = POW_REGISTRY_ADDRESS;
+const CONTRACT_ADDRESS = POW_REGISTRY_CONTRACT;
 
 export interface Proof {
   id?: number;
@@ -107,19 +107,10 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
     }
   };
 
-  const getExplorerUrl = (txHash: string) => {
-    return `https://sepolia.basescan.org/tx/${txHash}`;
-  };
-
-  const getContractUrl = () => {
-    return `https://sepolia.basescan.org/address/${CONTRACT_ADDRESS}`;
-  };
-
+  const getExplorerUrl = (txHash: string) => getExplorerTxUrl(txHash);
+  const getContractUrl = () => getExplorerContractUrl();
   const getBlockNum = (proof: Proof) => proof.stacksBlockHeight ?? proof.blockNumber ?? 0;
-
-  const getBlockUrl = (blockNumber: number) => {
-    return `https://sepolia.basescan.org/block/${blockNumber}`;
-  };
+  const getBlockUrl = (blockNumber: number) => getExplorerBlockUrl(blockNumber);
 
   const toggleProof = (proofId: number) => {
     const newExpanded = new Set(expandedProofs);
@@ -233,7 +224,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
               <Cube className="w-3.5 h-3.5 text-violet-400" weight="fill" />
               <span className="text-[10px] text-gray-400">PoWRegistry Contract</span>
             </div>
-            <span className="text-[9px] text-[#FF6B2B] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Base Sepolia</span>
+            <span className="text-[9px] text-[#FF6B2B] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Stacks Testnet</span>
           </div>
           <div className="flex items-center gap-2">
             <code className="flex-1 text-[11px] font-mono text-gray-300 truncate">
@@ -251,7 +242,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               className="p-1 rounded text-gray-500 hover:text-[#FF6B2B] transition-colors"
-              title="View on BaseScan"
+              title="View on Hiro Explorer"
             >
               <Link className="w-3 h-3" weight="regular" />
             </a>
@@ -311,7 +302,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-gray-400 hover:text-[#FF6B2B] text-[10px] transition-colors"
                       style={{ opacity: 0.6 }}
-                      title="View transaction on BaseScan"
+                      title="View transaction on Hiro Explorer"
                     >
                       <Link className="w-3 h-3" weight="regular" />
                       View TX
@@ -386,7 +377,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 text-gray-400 hover:text-[#FF5500] text-[10px] transition-colors"
                             style={{ opacity: 0.6 }}
-                            title="View transaction on BaseScan"
+                            title="View transaction on Hiro Explorer"
                           >
                             <Link className="w-3 h-3" weight="regular" />
                             View

@@ -6,7 +6,7 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { Card, Button } from "../components/ui";
 import { apiClient } from "../lib/api";
 import { Proof } from "../components/dashboard/OnChainProofs";
-import { verifyHashOnChain, POW_REGISTRY_ADDRESS } from "../lib/web3";
+import { verifyHashOnChain, POW_REGISTRY_CONTRACT, getExplorerTxUrl, getExplorerContractUrl, getExplorerBlockUrl } from "../lib/web3";
 import {
     ShieldCheck,
     Link,
@@ -20,9 +20,11 @@ import {
     WarningCircle
 } from "phosphor-react";
 import { PricingModal } from "../components/subscription/PricingModal";
+import { BadgeGrid } from "../components/profile/BadgeGrid";
+import { Badge, GithubBadge } from "../lib/api";
 import toast from "react-hot-toast";
 
-const CONTRACT_ADDRESS = POW_REGISTRY_ADDRESS;
+const CONTRACT_ADDRESS = POW_REGISTRY_CONTRACT;
 
 export default function ProofsPage() {
     const router = useRouter();
@@ -39,6 +41,9 @@ export default function ProofsPage() {
         lastAnalyzed: string | null;
         lastPublished: string | null;
     } | null>(null);
+
+    const [skillBadges, setSkillBadges] = useState<Badge[]>([]);
+    const [achievements, setAchievements] = useState<GithubBadge[]>([]);
 
     const [username, setUsername] = useState<string>("");
     const [accessToken, setAccessToken] = useState<string>("");
@@ -93,11 +98,14 @@ export default function ProofsPage() {
     const loadProofs = async () => {
         try {
             setLoading(true);
-            const [proofsData, analysisData] = await Promise.all([
+            const [proofsData, analysisData, badgesData] = await Promise.all([
                 apiClient.getProofs(username),
-                apiClient.getAnalysisStatus(username).catch(() => null)
+                apiClient.getAnalysisStatus(username).catch(() => null),
+                apiClient.getUserBadges(username).catch(() => ({ skillBadges: [], achievements: [] })),
             ]);
             setProofs(proofsData.proofs || []);
+            setSkillBadges(badgesData.skillBadges || []);
+            setAchievements(badgesData.achievements || []);
             if (analysisData) {
                 setAnalysisStatus({
                     hasUnpublished: analysisData.hasUnpublished,
@@ -147,9 +155,9 @@ export default function ProofsPage() {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const getExplorerUrl = (txHash: string) => `https://sepolia.basescan.org/tx/${txHash}`;
-    const getContractUrl = () => `https://sepolia.basescan.org/address/${CONTRACT_ADDRESS}`;
-    const getBlockUrl = (blockNumber: number) => `https://sepolia.basescan.org/block/${blockNumber}`;
+    const getExplorerUrl = (txHash: string) => getExplorerTxUrl(txHash);
+    const getContractUrl = () => getExplorerContractUrl();
+    const getBlockUrl = (blockNumber: number) => getExplorerBlockUrl(blockNumber);
 
     const toggleProof = (proofId: number) => {
         const newExpanded = new Set(expandedProofs);
@@ -228,7 +236,7 @@ export default function ProofsPage() {
                                     )}
                                 </div>
                                 <p className="text-xs text-gray-400" style={{ opacity: 0.6 }}>
-                                    Your Proof-of-Work snapshots anchored on Base Sepolia blockchain
+                                    Your Proof-of-Work snapshots anchored on the Stacks blockchain
                                 </p>
                             </div>
                             <Button
@@ -248,7 +256,7 @@ export default function ProofsPage() {
                                     <Cube className="w-4 h-4 text-violet-400" weight="fill" />
                                     <span className="text-sm text-gray-300">PoWRegistry Contract</span>
                                 </div>
-                                <span className="text-xs text-[#FF6B2B] px-2 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Base Sepolia</span>
+                                <span className="text-xs text-[#FF6B2B] px-2 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Stacks Testnet</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <code className="flex-1 text-sm font-mono text-gray-400 bg-[rgba(255,255,255,0.03)] px-3 py-2 rounded-lg">
@@ -266,7 +274,7 @@ export default function ProofsPage() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="p-2 rounded-lg text-gray-500 hover:text-[#FF6B2B] bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
-                                    title="View on BaseScan"
+                                    title="View on Hiro Explorer"
                                 >
                                     <Link className="w-4 h-4" weight="regular" />
                                 </a>
@@ -425,6 +433,11 @@ export default function ProofsPage() {
                                 })}
                             </div>
                         )}
+
+                        {/* Badges */}
+                        <div className="mt-6">
+                            <BadgeGrid skillBadges={skillBadges} achievements={achievements} />
+                        </div>
                     </div>
                 </div>
             </div>
