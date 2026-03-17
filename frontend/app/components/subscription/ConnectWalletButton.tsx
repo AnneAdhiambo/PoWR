@@ -26,13 +26,19 @@ export const ConnectWalletButton: React.FC = () => {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      // connect() triggers the native @stacks/connect-ui wallet picker,
-      // which auto-detects installed wallets via window.wbip_providers (WBIP004).
       await connect();
+      // Persist address so SubscriptionContent can read it without importing @stacks/connect
+      if (address) localStorage.setItem("stacks_wallet_address", address);
     } finally {
       setConnecting(false);
     }
   };
+
+  // Keep localStorage in sync when address changes after connect
+  useEffect(() => {
+    if (address) localStorage.setItem("stacks_wallet_address", address);
+    else localStorage.removeItem("stacks_wallet_address");
+  }, [address]);
 
   const truncate = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
