@@ -193,7 +193,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 <div key={plan.type} className="relative">
                   {plan.type === "pro" && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                      <span className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white text-xs font-medium">
+                      <span className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-500 to-[#FF5500] text-white text-xs font-medium">
                         Most Popular
                       </span>
                     </div>

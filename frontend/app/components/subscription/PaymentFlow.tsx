@@ -202,7 +202,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
                 Credit / debit card via Stripe
               </p>
             </div>
-            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-indigo-400 transition-colors flex items-center justify-center">
+            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#FF5500] transition-colors flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
