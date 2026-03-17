@@ -1,14 +1,37 @@
 import { dbService } from "./database";
 import { subscriptionService, PlanType } from "./subscriptionService";
 
+export type Currency = "stx" | "sbtc" | "usdcx";
+
 export interface PaymentIntent {
   address: string;
-  amount: string;      // in STX (decimal)
-  currency: "stx";
+  amount: string;
+  currency: Currency;
   planType: PlanType;
   billingPeriod: number;
   network: "mainnet" | "testnet" | "devnet";
 }
+
+// SIP-010 token contract IDs per network
+function getSbtcContract(): string {
+  if (process.env.SBTC_CONTRACT_ADDRESS) return process.env.SBTC_CONTRACT_ADDRESS;
+  return process.env.STACKS_NETWORK === "mainnet"
+    ? "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
+    : "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token";
+}
+
+function getUsdcxContract(): string {
+  if (process.env.USDCX_CONTRACT_ADDRESS) return process.env.USDCX_CONTRACT_ADDRESS;
+  return process.env.STACKS_NETWORK === "mainnet"
+    ? "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx"
+    : "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx";
+}
+
+// Monthly prices per plan for non-STX tokens
+const TOKEN_PRICES: Record<string, { sbtc: number; usdcx: number }> = {
+  basic: { sbtc: 0.0001, usdcx: 6 },
+  pro: { sbtc: 0.00025, usdcx: 15 },
+};
 
 function getStacksApiUrl(): string {
   return process.env.STACKS_API_URL || "http://localhost:3999";
@@ -29,7 +52,11 @@ export class PaymentService {
     return address;
   }
 
-  async createPaymentIntent(planType: PlanType, billingPeriod: number = 1): Promise<PaymentIntent> {
+  async createPaymentIntent(
+    planType: PlanType,
+    billingPeriod: number = 1,
+    currency: Currency = "stx"
+  ): Promise<PaymentIntent> {
     const plan = subscriptionService.getPlan(planType);
 
     if (planType === "free") {
@@ -37,17 +64,28 @@ export class PaymentService {
     }
 
     const address = this.getPaymentAddress();
-
     const DISCOUNTS: Record<number, number> = { 1: 0, 3: 0.10, 6: 0.20, 12: 0.30 };
     const months = [1, 3, 6, 12].includes(billingPeriod) ? billingPeriod : 1;
     const discount = DISCOUNTS[months] ?? 0;
-    const monthlyStx = parseFloat(plan.priceInStx);
-    const totalStx = Math.round(monthlyStx * months * (1 - discount));
+
+    let amount: string;
+    if (currency === "sbtc") {
+      const monthly = TOKEN_PRICES[planType]?.sbtc ?? 0;
+      const total = parseFloat((monthly * months * (1 - discount)).toFixed(8));
+      amount = total.toString();
+    } else if (currency === "usdcx") {
+      const monthly = TOKEN_PRICES[planType]?.usdcx ?? 0;
+      const total = Math.round(monthly * months * (1 - discount) * 100) / 100;
+      amount = total.toString();
+    } else {
+      const monthlyStx = parseFloat(plan.priceInStx);
+      amount = Math.round(monthlyStx * months * (1 - discount)).toString();
+    }
 
     return {
       address,
-      amount: totalStx.toString(),
-      currency: "stx",
+      amount,
+      currency,
       planType,
       billingPeriod: months,
       network: getNetworkName(),
@@ -55,16 +93,94 @@ export class PaymentService {
   }
 
   /**
-   * Verify a Stacks STX transfer by checking the Stacks API.
-   * Returns verified=true only if the tx is confirmed and sent to our payment address.
+   * Verify a SIP-010 token transfer (sBTC or USDCx) by inspecting the contract_call tx.
    */
-  async verifyPayment(txId: string): Promise<{
+  private async verifyTokenPayment(
+    txId: string,
+    expectedRecipient: string,
+    expectedContractId: string,
+    currency: "sbtc" | "usdcx"
+  ): Promise<{
     verified: boolean;
     status: "pending" | "confirmed" | "failed" | "not_found";
     amount?: string;
     currency?: string;
     blockHeight?: number;
   }> {
+    try {
+      const apiUrl = getStacksApiUrl();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.HIRO_API_KEY) headers["x-api-key"] = process.env.HIRO_API_KEY;
+
+      const normalizedTxId = txId.startsWith("0x") ? txId : `0x${txId}`;
+      const res = await fetch(`${apiUrl}/extended/v1/tx/${normalizedTxId}`, { headers });
+
+      if (res.status === 404) return { verified: false, status: "not_found" };
+      if (!res.ok) return { verified: false, status: "failed" };
+
+      const data = await res.json() as any;
+
+      if (data.tx_status === "pending" || data.tx_status === "submitted") {
+        return { verified: false, status: "pending" };
+      }
+      if (data.tx_status !== "success") return { verified: false, status: "failed" };
+      if (data.tx_type !== "contract_call") return { verified: false, status: "failed" };
+
+      const cc = data.contract_call;
+      if (cc?.contract_id !== expectedContractId) {
+        console.error(`Token contract mismatch: expected ${expectedContractId}, got ${cc?.contract_id}`);
+        return { verified: false, status: "failed" };
+      }
+      if (cc?.function_name !== "transfer") {
+        return { verified: false, status: "failed" };
+      }
+
+      // function_args: [amount, sender, recipient, memo]
+      const args: any[] = cc?.function_args ?? [];
+      const recipientRepr: string = args[2]?.repr ?? "";
+      if (recipientRepr !== expectedRecipient) {
+        console.error(`Recipient mismatch: expected ${expectedRecipient}, got ${recipientRepr}`);
+        return { verified: false, status: "failed" };
+      }
+
+      // Parse amount: repr is like "u10000" → strip leading "u"
+      const rawAmount = args[0]?.repr ?? "u0";
+      const baseUnits = BigInt(rawAmount.replace(/^u/, "") || "0");
+      const decimals = currency === "sbtc" ? 8 : 6;
+      const amount = (Number(baseUnits) / Math.pow(10, decimals)).toFixed(decimals);
+
+      return {
+        verified: true,
+        status: "confirmed",
+        amount,
+        currency,
+        blockHeight: data.block_height,
+      };
+    } catch (error) {
+      console.error("Token payment verification error:", error);
+      return { verified: false, status: "failed" };
+    }
+  }
+
+  /**
+   * Verify a Stacks STX transfer by checking the Stacks API.
+   * Returns verified=true only if the tx is confirmed and sent to our payment address.
+   */
+  async verifyPayment(txId: string, currency: Currency = "stx"): Promise<{
+    verified: boolean;
+    status: "pending" | "confirmed" | "failed" | "not_found";
+    amount?: string;
+    currency?: string;
+    blockHeight?: number;
+  }> {
+    if (currency === "sbtc") {
+      return this.verifyTokenPayment(txId, this.getPaymentAddress(), getSbtcContract(), "sbtc");
+    }
+    if (currency === "usdcx") {
+      return this.verifyTokenPayment(txId, this.getPaymentAddress(), getUsdcxContract(), "usdcx");
+    }
+
+    // STX native transfer
     try {
       const apiUrl = getStacksApiUrl();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -119,10 +235,11 @@ export class PaymentService {
   async processPayment(
     username: string,
     txId: string,
-    planType: PlanType
+    planType: PlanType,
+    currency: Currency = "stx"
   ): Promise<{ success: boolean; status?: string; message?: string }> {
     try {
-      const verification = await this.verifyPayment(txId);
+      const verification = await this.verifyPayment(txId, currency);
       if (!verification.verified) {
         if (verification.status === "pending" || verification.status === "not_found") {
           return { success: false, status: "pending", message: "Transaction is still pending confirmation" };
@@ -140,7 +257,7 @@ export class PaymentService {
           username,
           txId,
           verification.amount || "0",
-          "stx",
+          currency,
           planType,
           verification.blockHeight
         );

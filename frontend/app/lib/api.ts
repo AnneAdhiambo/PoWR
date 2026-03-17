@@ -204,10 +204,10 @@ class ApiClient {
     });
   }
 
-  async verifyPayment(username: string, txHash: string, planType: string, network?: string): Promise<{ success: boolean; message?: string }> {
+  async verifyPayment(username: string, txHash: string, planType: string, currency?: string): Promise<{ success: boolean; message?: string }> {
     return this.request<{ success: boolean; message?: string }>(`/api/payments/verify?username=${username}`, {
       method: "POST",
-      body: JSON.stringify({ txHash, planType, network }),
+      body: JSON.stringify({ txHash, planType, currency }),
     });
   }
 

@@ -191,7 +191,7 @@ export default function SubscriptionContent() {
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">Billing</h1>
               <p className="text-gray-400">
-                Pay with STX. Lock in a longer period for a bigger discount.
+                Pay with STX, sBTC, or USDCx. Lock in a longer period for a bigger discount.
               </p>
             </div>
             <ConnectWalletButton />
