@@ -50,7 +50,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                     className="text-center py-3 px-4 text-sm font-semibold text-white"
                   >
                     {candidate.username}
-                    <div className="text-xs text-[#3b76ef] mt-1">
+                    <div className="text-xs text-[#FF5500] mt-1">
                       Index: {candidate.overallIndex}
                     </div>
                   </th>
@@ -73,7 +73,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                         {skillData ? (
                           <div className="space-y-2">
                             <div className="text-center">
-                              <span className="text-lg font-bold text-[#3b76ef]">
+                              <span className="text-lg font-bold text-[#FF5500]">
                                 {skillData.score}
                               </span>
                               <span className="text-xs text-gray-400 ml-2">

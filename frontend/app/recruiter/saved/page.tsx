@@ -70,7 +70,7 @@ export default function RecruiterSavedPage() {
           </div>
           <button
             onClick={() => setShowCreate((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors"
           >
             <Plus className="w-4 h-4" weight="bold" />
             New Pool
@@ -84,12 +84,12 @@ export default function RecruiterSavedPage() {
               value={newPoolName}
               onChange={(e) => setNewPoolName(e.target.value)}
               placeholder="Pool name (e.g. 'Frontend Q3')"
-              className="flex-1 px-4 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(59,118,239,0.5)]"
+              className="flex-1 px-4 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(255,85,0,0.5)]"
             />
             <button
               type="submit"
               disabled={creating || !newPoolName.trim()}
-              className="px-4 py-2.5 rounded-lg bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-medium disabled:opacity-50 transition-colors"
+              className="px-4 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium disabled:opacity-50 transition-colors"
             >
               {creating ? "Creating..." : "Create"}
             </button>
@@ -113,11 +113,11 @@ export default function RecruiterSavedPage() {
             {pools.map((pool) => (
               <div
                 key={pool.id}
-                className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 flex items-center justify-between hover:border-[rgba(59,118,239,0.2)] transition-colors"
+                className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 flex items-center justify-between hover:border-[rgba(255,85,0,0.2)] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[rgba(59,118,239,0.1)] border border-[#3b76ef]/20 flex items-center justify-center">
-                    <Bookmark className="w-5 h-5 text-[#3b76ef]" weight="fill" />
+                  <div className="w-10 h-10 rounded-lg bg-[rgba(255,85,0,0.1)] border border-[#FF5500]/20 flex items-center justify-center">
+                    <Bookmark className="w-5 h-5 text-[#FF5500]" weight="fill" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white">{pool.name}</p>

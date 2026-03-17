@@ -197,7 +197,7 @@ export default function ProofsPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-16 h-16 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
@@ -217,12 +217,12 @@ export default function ProofsPage() {
                         <div className="flex items-start justify-between mb-6">
                             <div>
                                 <div className="flex items-center gap-2 mb-1.5">
-                                    <ShieldCheck className="w-5 h-5 text-blue-400" weight="fill" />
+                                    <ShieldCheck className="w-5 h-5 text-[#FF6B2B]" weight="fill" />
                                     <h1 className="text-xl font-semibold text-white tracking-tight" style={{ fontWeight: 500 }}>
                                         On-Chain Proofs
                                     </h1>
                                     {proofs.length > 0 && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] text-blue-300">
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] text-[#FF7F45]">
                                             {proofs.length}
                                         </span>
                                     )}
@@ -248,7 +248,7 @@ export default function ProofsPage() {
                                     <Cube className="w-4 h-4 text-violet-400" weight="fill" />
                                     <span className="text-sm text-gray-300">PoWRegistry Contract</span>
                                 </div>
-                                <span className="text-xs text-blue-400 px-2 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Base Sepolia</span>
+                                <span className="text-xs text-[#FF6B2B] px-2 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Base Sepolia</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <code className="flex-1 text-sm font-mono text-gray-400 bg-[rgba(255,255,255,0.03)] px-3 py-2 rounded-lg">
@@ -265,7 +265,7 @@ export default function ProofsPage() {
                                     href={getContractUrl()}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="p-2 rounded-lg text-gray-500 hover:text-blue-400 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+                                    className="p-2 rounded-lg text-gray-500 hover:text-[#FF6B2B] bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
                                     title="View on BaseScan"
                                 >
                                     <Link className="w-4 h-4" weight="regular" />
@@ -339,7 +339,7 @@ export default function ProofsPage() {
                                                                 ✓ On-Chain Verified
                                                             </span>
                                                         ) : (
-                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FF5500]/20 text-[#FF6B2B]">
                                                                 Recorded
                                                             </span>
                                                         )}
@@ -351,7 +351,7 @@ export default function ProofsPage() {
                                                         href={getBlockUrl(proof.stacksBlockHeight ?? proof.blockNumber ?? 0)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-xs text-gray-500 hover:text-blue-400 transition-colors"
+                                                        className="text-xs text-gray-500 hover:text-[#FF6B2B] transition-colors"
                                                     >
                                                         Block #{proof.stacksBlockHeight ?? proof.blockNumber ?? 0}
                                                     </a>
@@ -359,7 +359,7 @@ export default function ProofsPage() {
                                                         href={getExplorerUrl(proof.transactionHash)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                                        className="flex items-center gap-1 text-xs text-[#FF6B2B] hover:text-[#FF7F45] transition-colors"
                                                     >
                                                         <Link className="w-3.5 h-3.5" weight="regular" />
                                                         View TX
@@ -378,7 +378,7 @@ export default function ProofsPage() {
                                                                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)]"
                                                             >
                                                                 <span className="text-xs text-gray-400">{skillLabels[i] || `Skill ${i + 1}`}</span>
-                                                                <span className="text-sm font-medium text-blue-300">{score}</span>
+                                                                <span className="text-sm font-medium text-[#FF7F45]">{score}</span>
                                                             </div>
                                                         ))}
                                                     </div>

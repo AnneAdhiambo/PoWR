@@ -157,7 +157,7 @@ export default function ProfileManagementPage() {
           displayName={displayName}
         />
         <div className="flex-1 overflow-y-auto flex items-center justify-center ml-60">
-          <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
         </div>
       </div>
     );
@@ -234,7 +234,7 @@ export default function ProfileManagementPage() {
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm transition-colors border border-blue-500/30 disabled:opacity-50"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FF5500]/20 hover:bg-[#FF5500]/30 text-[#FF6B2B] text-sm transition-colors border border-[#FF5500]/30 disabled:opacity-50"
                   >
                     <FloppyDisk className="w-4 h-4" weight="regular" />
                     {saving ? "Saving..." : "Save"}
@@ -250,7 +250,7 @@ export default function ProfileManagementPage() {
                   value={profileData.bio}
                   onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
                   rows={3}
-                  className="w-full px-4 py-2.5 rounded-[12px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500/50 resize-none"
+                  className="w-full px-4 py-2.5 rounded-[12px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]/50 resize-none"
                   placeholder="Write a short bio about yourself..."
                 />
               </div>
@@ -274,7 +274,7 @@ export default function ProfileManagementPage() {
                   href={profileData.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-blue-400 text-xs transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-[#FF6B2B] text-xs transition-colors"
                 >
                   <LinkedinLogo className="w-4 h-4" weight="fill" />
                   LinkedIn
@@ -322,7 +322,7 @@ export default function ProfileManagementPage() {
                       type="text"
                       value={profileData.displayName}
                       onChange={(e) => setProfileData(prev => ({ ...prev, displayName: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]/50"
                       placeholder="Your display name"
                     />
                   ) : (
@@ -337,7 +337,7 @@ export default function ProfileManagementPage() {
                       type="text"
                       value={profileData.location}
                       onChange={(e) => setProfileData(prev => ({ ...prev, location: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]/50"
                       placeholder="City, Country"
                     />
                   ) : (
@@ -352,7 +352,7 @@ export default function ProfileManagementPage() {
                       type="url"
                       value={profileData.website}
                       onChange={(e) => setProfileData(prev => ({ ...prev, website: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]/50"
                       placeholder="https://yourwebsite.com"
                     />
                   ) : (
@@ -367,7 +367,7 @@ export default function ProfileManagementPage() {
                       type="url"
                       value={profileData.linkedin}
                       onChange={(e) => setProfileData(prev => ({ ...prev, linkedin: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]/50"
                       placeholder="https://linkedin.com/in/yourprofile"
                     />
                   ) : (
@@ -382,7 +382,7 @@ export default function ProfileManagementPage() {
                       type="url"
                       value={profileData.twitter}
                       onChange={(e) => setProfileData(prev => ({ ...prev, twitter: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                      className="w-full px-3 py-2 rounded-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF5500]/50"
                       placeholder="https://twitter.com/yourhandle"
                     />
                   ) : (
@@ -398,8 +398,8 @@ export default function ProfileManagementPage() {
               {profile && (
                 <Card className="p-5 rounded-[16px]">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-4 h-4 rounded-full bg-blue-500" />
-                    <h2 className="text-sm font-medium text-blue-400">PoW Index</h2>
+                    <div className="w-4 h-4 rounded-full bg-[#FF5500]" />
+                    <h2 className="text-sm font-medium text-[#FF6B2B]">PoW Index</h2>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -408,7 +408,7 @@ export default function ProfileManagementPage() {
                     </div>
                     <button
                       onClick={() => router.push(`/u/${username}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF5500]/10 hover:bg-[#FF5500]/20 text-[#FF6B2B] text-xs transition-colors"
                     >
                       <ArrowSquareOut className="w-3.5 h-3.5" weight="regular" />
                       Public Profile

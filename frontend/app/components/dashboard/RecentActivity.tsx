@@ -152,14 +152,14 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ proofs, unpublis
                     href={getExplorerUrl(proof.transactionHash)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[#3b76ef] transition-colors group"
+                    className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[#FF5500] transition-colors group"
                     style={{ opacity: 0.7 }}
                   >
                     <Link className="w-3 h-3" weight="regular" />
                     <span className="font-mono truncate max-w-[120px]">
                       {proof.transactionHash.slice(0, 10)}...{proof.transactionHash.slice(-8)}
                     </span>
-                    <span className="text-[#3b76ef] opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity">
                       View
                     </span>
                   </a>

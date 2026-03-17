@@ -173,10 +173,10 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         <div className="space-y-3">
           <button
             onClick={() => setMethod("stx")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(59,118,239,0.5)] hover:bg-[rgba(59,118,239,0.06)] transition-all text-left group"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,85,0,0.5)] hover:bg-[rgba(255,85,0,0.06)] transition-all text-left group"
           >
-            <div className="w-10 h-10 rounded-xl bg-[rgba(59,118,239,0.15)] flex items-center justify-center flex-shrink-0">
-              <Wallet className="w-5 h-5 text-[#3b76ef]" weight="fill" />
+            <div className="w-10 h-10 rounded-xl bg-[rgba(255,85,0,0.15)] flex items-center justify-center flex-shrink-0">
+              <Wallet className="w-5 h-5 text-[#FF5500]" weight="fill" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Pay with STX</p>
@@ -184,8 +184,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
                 {paymentIntent.amount} STX via Leather or Xverse
               </p>
             </div>
-            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#3b76ef] transition-colors flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[#3b76ef] opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#FF5500] transition-colors flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
 
@@ -194,7 +194,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(99,102,241,0.5)] hover:bg-[rgba(99,102,241,0.06)] transition-all text-left group"
           >
             <div className="w-10 h-10 rounded-xl bg-[rgba(99,102,241,0.15)] flex items-center justify-center flex-shrink-0">
-              <CreditCard className="w-5 h-5 text-indigo-400" weight="fill" />
+              <CreditCard className="w-5 h-5 text-[#FF5500]/80" weight="fill" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Pay with Card</p>
@@ -203,7 +203,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
               </p>
             </div>
             <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-indigo-400 transition-colors flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="w-2 h-2 rounded-full bg-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
         </div>
@@ -252,7 +252,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         <button
           onClick={handleStripe}
           disabled={stripeLoading}
-          className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
+          className="w-full py-3 px-4 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
         >
           {stripeLoading ? (
             <>
@@ -322,7 +322,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         <button
           onClick={handlePay}
           disabled={verifying || pending}
-          className="w-full py-3 px-4 rounded-lg bg-[#3b76ef] hover:bg-[#3265cc] disabled:bg-[#3b76ef]/50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
+          className="w-full py-3 px-4 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
         >
           <Wallet className="w-5 h-5" />
           Pay {paymentIntent.amount} STX with Wallet
@@ -363,7 +363,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             value={txHash}
             onChange={(e) => setTxHash(e.target.value)}
             placeholder="0x..."
-            className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white text-sm font-mono placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white text-sm font-mono placeholder-gray-500 focus:outline-none focus:border-[#FF5500]"
           />
           {error && !pending && (
             <div className="flex items-start gap-2 mt-2 text-xs text-red-400">
@@ -384,7 +384,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           <button
             onClick={() => handleVerify(txHash)}
             disabled={verifying || pending || !txHash.trim()}
-            className="flex-1 py-2.5 px-4 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 px-4 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
           >
             {pending ? (
               <>

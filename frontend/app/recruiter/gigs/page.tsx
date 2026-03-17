@@ -13,7 +13,7 @@ export default function RecruiterGigsPage() {
           <h1 className="text-2xl font-bold text-white">Gigs</h1>
           <p className="text-sm text-gray-500 mt-1">Post short-term contracts and freelance work</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-medium transition-colors">
+        <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors">
           <Plus className="w-4 h-4" weight="bold" />
           Post a Gig
         </button>

@@ -51,7 +51,7 @@ export const DeveloperCard: React.FC<DeveloperCardProps> = ({ developer, onShort
   const skillPills = topSkillsSorted.slice(0, 3).map(s => s.skill);
 
   return (
-    <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5 flex flex-col gap-4 hover:border-[rgba(59,118,239,0.3)] hover:bg-[rgba(59,118,239,0.02)] hover:shadow-[0_0_24px_rgba(59,118,239,0.07)] transition-all duration-200">
+    <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5 flex flex-col gap-4 hover:border-[rgba(255,85,0,0.3)] hover:bg-[rgba(255,85,0,0.02)] hover:shadow-[0_0_24px_rgba(255,85,0,0.07)] transition-all duration-200">
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -134,14 +134,14 @@ export const DeveloperCard: React.FC<DeveloperCardProps> = ({ developer, onShort
         </button>
         <button
           onClick={() => onShortlist?.(username)}
-          className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-gray-300 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(59,118,239,0.1)] hover:text-[#3b76ef] border border-[rgba(255,255,255,0.06)] hover:border-[#3b76ef]/25 transition-colors"
+          className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-gray-300 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,85,0,0.1)] hover:text-[#FF5500] border border-[rgba(255,255,255,0.06)] hover:border-[#FF5500]/25 transition-colors"
         >
           <Heart className="w-3.5 h-3.5" weight="regular" />
           Shortlist
         </button>
         <button
           onClick={() => onContact?.(username)}
-          className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#3b76ef] bg-[rgba(59,118,239,0.1)] hover:bg-[rgba(59,118,239,0.18)] border border-[#3b76ef]/25 hover:border-[#3b76ef]/50 transition-colors"
+          className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#FF5500] bg-[rgba(255,85,0,0.1)] hover:bg-[rgba(255,85,0,0.18)] border border-[#FF5500]/25 hover:border-[#FF5500]/50 transition-colors"
         >
           <EnvelopeSimple className="w-3.5 h-3.5" weight="bold" />
           Contact

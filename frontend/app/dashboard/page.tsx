@@ -309,12 +309,12 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400 mb-2">{progressMessage}</p>
           {progressPercent > 0 && (
             <div className="w-64 h-2 bg-[#141519] rounded-full mx-auto overflow-hidden">
               <div
-                className="h-full bg-[#3b76ef] transition-all duration-300"
+                className="h-full bg-[#FF5500] transition-all duration-300"
                 style={{ width: `${progressPercent}%` }}
               ></div>
             </div>
@@ -380,10 +380,10 @@ export default function DashboardPage() {
 
             {/* Publish Prompt Banner */}
             {showPublishPrompt && (
-              <div className="mb-6 p-4 rounded-[14px] bg-gradient-to-r from-[rgba(59,118,239,0.15)] to-[rgba(139,92,246,0.15)] border border-[rgba(59,118,239,0.3)]">
+              <div className="mb-6 p-4 rounded-[14px] bg-gradient-to-r from-[rgba(255,85,0,0.15)] to-[rgba(139,92,246,0.15)] border border-[rgba(255,85,0,0.3)]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[rgba(59,118,239,0.2)] flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-[rgba(255,85,0,0.2)] flex items-center justify-center">
                       <span className="text-xl">🎉</span>
                     </div>
                     <div>
@@ -471,11 +471,11 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 {/* AI Profile Summary */}
                 {profile?.summary && (
-                  <Card className="p-4 rounded-[16px] relative overflow-hidden border border-blue-500/20 bg-blue-500/5">
+                  <Card className="p-4 rounded-[16px] relative overflow-hidden border border-[#FF5500]/20 bg-[#FF5500]/5">
                     <div className="absolute top-2 right-2 opacity-20">
-                      <Quotes className="w-8 h-8 text-blue-400" weight="fill" />
+                      <Quotes className="w-8 h-8 text-[#FF6B2B]" weight="fill" />
                     </div>
-                    <h3 className="text-xs font-medium text-blue-400 mb-2 flex items-center gap-1.5">
+                    <h3 className="text-xs font-medium text-[#FF6B2B] mb-2 flex items-center gap-1.5">
                       <Sparkle className="w-3.5 h-3.5" weight="fill" />
                       AI Profile Summary
                     </h3>
@@ -521,7 +521,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-gray-400 mb-3">Upgrade for more frequent updates</p>
                       <button
                         onClick={() => router.push("/subscription")}
-                        className="w-full py-2 px-3 rounded-lg bg-[#3b76ef] hover:bg-[#4d85f0] text-xs text-white transition-colors"
+                        className="w-full py-2 px-3 rounded-lg bg-[#FF5500] hover:bg-[#4d85f0] text-xs text-white transition-colors"
                       >
                         View Plans
                       </button>

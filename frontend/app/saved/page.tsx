@@ -101,7 +101,7 @@ export default function SavedPage() {
               onClick={() => setActiveTab("jobs")}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === "jobs"
-                  ? "bg-[#3b76ef] text-white"
+                  ? "bg-[#FF5500] text-white"
                   : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
               }`}
             >
@@ -114,7 +114,7 @@ export default function SavedPage() {
               onClick={() => setActiveTab("gigs")}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === "gigs"
-                  ? "bg-[#3b76ef] text-white"
+                  ? "bg-[#FF5500] text-white"
                   : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
               }`}
             >
@@ -153,11 +153,11 @@ export default function SavedPage() {
                           <div className="flex items-start justify-between mb-3">
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-base font-semibold text-white group-hover:text-[#3b76ef] transition-colors">
+                                <h3 className="text-base font-semibold text-white group-hover:text-[#FF5500] transition-colors">
                                   {job.title}
                                 </h3>
                                 {job.matchScore && (
-                                  <span className="px-2 py-0.5 rounded-full bg-[#3b76ef] text-white text-xs font-medium">
+                                  <span className="px-2 py-0.5 rounded-full bg-[#FF5500] text-white text-xs font-medium">
                                     {job.matchScore}% match
                                   </span>
                                 )}
@@ -165,7 +165,7 @@ export default function SavedPage() {
                               <p className="text-sm text-gray-300 mb-1">{'company' in job ? job.company : 'client' in job ? job.client : ''}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Star className="w-5 h-5 text-[#3b76ef]" weight="fill" />
+                              <Star className="w-5 h-5 text-[#FF5500]" weight="fill" />
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -209,7 +209,7 @@ export default function SavedPage() {
                               ))}
                             </div>
                             <button 
-                              className="flex items-center gap-1 text-xs text-[#3b76ef] hover:text-[#4d85f0] transition-colors"
+                              className="flex items-center gap-1 text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(`/jobs/${job.id}`);
@@ -235,11 +235,11 @@ export default function SavedPage() {
                           <div className="flex items-start justify-between mb-3">
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-base font-semibold text-white group-hover:text-[#3b76ef] transition-colors">
+                                <h3 className="text-base font-semibold text-white group-hover:text-[#FF5500] transition-colors">
                                   {gig.title}
                                 </h3>
                                 {gig.matchScore && (
-                                  <span className="px-2 py-0.5 rounded-full bg-[#3b76ef] text-white text-xs font-medium">
+                                  <span className="px-2 py-0.5 rounded-full bg-[#FF5500] text-white text-xs font-medium">
                                     {gig.matchScore}% match
                                   </span>
                                 )}
@@ -250,7 +250,7 @@ export default function SavedPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Star className="w-5 h-5 text-[#3b76ef]" weight="fill" />
+                              <Star className="w-5 h-5 text-[#FF5500]" weight="fill" />
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -294,7 +294,7 @@ export default function SavedPage() {
                               ))}
                             </div>
                             <button 
-                              className="flex items-center gap-1 text-xs text-[#3b76ef] hover:text-[#4d85f0] transition-colors"
+                              className="flex items-center gap-1 text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(`/gigs/${gig.id}`);

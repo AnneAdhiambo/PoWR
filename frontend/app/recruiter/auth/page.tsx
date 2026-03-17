@@ -71,7 +71,7 @@ export default function RecruiterAuthPage() {
       {/* ── Left panel ── */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center p-16">
         {/* Orbs — different color balance */}
-        <div className="absolute top-[-10%] right-[-15%] w-[65%] h-[65%] rounded-full bg-[#3b76ef]/18 blur-[140px] animate-pulse" />
+        <div className="absolute top-[-10%] right-[-15%] w-[65%] h-[65%] rounded-full bg-[#FF5500]/18 blur-[140px] animate-pulse" />
         <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[#FF9FFC]/12 blur-[120px] animate-pulse" style={{ animationDelay: "2.5s" }} />
         <div className="absolute top-[30%] left-[15%] w-[35%] h-[35%] rounded-full bg-[#B19EEF]/10 blur-[90px] animate-pulse" style={{ animationDelay: "5s" }} />
         {/* Dot grid */}
@@ -86,22 +86,22 @@ export default function RecruiterAuthPage() {
         {/* Logo */}
         <div className="absolute top-10 left-10 z-10 flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight text-white">
-            Po<span className="text-[#3b76ef]">WR</span>
+            Po<span className="text-[#FF5500]">WR</span>
           </span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3b76ef]/15 text-[#3b76ef] border border-[#3b76ef]/25 font-semibold uppercase tracking-wide">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/25 font-semibold uppercase tracking-wide">
             Recruiter
           </span>
         </div>
 
         {/* Centered copy */}
         <div className="relative z-10 max-w-sm">
-          <p className="text-xs font-mono uppercase tracking-[0.2em] text-[#3b76ef] mb-6">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-[#FF5500] mb-6">
             Talent Intelligence
           </p>
           <h2 className="text-6xl font-black text-white leading-[1.05] tracking-tight mb-8">
             Hire the<br />
             builders,<br />
-            <span className="text-[#3b76ef]">not the<br />talkers.</span>
+            <span className="text-[#FF5500]">not the<br />talkers.</span>
           </h2>
           <p className="text-gray-400 text-lg leading-relaxed">
             Every profile is backed by<br />
@@ -132,7 +132,7 @@ export default function RecruiterAuthPage() {
           {/* Mobile logo */}
           <div className="lg:hidden mb-10 text-center">
             <span className="text-3xl font-bold text-white">
-              Po<span className="text-[#3b76ef]">WR</span>
+              Po<span className="text-[#FF5500]">WR</span>
             </span>
           </div>
 
@@ -154,7 +154,7 @@ export default function RecruiterAuthPage() {
                 onClick={() => setTab(t)}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                   tab === t
-                    ? "bg-[#3b76ef] text-white shadow-lg shadow-[#3b76ef]/20"
+                    ? "bg-[#FF5500] text-white shadow-lg shadow-[#FF5500]/20"
                     : "text-gray-500 hover:text-gray-300"
                 }`}
               >
@@ -174,7 +174,7 @@ export default function RecruiterAuthPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="you@company.com"
-                  className="w-full pl-10 pr-4 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#3b76ef]/60 focus:bg-white/6 transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FF5500]/60 focus:bg-white/6 transition-all"
                 />
               </div>
             </div>
@@ -190,7 +190,7 @@ export default function RecruiterAuthPage() {
                   required
                   minLength={8}
                   placeholder="Min 8 characters"
-                  className="w-full pl-10 pr-11 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#3b76ef]/60 focus:bg-white/6 transition-all"
+                  className="w-full pl-10 pr-11 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FF5500]/60 focus:bg-white/6 transition-all"
                 />
                 <button
                   type="button"
@@ -214,7 +214,7 @@ export default function RecruiterAuthPage() {
                       onChange={(e) => setCompanyName(e.target.value)}
                       required
                       placeholder="Acme Corp"
-                      className="w-full pl-10 pr-4 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#3b76ef]/60 focus:bg-white/6 transition-all"
+                      className="w-full pl-10 pr-4 py-3 bg-white/4 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FF5500]/60 focus:bg-white/6 transition-all"
                     />
                   </div>
                 </div>
@@ -226,7 +226,7 @@ export default function RecruiterAuthPage() {
                     type="button"
                     onClick={() => setSizeOpen((v) => !v)}
                     className={`w-full flex items-center justify-between px-4 py-3 bg-white/4 border rounded-xl text-sm transition-all focus:outline-none ${
-                      sizeOpen ? "border-[#3b76ef]/60" : "border-white/8 hover:border-white/20"
+                      sizeOpen ? "border-[#FF5500]/60" : "border-white/8 hover:border-white/20"
                     } ${companySize ? "text-white" : "text-gray-500"}`}
                   >
                     {companySize || "Select size…"}
@@ -249,7 +249,7 @@ export default function RecruiterAuthPage() {
                           <span className={companySize === opt ? "text-white font-medium" : "text-gray-300"}>
                             {opt}
                           </span>
-                          {companySize === opt && <Check size={14} weight="bold" className="text-[#3b76ef]" />}
+                          {companySize === opt && <Check size={14} weight="bold" className="text-[#FF5500]" />}
                         </button>
                       ))}
                     </div>
@@ -261,7 +261,7 @@ export default function RecruiterAuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 mt-2 rounded-xl bg-[#3b76ef] hover:bg-[#3265cc] text-white text-sm font-bold tracking-wide transition-all disabled:opacity-50 shadow-lg shadow-[#3b76ef]/20 hover:shadow-[#3b76ef]/40"
+              className="w-full h-12 mt-2 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-bold tracking-wide transition-all disabled:opacity-50 shadow-lg shadow-[#FF5500]/20 hover:shadow-[#FF5500]/40"
             >
               {loading ? "Please wait…" : tab === "login" ? "Sign In" : "Create Account"}
             </button>
@@ -270,7 +270,7 @@ export default function RecruiterAuthPage() {
           <div className="mt-10 pt-6 border-t border-white/6 text-center">
             <p className="text-sm text-gray-600">
               Are you a developer?{" "}
-              <a href="/auth" className="text-[#3b76ef] hover:text-white transition-colors font-medium">
+              <a href="/auth" className="text-[#FF5500] hover:text-white transition-colors font-medium">
                 Sign in here →
               </a>
             </p>

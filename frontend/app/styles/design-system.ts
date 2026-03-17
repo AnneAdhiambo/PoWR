@@ -4,7 +4,7 @@ export const designTokens = {
     background: "#0b0c0f",
     cardBg: "#12141a",
     softBg: "#161922",
-    primaryBlue: "#3b76ef",
+    primaryOrange: "#FF5500",
     foreground: "#ffffff",
     border: "rgba(255,255,255,0.04)",
   },

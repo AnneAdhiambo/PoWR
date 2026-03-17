@@ -40,7 +40,7 @@ export const RecruiterNav: React.FC = () => {
       <Link href="/recruiter/search" className="flex items-center gap-2 flex-shrink-0">
         <img src="/logo.png" alt="PoWR" className="h-7 w-auto" />
         <span className="text-base font-semibold text-white tracking-tight">PoWR</span>
-        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[rgba(59,118,239,0.15)] text-[#3b76ef] border border-[#3b76ef]/30">
+        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[rgba(255,85,0,0.15)] text-[#FF5500] border border-[#FF5500]/30">
           Recruiter
         </span>
       </Link>
@@ -69,7 +69,7 @@ export const RecruiterNav: React.FC = () => {
       {/* Right: plan badge + user */}
       <div className="flex items-center gap-3 flex-shrink-0">
         {plan !== "free" && (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[rgba(59,118,239,0.15)] text-[#3b76ef] border border-[#3b76ef]/30 capitalize">
+          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[rgba(255,85,0,0.15)] text-[#FF5500] border border-[#FF5500]/30 capitalize">
             {plan}
           </span>
         )}

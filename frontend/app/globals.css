@@ -5,7 +5,7 @@
   --bg-card: #12141a;
   --bg-soft: #161922;
   --foreground: #ffffff;
-  --primary-blue: #3b76ef;
+  --primary-orange: #FF5500;
   --border-color: rgba(255,255,255,0.04);
 }
 
@@ -14,7 +14,7 @@
   --color-foreground: var(--foreground);
   --color-card-bg: var(--bg-card);
   --color-soft-bg: var(--bg-soft);
-  --color-primary-blue: var(--primary-blue);
+  --color-primary-orange: var(--primary-orange);
   --color-border: var(--border-color);
   --font-sans: var(--font-manrope);
 }

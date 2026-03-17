@@ -177,25 +177,25 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
       <Card className="p-4 rounded-[16px]">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-blue-400" weight="fill" />
-            <h2 className="text-sm font-medium text-blue-400" style={{ fontWeight: 500, fontSize: '14px' }}>
+            <ShieldCheck className="w-4 h-4 text-[#FF6B2B]" weight="fill" />
+            <h2 className="text-sm font-medium text-[#FF6B2B]" style={{ fontWeight: 500, fontSize: '14px' }}>
               On-Chain Proofs
             </h2>
             {proofs.length > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] text-blue-300">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] text-[#FF7F45]">
                 {proofs.length}
               </span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/proofs" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+            <Link href="/proofs" className="text-xs text-[#FF6B2B] hover:text-[#FF7F45] transition-colors">
               View All
             </Link>
             {username && !unpublishedAnalysis && (
               <button
                 onClick={handlePublishProof}
                 disabled={publishing}
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] text-blue-300 disabled:opacity-50"
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] text-[#FF7F45] disabled:opacity-50"
               >
                 <Plus className="w-3 h-3" weight="bold" />
                 {publishing ? "Publishing..." : "Publish Proof"}
@@ -233,7 +233,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
               <Cube className="w-3.5 h-3.5 text-violet-400" weight="fill" />
               <span className="text-[10px] text-gray-400">PoWRegistry Contract</span>
             </div>
-            <span className="text-[9px] text-blue-400 px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Base Sepolia</span>
+            <span className="text-[9px] text-[#FF6B2B] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.05)]">Base Sepolia</span>
           </div>
           <div className="flex items-center gap-2">
             <code className="flex-1 text-[11px] font-mono text-gray-300 truncate">
@@ -250,7 +250,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
               href={getContractUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1 rounded text-gray-500 hover:text-blue-400 transition-colors"
+              className="p-1 rounded text-gray-500 hover:text-[#FF6B2B] transition-colors"
               title="View on BaseScan"
             >
               <Link className="w-3 h-3" weight="regular" />
@@ -285,7 +285,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                           On-Chain Verified
                         </span>
                       ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FF5500]/20 text-[#FF6B2B]">
                           Recorded
                         </span>
                       )}
@@ -299,7 +299,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                       href={getBlockUrl(getBlockNum(latestProof))}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-gray-400 hover:text-blue-400 text-[10px] transition-colors"
+                      className="flex items-center gap-1 text-gray-400 hover:text-[#FF6B2B] text-[10px] transition-colors"
                       style={{ opacity: 0.6 }}
                       title={`Block #${getBlockNum(latestProof)}`}
                     >
@@ -309,7 +309,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                       href={getExplorerUrl(latestProof.transactionHash)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-gray-400 hover:text-blue-400 text-[10px] transition-colors"
+                      className="flex items-center gap-1 text-gray-400 hover:text-[#FF6B2B] text-[10px] transition-colors"
                       style={{ opacity: 0.6 }}
                       title="View transaction on BaseScan"
                     >
@@ -325,7 +325,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                       {latestProof.skillScores.map((score, i) => (
                         <span
                           key={i}
-                          className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.08)] text-blue-300"
+                          className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.08)] text-[#FF7F45]"
                         >
                           {score}
                         </span>
@@ -374,7 +374,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                             href={getBlockUrl(getBlockNum(proof))}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-[#3b76ef] text-[10px] transition-colors"
+                            className="text-gray-400 hover:text-[#FF5500] text-[10px] transition-colors"
                             style={{ opacity: 0.6 }}
                             title={`Block #${getBlockNum(proof)}`}
                           >
@@ -384,7 +384,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                             href={getExplorerUrl(proof.transactionHash)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-gray-400 hover:text-[#3b76ef] text-[10px] transition-colors"
+                            className="flex items-center gap-1 text-gray-400 hover:text-[#FF5500] text-[10px] transition-colors"
                             style={{ opacity: 0.6 }}
                             title="View transaction on BaseScan"
                           >

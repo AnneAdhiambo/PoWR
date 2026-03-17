@@ -289,7 +289,7 @@ function GigsPageContent() {
                   onClick={() => setFilter(type)}
                   className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
                     filter === type
-                      ? "bg-[#3b76ef] text-white"
+                      ? "bg-[#FF5500] text-white"
                       : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
                   }`}
                 >
@@ -302,7 +302,7 @@ function GigsPageContent() {
                 onClick={() => setViewMode("grid")}
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === "grid"
-                    ? "bg-[#3b76ef] text-white"
+                    ? "bg-[#FF5500] text-white"
                     : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
                 }`}
               >
@@ -312,7 +312,7 @@ function GigsPageContent() {
                 onClick={() => setViewMode("list")}
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === "list"
-                    ? "bg-[#3b76ef] text-white"
+                    ? "bg-[#FF5500] text-white"
                     : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
                 }`}
               >
@@ -324,7 +324,7 @@ function GigsPageContent() {
           {/* Gigs List */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : (
             <>
@@ -348,11 +348,11 @@ function GigsPageContent() {
                           <div className="flex items-start justify-between mb-3">
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-base font-semibold text-white group-hover:text-[#3b76ef] transition-colors">
+                                <h3 className="text-base font-semibold text-white group-hover:text-[#FF5500] transition-colors">
                                   {gig.title}
                                 </h3>
                                 {gig.matchScore && (
-                                  <span className="px-2 py-0.5 rounded-full bg-[#3b76ef] text-white text-xs font-medium">
+                                  <span className="px-2 py-0.5 rounded-full bg-[#FF5500] text-white text-xs font-medium">
                                     {gig.matchScore}% match
                                   </span>
                                 )}
@@ -365,8 +365,8 @@ function GigsPageContent() {
                         <Star 
                           className={`w-5 h-5 transition-colors cursor-pointer ${
                             savedGigIds.has(gig.id)
-                              ? "text-[#3b76ef]"
-                              : "text-gray-500 hover:text-[#3b76ef]"
+                              ? "text-[#FF5500]"
+                              : "text-gray-500 hover:text-[#FF5500]"
                           }`}
                           weight={savedGigIds.has(gig.id) ? "fill" : "regular"}
                           onClick={(e) => {
@@ -438,7 +438,7 @@ function GigsPageContent() {
                               ))}
                             </div>
                             <button 
-                              className="flex items-center gap-1 text-xs text-[#3b76ef] hover:text-[#4d85f0] transition-colors"
+                              className="flex items-center gap-1 text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(`/gigs/${gig.id}`);
@@ -465,11 +465,11 @@ function GigsPageContent() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <h3 className="text-sm font-semibold text-white group-hover:text-[#3b76ef] transition-colors">
+                            <h3 className="text-sm font-semibold text-white group-hover:text-[#FF5500] transition-colors">
                               {gig.title}
                             </h3>
                             {gig.matchScore && (
-                              <span className="px-2 py-0.5 rounded-full bg-[#3b76ef] text-white text-xs font-medium">
+                              <span className="px-2 py-0.5 rounded-full bg-[#FF5500] text-white text-xs font-medium">
                                 {gig.matchScore}%
                               </span>
                             )}
@@ -482,8 +482,8 @@ function GigsPageContent() {
                         <Star 
                           className={`w-4 h-4 transition-colors cursor-pointer flex-shrink-0 ${
                             savedGigIds.has(gig.id)
-                              ? "text-[#3b76ef]"
-                              : "text-gray-500 hover:text-[#3b76ef]"
+                              ? "text-[#FF5500]"
+                              : "text-gray-500 hover:text-[#FF5500]"
                           }`}
                           weight={savedGigIds.has(gig.id) ? "fill" : "regular"}
                           onClick={(e) => {
@@ -560,7 +560,7 @@ function GigsPageContent() {
                       </div>
 
                       <button 
-                        className="flex items-center justify-center gap-1 text-xs text-[#3b76ef] hover:text-[#4d85f0] transition-colors mt-auto"
+                        className="flex items-center justify-center gap-1 text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors mt-auto"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/gigs/${gig.id}`);
@@ -605,7 +605,7 @@ export default function GigsPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
       </div>
     }>
       <GigsPageContent />

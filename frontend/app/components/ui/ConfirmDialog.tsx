@@ -36,8 +36,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       button: "bg-yellow-600 hover:bg-yellow-700 text-white",
     },
     info: {
-      icon: "text-blue-500",
-      button: "bg-[#3b76ef] hover:bg-[#2d5fd6] text-white",
+      icon: "text-[#FF5500]",
+      button: "bg-[#FF5500] hover:bg-[#2d5fd6] text-white",
     },
   };
 

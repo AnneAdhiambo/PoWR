@@ -24,12 +24,12 @@ export const ProofChainPanel: React.FC<ProofChainPanelProps> = ({ proofs, isVeri
       {/* Blockchain callout */}
       <div className={`p-4 rounded-xl border ${
         isVerified
-          ? "bg-[rgba(59,118,239,0.06)] border-[rgba(59,118,239,0.2)]"
+          ? "bg-[rgba(255,85,0,0.06)] border-[rgba(255,85,0,0.2)]"
           : "bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)]"
       }`}>
         <div className="flex items-start gap-3">
           <Cube
-            className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isVerified ? "text-[#3b76ef]" : "text-gray-600"}`}
+            className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isVerified ? "text-[#FF5500]" : "text-gray-600"}`}
             weight="fill"
           />
           <div>
@@ -62,7 +62,7 @@ export const ProofChainPanel: React.FC<ProofChainPanelProps> = ({ proofs, isVeri
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#3b76ef]" weight="fill" />
+                <ShieldCheck className="w-4 h-4 text-[#FF5500]" weight="fill" />
                 <span className="text-xs font-mono text-gray-300">{shortHash}</span>
               </div>
               {explorerUrl && (
@@ -71,7 +71,7 @@ export const ProofChainPanel: React.FC<ProofChainPanelProps> = ({ proofs, isVeri
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-gray-500 hover:text-[#3b76ef] transition-colors"
+                  className="text-gray-500 hover:text-[#FF5500] transition-colors"
                 >
                   <ArrowSquareOut className="w-3.5 h-3.5" weight="bold" />
                 </a>

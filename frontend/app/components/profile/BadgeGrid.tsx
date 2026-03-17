@@ -33,8 +33,8 @@ export function BadgeGrid({ skillBadges, achievements }: BadgeGridProps) {
       {hasSkill && (
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-3">
-            <Medal className="w-4 h-4 text-[#3b76ef]" weight="fill" />
-            <h3 className="text-sm font-medium text-[#3b76ef]">Skill Badges</h3>
+            <Medal className="w-4 h-4 text-[#FF5500]" weight="fill" />
+            <h3 className="text-sm font-medium text-[#FF5500]">Skill Badges</h3>
             <span className="text-[10px] text-gray-500 bg-[rgba(255,255,255,0.05)] px-1.5 py-0.5 rounded-full">
               On-chain NFT
             </span>

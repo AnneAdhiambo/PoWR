@@ -225,7 +225,7 @@ export default function GigDetailPage() {
           displayName={displayName}
         />
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
         </div>
       </div>
     );
@@ -280,7 +280,7 @@ export default function GigDetailPage() {
                     {gig.title}
                   </h1>
                   {gig.matchScore && (
-                    <span className="px-3 py-1 rounded-full bg-[#3b76ef] text-white text-sm font-medium">
+                    <span className="px-3 py-1 rounded-full bg-[#FF5500] text-white text-sm font-medium">
                       {gig.matchScore}% match
                     </span>
                   )}
@@ -341,7 +341,7 @@ export default function GigDetailPage() {
                 }}
                 className={`p-2 rounded-lg transition-colors ${
                   saved
-                    ? "bg-[#3b76ef] text-white"
+                    ? "bg-[#FF5500] text-white"
                     : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
                 }`}
               >
@@ -381,7 +381,7 @@ export default function GigDetailPage() {
                   <ul className="space-y-3">
                     {gig.timeline.map((milestone, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-[#3b76ef] flex items-center justify-center text-white text-xs font-medium flex-shrink-0 mt-0.5">
+                        <div className="w-6 h-6 rounded-full bg-[#FF5500] flex items-center justify-center text-white text-xs font-medium flex-shrink-0 mt-0.5">
                           {idx + 1}
                         </div>
                         <span className="text-sm text-gray-400" style={{ opacity: 0.8 }}>
@@ -400,7 +400,7 @@ export default function GigDetailPage() {
                   <ul className="space-y-3">
                     {gig.deliverables.map((deliverable, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 text-[#3b76ef] flex-shrink-0 mt-0.5" weight="regular" />
+                        <CheckCircle className="w-5 h-5 text-[#FF5500] flex-shrink-0 mt-0.5" weight="regular" />
                         <span className="text-sm text-gray-400" style={{ opacity: 0.8 }}>
                           {deliverable}
                         </span>
@@ -417,7 +417,7 @@ export default function GigDetailPage() {
                   <ul className="space-y-3">
                     {gig.requirements.map((requirement, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 text-[#3b76ef] flex-shrink-0 mt-0.5" weight="regular" />
+                        <CheckCircle className="w-5 h-5 text-[#FF5500] flex-shrink-0 mt-0.5" weight="regular" />
                         <span className="text-sm text-gray-400" style={{ opacity: 0.8 }}>
                           {requirement}
                         </span>
@@ -486,7 +486,7 @@ export default function GigDetailPage() {
                 <Card className="p-6">
                   <h3 className="text-base font-semibold text-white mb-4">Your Match</h3>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-[#3b76ef] mb-2">
+                    <div className="text-3xl font-bold text-[#FF5500] mb-2">
                       {gig.matchScore}%
                     </div>
                     <p className="text-xs text-gray-400" style={{ opacity: 0.7 }}>

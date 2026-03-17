@@ -37,19 +37,19 @@ function DualRangeSlider({
       <div className="absolute w-full h-[3px] rounded-full bg-[rgba(255,255,255,0.08)]">
         {/* Active fill */}
         <div
-          className="absolute h-full bg-[#3b76ef] rounded-full"
+          className="absolute h-full bg-[#FF5500] rounded-full"
           style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
         />
       </div>
 
       {/* Min thumb (visual) */}
       <div
-        className="absolute w-[14px] h-[14px] rounded-full bg-[#3b76ef] border-2 border-white shadow-[0_0_0_2px_rgba(59,118,239,0.35)] pointer-events-none z-10 transition-transform"
+        className="absolute w-[14px] h-[14px] rounded-full bg-[#FF5500] border-2 border-white shadow-[0_0_0_2px_rgba(255,85,0,0.35)] pointer-events-none z-10 transition-transform"
         style={{ left: `calc(${minPercent}% - 7px)` }}
       />
       {/* Max thumb (visual) */}
       <div
-        className="absolute w-[14px] h-[14px] rounded-full bg-[#3b76ef] border-2 border-white shadow-[0_0_0_2px_rgba(59,118,239,0.35)] pointer-events-none z-10 transition-transform"
+        className="absolute w-[14px] h-[14px] rounded-full bg-[#FF5500] border-2 border-white shadow-[0_0_0_2px_rgba(255,85,0,0.35)] pointer-events-none z-10 transition-transform"
         style={{ left: `calc(${maxPercent}% - 7px)` }}
       />
 
@@ -79,8 +79,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3b76ef] ${
-        checked ? "bg-[#3b76ef]" : "bg-[rgba(255,255,255,0.12)]"
+      className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5500] ${
+        checked ? "bg-[#FF5500]" : "bg-[rgba(255,255,255,0.12)]"
       }`}
     >
       <span
@@ -136,7 +136,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ onApply, loading }
             value={skillSearch}
             onChange={e => setSkillSearch(e.target.value)}
             placeholder="Search skills..."
-            className="w-full pl-8 pr-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.07)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(59,118,239,0.5)] transition-colors"
+            className="w-full pl-8 pr-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.07)] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[rgba(255,85,0,0.5)] transition-colors"
           />
         </div>
 
@@ -154,8 +154,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ onApply, loading }
                 {/* Custom checkbox */}
                 <div className={`w-[15px] h-[15px] rounded-[4px] flex items-center justify-center flex-shrink-0 border transition-all ${
                   checked
-                    ? "bg-[#3b76ef] border-[#3b76ef]"
-                    : "bg-transparent border-[rgba(255,255,255,0.18)] group-hover:border-[rgba(59,118,239,0.6)]"
+                    ? "bg-[#FF5500] border-[#FF5500]"
+                    : "bg-transparent border-[rgba(255,255,255,0.18)] group-hover:border-[rgba(255,85,0,0.6)]"
                 }`}>
                   {checked && (
                     <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" strokeWidth={3.5} viewBox="0 0 24 24">
@@ -180,7 +180,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ onApply, loading }
       <section>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-white">PoW Score</p>
-          <span className="text-xs font-medium text-[#3b76ef] tabular-nums">
+          <span className="text-xs font-medium text-[#FF5500] tabular-nums">
             {minScore} – {maxScore}
           </span>
         </div>
@@ -206,7 +206,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ onApply, loading }
           <select
             value={activeWithin ?? ""}
             onChange={e => setActiveWithin(e.target.value ? +e.target.value : undefined)}
-            className="w-full px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.07)] rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[rgba(59,118,239,0.5)] appearance-none cursor-pointer transition-colors hover:border-[rgba(255,255,255,0.14)] pr-8"
+            className="w-full px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.07)] rounded-lg text-sm text-gray-300 focus:outline-none focus:border-[rgba(255,85,0,0.5)] appearance-none cursor-pointer transition-colors hover:border-[rgba(255,255,255,0.14)] pr-8"
           >
             <option value="" style={{ background: "#12141a" }}>Last Active</option>
             <option value="30" style={{ background: "#12141a" }}>Last 30 days</option>
@@ -232,7 +232,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ onApply, loading }
       <button
         onClick={() => onApply({ skills: selectedSkills, minScore, maxScore, activeWithin, hasOnChainProof })}
         disabled={loading}
-        className="w-full py-2.5 rounded-lg bg-[#3b76ef] hover:bg-[#3265cc] active:bg-[#2a55b0] text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] active:bg-[#2a55b0] text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? "Searching…" : "Apply Filters"}
       </button>

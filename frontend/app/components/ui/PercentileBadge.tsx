@@ -18,7 +18,7 @@ export const PercentileBadge: React.FC<PercentileBadgeProps> = ({
   
   return (
     <span
-      className={`${sizes[size]} rounded-full bg-[#3b76ef] text-white font-semibold`}
+      className={`${sizes[size]} rounded-full bg-[#FF5500] text-white font-semibold`}
     >
       Top {topPercent.toFixed(0)}%
     </span>

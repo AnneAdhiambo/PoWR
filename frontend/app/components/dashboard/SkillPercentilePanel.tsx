@@ -30,7 +30,7 @@ export const SkillPercentilePanel: React.FC<SkillPercentilePanelProps> = ({
   skills,
 }) => {
   const getColor = (index: number) => {
-    const colors = ["#3b76ef", "#10B981", "#8B5CF6", "#F59E0B"];
+    const colors = ["#FF5500", "#10B981", "#8B5CF6", "#F59E0B"];
     return colors[index % colors.length];
   };
 

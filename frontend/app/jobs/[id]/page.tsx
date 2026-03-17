@@ -225,7 +225,7 @@ export default function JobDetailPage() {
           displayName={displayName}
         />
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#3b76ef] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
         </div>
       </div>
     );
@@ -280,7 +280,7 @@ export default function JobDetailPage() {
                     {job.title}
                   </h1>
                   {job.matchScore && (
-                    <span className="px-3 py-1 rounded-full bg-[#3b76ef] text-white text-sm font-medium">
+                    <span className="px-3 py-1 rounded-full bg-[#FF5500] text-white text-sm font-medium">
                       {job.matchScore}% match
                     </span>
                   )}
@@ -334,7 +334,7 @@ export default function JobDetailPage() {
                 }}
                 className={`p-2 rounded-lg transition-colors ${
                   saved
-                    ? "bg-[#3b76ef] text-white"
+                    ? "bg-[#FF5500] text-white"
                     : "bg-[rgba(255,255,255,0.03)] text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.04)]"
                 }`}
               >
@@ -374,7 +374,7 @@ export default function JobDetailPage() {
                   <ul className="space-y-3">
                     {job.responsibilities.map((item, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 text-[#3b76ef] flex-shrink-0 mt-0.5" weight="regular" />
+                        <CheckCircle className="w-5 h-5 text-[#FF5500] flex-shrink-0 mt-0.5" weight="regular" />
                         <span className="text-sm text-gray-400" style={{ opacity: 0.8 }}>
                           {item}
                         </span>
@@ -391,7 +391,7 @@ export default function JobDetailPage() {
                   <ul className="space-y-3">
                     {job.requirements.map((requirement, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 text-[#3b76ef] flex-shrink-0 mt-0.5" weight="regular" />
+                        <CheckCircle className="w-5 h-5 text-[#FF5500] flex-shrink-0 mt-0.5" weight="regular" />
                         <span className="text-sm text-gray-400" style={{ opacity: 0.8 }}>
                           {requirement}
                         </span>
@@ -470,7 +470,7 @@ export default function JobDetailPage() {
                 <Card className="p-6">
                   <h3 className="text-base font-semibold text-white mb-4">Your Match</h3>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-[#3b76ef] mb-2">
+                    <div className="text-3xl font-bold text-[#FF5500] mb-2">
                       {job.matchScore}%
                     </div>
                     <p className="text-xs text-gray-400" style={{ opacity: 0.7 }}>
