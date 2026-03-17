@@ -1,0 +1,76 @@
+"use client";
+
+// Direct wallet provider calls — no @stacks/connect, no Stencil.js.
+// Leather injects window.LeatherProvider, Xverse injects window.XverseProviders.
+// Both implement the same stx_* request API so we treat them uniformly.
+
+export interface StacksProvider {
+  request(method: string, params?: Record<string, unknown>): Promise<any>;
+}
+
+export function getProvider(): StacksProvider | null {
+  if (typeof window === "undefined") return null;
+  const w = window as any;
+  return (
+    w.LeatherProvider ??
+    w.XverseProviders?.StacksProvider ??
+    w.StacksProvider ??
+    null
+  );
+}
+
+/** Returns the user's mainnet or testnet STX address, or null if not connected. */
+export async function getConnectedAddress(): Promise<string | null> {
+  const provider = getProvider();
+  if (!provider) return null;
+  try {
+    const res = await provider.request("getAddresses");
+    const addresses: any[] =
+      res?.result?.addresses ?? res?.addresses ?? [];
+    // Prefer a P2WPKH (native segwit) STX address; fall back to any STX address
+    const stx = addresses.find(
+      (a) => a.symbol === "STX" || a.type === "p2wpkh"
+    );
+    return stx?.address ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Opens the wallet to request address access (connect). */
+export async function connectWallet(): Promise<string | null> {
+  const provider = getProvider();
+  if (!provider) {
+    throw new Error(
+      "No Stacks wallet found. Please install Leather or Xverse."
+    );
+  }
+  const res = await provider.request("getAddresses");
+  const addresses: any[] = res?.result?.addresses ?? res?.addresses ?? [];
+  const stx = addresses.find(
+    (a) => a.symbol === "STX" || a.type === "p2wpkh"
+  );
+  return stx?.address ?? null;
+}
+
+/** Sends an STX transfer and returns the txid. */
+export async function transferStx(
+  recipient: string,
+  amountMicroStx: string,
+  memo: string
+): Promise<string> {
+  const provider = getProvider();
+  if (!provider) {
+    throw new Error(
+      "No Stacks wallet found. Please install Leather or Xverse."
+    );
+  }
+  const res = await provider.request("stx_transferStx", {
+    recipient,
+    amount: amountMicroStx,
+    memo,
+  });
+  const txid = res?.result?.txid ?? res?.txid ?? res?.result?.txId ?? res?.txId;
+  if (!txid) throw new Error("Wallet did not return a transaction ID.");
+  return txid;
+}

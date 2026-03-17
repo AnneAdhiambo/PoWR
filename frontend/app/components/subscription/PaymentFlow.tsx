@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   HourglassHigh,
 } from "phosphor-react";
-// @stacks/connect imported dynamically inside handlePay to avoid chunk eval crash
+import { transferStx } from "../../lib/stacksProvider";
 
 interface PaymentFlowProps {
   paymentIntent: {
@@ -63,18 +63,13 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     ).toString();
 
     try {
-      // Dynamically import to avoid Turbopack chunk evaluation crash
-      const { request } = await import("@stacks/connect");
-      const result = await request("stx_transferStx", {
-        recipient: paymentIntent.address,
-        amount: microStx,
-        memo: `PoWR ${paymentIntent.planType} subscription`,
-      });
-      const txId = (result as any).txid ?? (result as any).txId;
-      if (txId) {
-        setTxHash(txId);
-        handleVerify(txId);
-      }
+      const txId = await transferStx(
+        paymentIntent.address,
+        microStx,
+        `PoWR ${paymentIntent.planType} subscription`
+      );
+      setTxHash(txId);
+      handleVerify(txId);
     } catch (err: any) {
       if (err?.code === 4001 || err?.message?.toLowerCase().includes("cancel")) {
         setError("Transaction cancelled.");

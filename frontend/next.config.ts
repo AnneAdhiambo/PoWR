@@ -1,16 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Prevent pino / thread-stream (pulled in by @stacks/connect → @walletconnect)
-  // from being bundled during SSR — they are Node.js-only packages that contain
-  // test files which require devDependencies (tape, tap, desm) not present in prod.
+  // pino / thread-stream are Node.js-only packages that may appear as transitive
+  // deps and cannot be bundled for SSR. @walletconnect is no longer a dependency
+  // of @stacks/connect v8 so those entries have been removed.
   serverExternalPackages: [
     "pino",
     "pino-abstract-transport",
     "pino-std-serializers",
     "thread-stream",
-    "@walletconnect/universal-provider",
-    "@walletconnect/logger",
   ],
 };
 
