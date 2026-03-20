@@ -106,7 +106,7 @@ export async function transferSip10Token(
   try {
     const res = await request("stx_transferSip10Ft", {
       asset: contractId,
-      amount: Number(amountBaseUnits),
+      amount: parseInt(amountBaseUnits, 10),
       recipient,
       network,
     } as any);

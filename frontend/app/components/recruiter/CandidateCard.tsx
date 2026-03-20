@@ -69,7 +69,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
 
       <a
         href={profileUrl}
-        className="flex items-center justify-center gap-2 text-sm text-[#FF5500] hover:text-[#2d5fd4] transition-colors"
+        className="flex items-center justify-center gap-2 text-sm text-[#FF5500] hover:text-[#FF5500]/80 transition-colors"
       >
         View Full Profile
         <ExternalLink className="w-4 h-4" />

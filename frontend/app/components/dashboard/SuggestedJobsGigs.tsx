@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "../ui";
 import { Briefcase, Star } from "phosphor-react";
+import { apiClient } from "../../lib/api";
 
 interface JobGig {
   id: string;
@@ -20,40 +21,59 @@ interface SuggestedJobsGigsProps {
 }
 
 export const SuggestedJobsGigs: React.FC<SuggestedJobsGigsProps> = ({
-  jobs,
+  jobs: propJobs,
 }) => {
-  // Mock data if none provided
-  const defaultJobs: JobGig[] = [
-    {
-      id: "1",
-      title: "Senior Backend Engineer",
-      company: "TechCorp",
-      description: "Senior Backend Engineer - isadicarino:marsited engineer This phass focuses on embracing and Devops engineer with exadrests and notallizaition....",
-      type: "job",
-      salary: "$120k - $180k",
-      tags: ["Backend", "DevOps", "Node.js"],
-    },
-    {
-      id: "1",
-      title: "Build React Dashboard Component",
-      company: "Tech Startup",
-      description: "Looking for an experienced React developer to build a modern dashboard component with real-time data visualization.",
-      type: "gig",
-      salary: "$80 - $120/hr",
-      tags: ["React", "TypeScript", "Frontend"],
-    },
-    {
-      id: "3",
-      title: "DevOps Engineer",
-      company: "CloudTech",
-      description: "Looking for a DevOps engineer to help scale our infrastructure. Experience with AWS, Kubernetes required.",
-      type: "job",
-      salary: "$130k - $190k",
-      tags: ["DevOps", "AWS", "Kubernetes"],
-    },
-  ];
+  const [fetchedJobs, setFetchedJobs] = useState<JobGig[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
-  const displayJobs = jobs || defaultJobs;
+  useEffect(() => {
+    if (propJobs) { setLoaded(true); return; }
+    Promise.all([
+      apiClient.getJobs({ limit: 2 }).catch(() => ({ jobs: [] as any[] })),
+      apiClient.getGigs({ limit: 2 }).catch(() => ({ gigs: [] as any[] })),
+    ]).then(([jobsResult, gigsResult]) => {
+      const combined: JobGig[] = [
+        ...jobsResult.jobs.slice(0, 2).map((j: any) => ({
+          id: String(j.id),
+          title: j.title,
+          company: j.company,
+          description: j.description || "",
+          type: "job" as const,
+          salary: j.salary,
+          tags: j.tags || [],
+        })),
+        ...gigsResult.gigs.slice(0, 2).map((g: any) => ({
+          id: String(g.id),
+          title: g.title,
+          company: g.client,
+          description: g.description || "",
+          type: "gig" as const,
+          salary: g.rate,
+          tags: g.tags || [],
+        })),
+      ];
+      setFetchedJobs(combined);
+      setLoaded(true);
+    });
+  }, [propJobs]);
+
+  const displayJobs = propJobs || fetchedJobs;
+
+  if (!loaded && !propJobs) {
+    return (
+      <Card className="p-5 rounded-[16px]">
+        <div className="flex items-center gap-2 mb-3">
+          <Briefcase className="w-4 h-4 text-emerald-400" weight="fill" />
+          <h2 className="text-sm font-medium text-emerald-400" style={{ fontWeight: 500, fontSize: "14px" }}>
+            Suggested Jobs & Gigs
+          </h2>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-5 rounded-[16px]">

@@ -6,7 +6,19 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { Card, Pagination } from "../components/ui";
 import { FileText, MapPin, CurrencyDollar, Clock, Star, ArrowRight, User, GridFour, List } from "phosphor-react";
 import { savedItems } from "../lib/savedItems";
+import { apiClient } from "../lib/api";
 import toast from "react-hot-toast";
+
+function formatPosted(dateStr?: string): string {
+  if (!dateStr) return "Recently";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+  return `${Math.floor(days / 30)} months ago`;
+}
 
 interface Gig {
   id: string;
@@ -55,8 +67,27 @@ function GigsPageContent() {
     const saved = savedItems.getSavedGigs();
     setSavedGigIds(new Set(saved.map(g => g.id)));
 
-    // Load gigs (mock data for now)
-    setTimeout(() => {
+    // Load gigs from API
+    apiClient.getGigs({ limit: 100 })
+      .then(({ gigs: apiGigs }) => {
+        setGigs(apiGigs.map(g => ({
+          id: String(g.id),
+          title: g.title,
+          client: g.client,
+          location: g.location,
+          rate: g.rate || "",
+          duration: g.duration || "",
+          posted: formatPosted(g.created_at),
+          description: g.description || "",
+          tags: g.tags || [],
+        })));
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+    if (false) {
+      setTimeout(() => {
       setGigs([
         {
           id: "1",
@@ -217,6 +248,7 @@ function GigsPageContent() {
       ]);
       setLoading(false);
     }, 500);
+    }
   }, []);
 
   const filteredGigs = filter === "all" 

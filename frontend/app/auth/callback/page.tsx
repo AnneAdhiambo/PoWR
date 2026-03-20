@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "../../components/ui";
 import { CheckCircle2, Loader2, Github } from "lucide-react";
+import { apiClient } from "../../lib/api";
+import { getOrCreateKeypair } from "../../lib/nostr";
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -51,6 +53,15 @@ function AuthCallbackContent() {
       localStorage.setItem("github_token", token);
       localStorage.setItem("github_username", username);
       localStorage.setItem("github_token_timestamp", Date.now().toString());
+
+      // Derive Nostr keypair and register pubkey
+      try {
+        const { pk } = await getOrCreateKeypair(username);
+        await apiClient.registerNostrPubkey(username, pk);
+      } catch {
+        // Non-critical — continue even if this fails
+      }
+
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Step 3: Success and redirect
@@ -77,7 +88,7 @@ function AuthCallbackContent() {
             <p className="text-gray-400 mb-6">{error}</p>
             <button
               onClick={() => router.push("/auth")}
-              className="px-6 py-3 bg-[#FF5500] text-white rounded-full hover:bg-[#2d5fd4] transition-colors cursor-pointer"
+              className="px-6 py-3 bg-[#FF5500] text-white rounded-full hover:bg-[#e04d00] transition-colors cursor-pointer"
             >
               Try Again
             </button>

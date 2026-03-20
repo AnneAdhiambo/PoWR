@@ -17,6 +17,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "@stacks/network": "^7.3.1",
     "@stacks/transactions": "^7.3.1",
     "@types/better-sqlite3": "^7.6.13",
@@ -40,6 +41,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.2",
     "@types/node-cron": "^3.0.11",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.0",
     "nodemon": "^3.1.11",
     "ts-node": "^10.9.2",

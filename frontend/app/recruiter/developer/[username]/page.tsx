@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { ProofChainPanel } from "../../../components/recruiter/ProofChainPanel";
 import { SkillRadarChart } from "../../../components/recruiter/SkillRadarChart";
 import { recruiterApiClient } from "../../../lib/recruiterApi";
+import { apiClient } from "../../../lib/api";
+import { getOrCreateKeypair, sendDM, RELAYS } from "../../../lib/nostr";
+import { SimplePool } from "nostr-tools";
 import {
   ArrowLeft, PaperPlaneTilt, BookmarkSimple, ShieldCheck,
   GithubLogo, GitCommit, GitPullRequest, Folder,
@@ -98,8 +101,21 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
     e.preventDefault();
     setSending(true);
     try {
-      await recruiterApiClient.contactDeveloper(username, contactMsg);
-      toast.success("Request sent!");
+      // Try to send via Nostr if developer has a pubkey
+      const devPubkey = await apiClient.getUserNostrPubkey(username);
+      if (devPubkey) {
+        const recruiterEmail = localStorage.getItem("recruiter_email") || "";
+        const { sk } = await getOrCreateKeypair(recruiterEmail);
+        const pool = new SimplePool();
+        await sendDM(sk, devPubkey, contactMsg, pool);
+        pool.close(RELAYS);
+        toast.success("Message sent!");
+        router.push(`/recruiter/chat?with=${encodeURIComponent(devPubkey)}&name=${encodeURIComponent(username)}`);
+      } else {
+        // Fallback to traditional outreach
+        await recruiterApiClient.contactDeveloper(username, contactMsg);
+        toast.success("Request sent!");
+      }
       setContactOpen(false);
       setContactMsg("");
     } catch (error: any) {

@@ -19,10 +19,13 @@ import {
   Check,
   ShareNetwork,
   Quotes,
-  Sparkle
+  Sparkle,
+  Heart,
 } from "phosphor-react";
 import { apiClient, PoWProfile, Artifact, Proof, Badge, GithubBadge } from "../../lib/api";
 import { BadgeGrid } from "../../components/profile/BadgeGrid";
+import { EndorsementSection } from "../../components/profile/EndorsementSection";
+import { ReputationTimeline } from "../../components/profile/ReputationTimeline";
 import toast from "react-hot-toast";
 
 const PercentileBadge = ({ percentile, score }: { percentile: number; score: number }) => {
@@ -59,11 +62,34 @@ export default function PublicProfilePage() {
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
   const [skillBadges, setSkillBadges] = useState<Badge[]>([]);
   const [achievements, setAchievements] = useState<GithubBadge[]>([]);
+  const [loggedInUsername, setLoggedInUsername] = useState<string>("");
+  const [viewerScore, setViewerScore] = useState<number>(0);
+  const [endorsementCount, setEndorsementCount] = useState<number>(0);
 
   useEffect(() => {
     // Check if user is logged in
     const token = localStorage.getItem("github_token");
+    const storedUsername = localStorage.getItem("github_username") || "";
     setIsLoggedIn(!!token);
+    setLoggedInUsername(storedUsername);
+
+    // Load endorsement count from localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(`powr_endorsements_${username}`);
+        if (stored) {
+          const list = JSON.parse(stored);
+          setEndorsementCount(list.length);
+        }
+      } catch {}
+    }
+
+    // Fetch viewer's score if logged in
+    if (token && storedUsername) {
+      apiClient.getUserProfile(storedUsername, token)
+        .then(data => setViewerScore(Math.round(data.overallIndex || 0)))
+        .catch(() => {});
+    }
 
     loadProfile();
     apiClient.getUserBadges(username)
@@ -234,6 +260,12 @@ export default function PublicProfilePage() {
                   <ShieldCheck className="w-3.5 h-3.5" weight="fill" />
                   Verified Developer
                 </span>
+                {endorsementCount > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs text-[#FF6B2B] bg-[#FF5500]/10 px-2.5 py-1 rounded-full border border-[#FF5500]/20">
+                    <Heart className="w-3.5 h-3.5" weight="fill" />
+                    {endorsementCount} endorsement{endorsementCount !== 1 ? "s" : ""}
+                  </span>
+                )}
                 <button
                   onClick={copyProfileUrl}
                   className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] px-2.5 py-1 rounded-full border border-[rgba(255,255,255,0.06)] transition-colors"
@@ -388,6 +420,16 @@ export default function PublicProfilePage() {
             <BadgeGrid skillBadges={skillBadges} achievements={achievements} />
           </div>
         )}
+
+        {/* Reputation Timeline */}
+        <ReputationTimeline username={username} profile={profile} proofs={proofs} />
+
+        {/* Endorsements */}
+        <EndorsementSection
+          profileUsername={username}
+          viewerUsername={isLoggedIn ? loggedInUsername : null}
+          viewerScore={viewerScore}
+        />
 
         {/* On-Chain Verification */}
         <Card className="p-5 rounded-[16px]">
