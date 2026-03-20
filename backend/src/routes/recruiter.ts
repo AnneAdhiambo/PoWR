@@ -2,6 +2,18 @@ import express from "express";
 import { recruiterService } from "../services/recruiterService";
 import { dbService } from "../services/database";
 import { requireRecruiter, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import { Currency } from "../services/paymentService";
+
+// Recruiter plan pricing (USD/month)
+const RECRUITER_PLAN_PRICES: Record<string, number> = { pro: 49, enterprise: 299 };
+
+async function fetchBtcPrice(): Promise<number> {
+  const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+  const data = await res.json() as any;
+  const price = data?.bitcoin?.usd;
+  if (!price || typeof price !== "number") throw new Error("Could not fetch BTC price");
+  return price;
+}
 
 const router = express.Router();
 
@@ -257,6 +269,99 @@ router.delete("/saved/:poolId", requireRecruiter, async (req, res) => {
   } catch (error: any) {
     console.error("[Recruiter] Delete pool error:", error.message);
     res.status(500).json({ error: "Failed to delete pool" });
+  }
+});
+
+// ── Recruiter billing ──────────────────────────────────────────────────────
+
+// POST /api/recruiter/billing/intent
+// Returns a payment intent (address + amount) for the chosen plan + currency
+router.post("/billing/intent", requireRecruiter, async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { plan, currency } = req.body;
+
+    if (!plan || !["pro", "enterprise"].includes(plan)) {
+      return res.status(400).json({ error: "plan must be 'pro' or 'enterprise'" });
+    }
+
+    const paymentAddress = process.env.PAYMENT_WALLET_ADDRESS;
+    if (!paymentAddress) return res.status(500).json({ error: "Payment wallet not configured" });
+
+    const usdMonthly = RECRUITER_PLAN_PRICES[plan];
+    const network = (process.env.STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet") as "mainnet" | "testnet";
+
+    const validCurrencies: Currency[] = ["stx", "sbtc", "usdcx"];
+    const selectedCurrency: Currency = validCurrencies.includes(currency) ? currency : "stx";
+
+    let amount: string;
+    if (selectedCurrency === "usdcx") {
+      amount = usdMonthly.toFixed(2);
+    } else if (selectedCurrency === "sbtc") {
+      const btcPrice = await fetchBtcPrice().catch(() => 87000);
+      amount = (usdMonthly / btcPrice).toFixed(8);
+    } else {
+      // STX: use a fixed STX/USD rate from env or fallback
+      const stxUsd = parseFloat(process.env.STX_USD_PRICE || "0.5");
+      amount = Math.round(usdMonthly / stxUsd).toString();
+    }
+
+    res.json({
+      paymentIntent: {
+        address: paymentAddress,
+        amount,
+        currency: selectedCurrency,
+        planType: plan,
+        billingPeriod: 1,
+        network,
+      },
+    });
+  } catch (error: any) {
+    console.error("[Recruiter] Billing intent error:", error.message);
+    res.status(500).json({ error: "Failed to create payment intent" });
+  }
+});
+
+// POST /api/recruiter/billing/verify
+// Verifies the on-chain payment and upgrades the recruiter's plan
+router.post("/billing/verify", requireRecruiter, async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { txHash, plan, currency } = req.body;
+
+    if (!txHash || !plan || !["pro", "enterprise"].includes(plan)) {
+      return res.status(400).json({ error: "txHash and valid plan required" });
+    }
+
+    const paymentAddress = process.env.PAYMENT_WALLET_ADDRESS;
+    if (!paymentAddress) return res.status(500).json({ error: "Payment wallet not configured" });
+
+    const validCurrencies: Currency[] = ["stx", "sbtc", "usdcx"];
+    const selectedCurrency: Currency = validCurrencies.includes(currency) ? currency : "stx";
+
+    // Demo mode: auto-approve demo_ txids
+    if (process.env.DEMO_MODE === "true" && txHash.startsWith("demo_")) {
+      console.log(`[DEMO] Auto-approving recruiter ${plan} upgrade for recruiter ${recruiterId}`);
+      await dbService.updateRecruiterPlan(recruiterId, plan);
+      return res.json({ success: true, plan });
+    }
+
+    // Real verification via Stacks API
+    const { paymentService } = await import("../services/paymentService");
+    const verification = await paymentService.verifyPayment(txHash, selectedCurrency);
+
+    if (verification.status === "pending") {
+      return res.json({ success: false, status: "pending", message: "Transaction still pending" });
+    }
+    if (!verification.verified) {
+      return res.json({ success: false, status: "failed", message: "Payment verification failed" });
+    }
+
+    await dbService.updateRecruiterPlan(recruiterId, plan);
+    res.json({ success: true, plan });
+  } catch (error: any) {
+    console.error("[Recruiter] Billing verify error:", error.message);
+    res.status(500).json({ error: "Failed to verify payment" });
   }
 });
 

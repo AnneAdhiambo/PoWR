@@ -126,6 +126,23 @@ class RecruiterApiClient {
     });
   }
 
+  async createBillingIntent(plan: string, currency: "stx" | "sbtc" | "usdcx") {
+    return this.request<{ paymentIntent: any }>("/api/recruiter/billing/intent", {
+      method: "POST",
+      body: JSON.stringify({ plan, currency }),
+    });
+  }
+
+  async verifyBillingPayment(txHash: string, plan: string, currency: "stx" | "sbtc" | "usdcx") {
+    return this.request<{ success: boolean; status?: string; message?: string; plan?: string }>(
+      "/api/recruiter/billing/verify",
+      {
+        method: "POST",
+        body: JSON.stringify({ txHash, plan, currency }),
+      }
+    );
+  }
+
   // Jobs CRUD
   async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<{ job: any }> {
     return this.request("/api/jobs", { method: "POST", body: JSON.stringify(data) });

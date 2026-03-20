@@ -8,7 +8,6 @@ import {
   XCircle,
   CircleNotch,
   Wallet,
-  CreditCard,
   ArrowLeft,
   HourglassHigh,
   CurrencyBtc,
@@ -71,7 +70,7 @@ interface PaymentFlowProps {
   walletAddress?: string;
 }
 
-type PaymentMethod = "choose" | "stx" | "sbtc" | "usdcx" | "card";
+type PaymentMethod = "choose" | "stx" | "sbtc" | "usdcx";
 
 const MAX_POLLS = 24; // 24 × 10s = 4 minutes max
 
@@ -88,7 +87,6 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const [pollCount, setPollCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stripeLoading, setStripeLoading] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [pendingTokenMethod, setPendingTokenMethod] = useState<"sbtc" | "usdcx" | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(walletAddress ?? null);
@@ -278,23 +276,6 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   };
 
-  const handleStripe = async () => {
-    setStripeLoading(true);
-    setError(null);
-    try {
-      const { apiClient } = await import("../../lib/api");
-      const username = localStorage.getItem("github_username") || "";
-      const result = await apiClient.createStripeCheckout(username, paymentIntent.planType);
-      if (result.url) window.location.href = result.url;
-    } catch (err: any) {
-      setError(err.message?.includes("not configured")
-        ? "Card payments are not yet enabled. Please use STX."
-        : err.message || "Failed to start card payment");
-    } finally {
-      setStripeLoading(false);
-    }
-  };
-
   const walletPickerModal = (
     <WalletPickerModal
       isOpen={showWalletPicker}
@@ -427,22 +408,6 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             </div>
           </button>
 
-          {/* Card */}
-          <button
-            onClick={() => setMethod("card")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(99,102,241,0.5)] hover:bg-[rgba(99,102,241,0.06)] transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[rgba(99,102,241,0.15)] flex items-center justify-center flex-shrink-0">
-              <CreditCard className="w-5 h-5 text-[#FF5500]/80" weight="fill" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-white">Pay with Card</p>
-              <p className="text-xs text-gray-500">Credit / debit card via Stripe</p>
-            </div>
-            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#FF5500] transition-colors flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </button>
         </div>
 
         <button
@@ -451,59 +416,6 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         >
           Cancel
         </button>
-      </Card>
-      </>
-    );
-  }
-
-  // ── Stripe / card ──────────────────────────────────────────────
-  if (method === "card") {
-    return (
-      <>
-        {walletPickerModal}
-      <Card className="p-6 rounded-[16px]">
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => { setMethod("choose"); setError(null); }}
-            className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 text-gray-400" weight="bold" />
-          </button>
-          <h3 className="text-lg font-semibold text-white">Pay with Card</h3>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] mb-6">
-          <p className="text-xs text-gray-400 mb-1">Amount</p>
-          <p className="text-xl font-bold text-white capitalize">{paymentIntent.planType} Plan</p>
-          <p className="text-sm text-gray-400 mt-1">Billed via Stripe · secure checkout</p>
-        </div>
-
-        {error && (
-          <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-            <XCircle className="w-4 h-4 flex-shrink-0" weight="fill" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <button
-          onClick={handleStripe}
-          disabled={stripeLoading}
-          className="w-full py-3 px-4 rounded-xl bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
-        >
-          {stripeLoading ? (
-            <>
-              <CircleNotch className="w-5 h-5 animate-spin" weight="bold" />
-              Redirecting to Stripe...
-            </>
-          ) : (
-            <>
-              <CreditCard className="w-5 h-5" weight="fill" />
-              Continue to Checkout
-            </>
-          )}
-        </button>
-
-        <p className="text-xs text-gray-600 text-center mt-3">Secured by Stripe · 256-bit encryption</p>
       </Card>
       </>
     );

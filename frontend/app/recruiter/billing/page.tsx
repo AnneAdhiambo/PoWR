@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { recruiterApiClient } from "../../lib/recruiterApi";
+import { PaymentFlow } from "../../components/subscription/PaymentFlow";
 import {
   Check, Crown, Lightning, Buildings, CreditCard,
-  ChartBar, ChatCircle, ArrowRight, Sparkle
+  ChartBar, ChatCircle, ArrowRight, Sparkle, X,
 } from "phosphor-react";
 import toast from "react-hot-toast";
 
@@ -67,7 +68,12 @@ export default function BillingPage() {
   const [recruiter, setRecruiter] = useState<any>(null);
   const [viewsUsed, setViewsUsed] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [upgrading, setUpgrading] = useState<string | null>(null);
+
+  // Payment flow state
+  const [paymentIntent, setPaymentIntent] = useState<any>(null);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<"stx" | "sbtc" | "usdcx">("usdcx");
+  const [intentLoading, setIntentLoading] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -82,7 +88,6 @@ export default function BillingPage() {
       const { recruiter: data } = await recruiterApiClient.getMe();
       setRecruiter(data);
       localStorage.setItem("recruiter_plan", data.plan || "free");
-      // Views used is returned from getMe in a future API call — for now derive from localStorage
       setViewsUsed(parseInt(localStorage.getItem("recruiter_views_used") || "0", 10));
     } catch {
       toast.error("Failed to load billing info");
@@ -92,12 +97,42 @@ export default function BillingPage() {
   };
 
   const handleUpgrade = async (planId: string) => {
-    if (planId === recruiter?.plan) return;
-    setUpgrading(planId);
-    // Simulate checkout (replace with real Stripe checkout session)
-    await new Promise((r) => setTimeout(r, 1200));
-    toast.success(`Upgrade to ${planId} coming soon — Stripe checkout will open here.`);
-    setUpgrading(null);
+    if (planId === recruiter?.plan || planId === "free") return;
+    setIntentLoading(true);
+    try {
+      const { paymentIntent: intent } = await recruiterApiClient.createBillingIntent(planId, currency);
+      setPendingPlan(planId);
+      setPaymentIntent(intent);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start payment");
+    } finally {
+      setIntentLoading(false);
+    }
+  };
+
+  const handlePaymentVerified = async (txHash: string) => {
+    if (!pendingPlan) return;
+    try {
+      const result = await recruiterApiClient.verifyBillingPayment(txHash, pendingPlan, currency);
+      if (result.success) {
+        toast.success(`Upgraded to ${pendingPlan} plan!`);
+        setPaymentIntent(null);
+        setPendingPlan(null);
+        // Refresh recruiter data so plan badge updates
+        await load();
+      } else if (result.status === "pending") {
+        toast("Transaction pending — please wait and try again.");
+      } else {
+        toast.error(result.message || "Payment verification failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to verify payment");
+    }
+  };
+
+  const handleCancelPayment = () => {
+    setPaymentIntent(null);
+    setPendingPlan(null);
   };
 
   const currentPlan = recruiter?.plan || "free";
@@ -112,6 +147,27 @@ export default function BillingPage() {
     );
   }
 
+  // ── Payment modal overlay ──────────────────────────────────────
+  if (paymentIntent) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="w-full max-w-md relative">
+          <button
+            onClick={handleCancelPayment}
+            className="absolute -top-10 right-0 p-2 rounded-lg text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" weight="bold" />
+          </button>
+          <PaymentFlow
+            paymentIntent={paymentIntent}
+            onPaymentVerified={handlePaymentVerified}
+            onCancel={handleCancelPayment}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
 
@@ -122,7 +178,25 @@ export default function BillingPage() {
         <p className="text-gray-500 mt-1.5">Scale your hiring with verified on-chain developer profiles.</p>
       </div>
 
-      {/* Current plan usage card — only shown on free */}
+      {/* Currency selector */}
+      <div className="mb-8 flex items-center gap-3">
+        <span className="text-xs text-gray-500 font-medium">Pay with:</span>
+        {(["usdcx", "stx", "sbtc"] as const).map((c) => (
+          <button
+            key={c}
+            onClick={() => setCurrency(c)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              currency === c
+                ? "bg-[#FF5500]/15 border-[#FF5500]/40 text-[#FF5500]"
+                : "border-[rgba(255,255,255,0.08)] text-gray-500 hover:text-gray-300 hover:border-[rgba(255,255,255,0.15)]"
+            }`}
+          >
+            {c === "usdcx" ? "USDCx" : c === "sbtc" ? "sBTC" : "STX"}
+          </button>
+        ))}
+      </div>
+
+      {/* Current plan usage card — free */}
       {currentPlan === "free" && (
         <div className="mb-8 p-5 rounded-2xl bg-[rgba(255,85,0,0.06)] border border-[#FF5500]/20">
           <div className="flex items-start justify-between mb-3">
@@ -154,7 +228,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* Pro active card */}
+      {/* Active plan cards */}
       {currentPlan === "pro" && (
         <div className="mb-8 p-5 rounded-2xl bg-[rgba(255,85,0,0.06)] border border-[#FF5500]/20 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-[rgba(255,85,0,0.15)] flex items-center justify-center flex-shrink-0">
@@ -169,8 +243,6 @@ export default function BillingPage() {
           </span>
         </div>
       )}
-
-      {/* Enterprise active card */}
       {currentPlan === "enterprise" && (
         <div className="mb-8 p-5 rounded-2xl bg-[rgba(255,85,0,0.06)] border border-[#FF5500]/20 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-[rgba(255,85,0,0.15)] flex items-center justify-center flex-shrink-0">
@@ -237,10 +309,10 @@ export default function BillingPage() {
               </ul>
 
               <button
-                disabled={isCurrent || upgrading === plan.id}
+                disabled={isCurrent || plan.id === "free" || intentLoading}
                 onClick={() => handleUpgrade(plan.id)}
                 className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
-                  isCurrent
+                  isCurrent || plan.id === "free"
                     ? "bg-[rgba(255,255,255,0.05)] text-gray-500 cursor-not-allowed"
                     : plan.highlight
                     ? "bg-[#FF5500] hover:bg-[#e04d00] text-white shadow-lg shadow-[#FF5500]/20 hover:shadow-[#FF5500]/40"
@@ -249,10 +321,12 @@ export default function BillingPage() {
                     : "bg-[rgba(255,255,255,0.05)] text-gray-400 hover:bg-[rgba(255,255,255,0.08)] hover:text-white"
                 }`}
               >
-                {upgrading === plan.id ? (
+                {intentLoading && pendingPlan === plan.id ? (
                   <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 ) : isCurrent ? (
                   "Current Plan"
+                ) : plan.id === "free" ? (
+                  "Downgrade"
                 ) : isUpgrade ? (
                   <>Upgrade to {plan.name} <ArrowRight className="w-3.5 h-3.5" weight="bold" /></>
                 ) : (
@@ -273,21 +347,9 @@ export default function BillingPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              {
-                icon: Buildings,
-                title: "Unlimited views",
-                desc: "Browse every verified developer without monthly caps.",
-              },
-              {
-                icon: ChatCircle,
-                title: "Direct outreach",
-                desc: "Send up to 50 contact requests per month to top talent.",
-              },
-              {
-                icon: ChartBar,
-                title: "Analytics",
-                desc: "Track your search activity, shortlists, and response rates.",
-              },
+              { icon: Buildings, title: "Unlimited views", desc: "Browse every verified developer without monthly caps." },
+              { icon: ChatCircle, title: "Direct outreach", desc: "Send up to 50 contact requests per month to top talent." },
+              { icon: ChartBar, title: "Analytics", desc: "Track your search activity, shortlists, and response rates." },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="flex gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[rgba(255,85,0,0.1)] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -303,9 +365,8 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* Payment info note */}
       <p className="text-xs text-gray-600 text-center mt-6">
-        Secure checkout powered by Stripe. Cancel anytime. No hidden fees.
+        Payments processed on-chain via Stacks · STX · sBTC · USDCx
       </p>
     </div>
   );
