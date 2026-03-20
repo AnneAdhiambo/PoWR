@@ -17,6 +17,13 @@ export const POW_REGISTRY_CONTRACT = `${POW_REGISTRY_ADDRESS}.powr-registry`;
 
 // ─── Explorer URL helpers ─────────────────────────────────────────────────────
 
+export function getNetworkLabel(): string {
+  const net = process.env.NEXT_PUBLIC_STACKS_NETWORK;
+  if (net === "mainnet") return "Stacks Mainnet";
+  if (net === "testnet") return "Stacks Testnet";
+  return "Stacks Devnet";
+}
+
 export function getExplorerTxUrl(txId: string): string {
   const id = txId.startsWith("0x") ? txId : `0x${txId}`;
   return `https://explorer.hiro.so/txid/${id}?chain=${STACKS_NETWORK}`;

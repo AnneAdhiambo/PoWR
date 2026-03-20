@@ -86,10 +86,12 @@ export async function connectWallet(): Promise<string | null> {
 }
 
 /** Sends a SIP-010 fungible token transfer and returns the txid.
- *  Uses stx_transferSip10Ft (Leather-native) first, falls back to stx_callContract (Xverse). */
+ *  Uses stx_transferSip10Ft (Leather-native) first, falls back to stx_callContract (Xverse).
+ *  Post-conditions are included on both paths to protect the user:
+ *  the wallet enforces that exactly `amountBaseUnits` of the FT leaves the sender — nothing more. */
 export async function transferSip10Token(
   contractId: string,
-  _assetName: string,
+  assetName: string,
   recipient: string,
   amountBaseUnits: string
 ): Promise<string> {
@@ -100,7 +102,7 @@ export async function transferSip10Token(
   const network = process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "mainnet" : "testnet";
   const { request } = await import("@stacks/connect");
 
-  // Primary: stx_transferSip10Ft (Leather-native, triggers wallet popup)
+  // Primary: stx_transferSip10Ft (Leather/Xverse handle post-conditions automatically)
   try {
     const res = await request("stx_transferSip10Ft", {
       asset: contractId,
@@ -120,14 +122,22 @@ export async function transferSip10Token(
     ) {
       throw new Error("Transaction cancelled.");
     }
-    // method not supported — fall through to stx_callContract for Xverse
+    // method not supported — fall through to stx_callContract
   }
 
-  // Fallback: stx_callContract (Xverse lacks stx_transferSip10Ft)
+  // Fallback: stx_callContract with explicit post-condition.
+  // Pc.principal(sender).willSendEq(amount).ft(contract, assetName) ensures the wallet
+  // enforces that exactly this amount of the FT leaves the sender — protecting the user
+  // from any contract that might attempt to transfer more.
   const senderAddress = await getConnectedAddress();
   if (!senderAddress) throw new Error("Connect your wallet first.");
 
-  const { Cl } = await import("@stacks/transactions");
+  const { Cl, Pc } = await import("@stacks/transactions");
+
+  const postCondition = Pc.principal(senderAddress)
+    .willSendEq(BigInt(amountBaseUnits))
+    .ft(contractId as `${string}.${string}`, assetName);
+
   const res2 = await request("stx_callContract", {
     contract: contractId,
     functionName: "transfer",
@@ -137,6 +147,7 @@ export async function transferSip10Token(
       Cl.principal(recipient),
       Cl.none(),
     ],
+    postConditions: [postCondition],
     network,
   } as any);
 

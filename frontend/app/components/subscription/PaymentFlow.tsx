@@ -16,6 +16,8 @@ import {
 } from "phosphor-react";
 import { transferStx, transferSip10Token, getConnectedAddress } from "../../lib/stacksProvider";
 import { WalletPickerModal } from "./WalletPickerModal";
+import { useBtcPrice } from "../../hooks/useBtcPrice";
+import { useTokenBalance } from "../../hooks/useTokenBalance";
 
 // Token contracts — mirrors backend defaults
 const SBTC_CONTRACT =
@@ -30,21 +32,24 @@ const USDCX_CONTRACT =
     ? "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx"
     : "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx");
 
-const PLAN_TOKEN_PRICES: Record<string, { sbtc: number; usdcx: number }> = {
-  basic: { sbtc: 0.0001, usdcx: 6 },
-  pro: { sbtc: 0.00025, usdcx: 15 },
-};
+// USD prices per plan per month — USDCx prices are the single source of truth
+const USD_PRICES_MONTHLY: Record<string, number> = { basic: 6, pro: 15 };
+
+const USDCX_PRICES: Record<string, number> = { basic: 6, pro: 15 };
 
 const DISCOUNTS: Record<number, number> = { 1: 0, 3: 0.1, 6: 0.2, 12: 0.3 };
 
-function calcTokenAmount(
-  planType: string,
-  billingPeriod: number,
-  token: "sbtc" | "usdcx"
-): number {
-  const monthly = PLAN_TOKEN_PRICES[planType]?.[token] ?? 0;
+function calcUsdcxAmount(planType: string, billingPeriod: number): number {
+  const monthly = USDCX_PRICES[planType] ?? 0;
   const discount = DISCOUNTS[billingPeriod] ?? 0;
   return monthly * billingPeriod * (1 - discount);
+}
+
+function calcSbtcAmount(planType: string, billingPeriod: number, btcPriceUsd: number): number {
+  const usdMonthly = USD_PRICES_MONTHLY[planType] ?? 0;
+  const discount = DISCOUNTS[billingPeriod] ?? 0;
+  const usdTotal = usdMonthly * billingPeriod * (1 - discount);
+  return usdTotal / btcPriceUsd;
 }
 
 interface PaymentFlowProps {
@@ -83,6 +88,19 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const [pendingTokenMethod, setPendingTokenMethod] = useState<"sbtc" | "usdcx" | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(walletAddress ?? null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { btcPriceUsd, loading: btcLoading } = useBtcPrice();
+  const { balance: usdcxBalanceRaw, loading: usdcxBalanceLoading } = useTokenBalance(
+    connectedAddress,
+    USDCX_CONTRACT
+  );
+
+  // Hydrate connectedAddress from localStorage on mount (catches wallets connected before this component rendered)
+  useEffect(() => {
+    if (!connectedAddress) {
+      const stored = localStorage.getItem("stacks_wallet_address");
+      if (stored) setConnectedAddress(stored);
+    }
+  }, []);
 
   // Clean up polling on unmount
   useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
@@ -149,9 +167,21 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   };
 
+  // Returns address from state → localStorage → wallet API (in that order).
+  // Only the last fallback can trigger a wallet prompt, so connected users go straight to signing.
+  const resolveAddress = async (): Promise<string | null> => {
+    if (connectedAddress) return connectedAddress;
+    const stored = localStorage.getItem("stacks_wallet_address");
+    if (stored) {
+      setConnectedAddress(stored);
+      return stored;
+    }
+    return getConnectedAddress();
+  };
+
   const handlePayStx = async () => {
     setError(null);
-    const addr = connectedAddress || await getConnectedAddress();
+    const addr = await resolveAddress();
     if (!addr) {
       setPendingTokenMethod(null);
       setShowWalletPicker(true);
@@ -177,13 +207,16 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   const handlePayToken = async (token: "sbtc" | "usdcx") => {
     setError(null);
-    const addr = connectedAddress || await getConnectedAddress();
+    const addr = await resolveAddress();
     if (!addr) {
       setPendingTokenMethod(token);
       setShowWalletPicker(true);
       return;
     }
-    const amount = calcTokenAmount(paymentIntent.planType, paymentIntent.billingPeriod, token);
+    const amount =
+      token === "sbtc"
+        ? calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd ?? 87000)
+        : calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
     const decimals = token === "sbtc" ? 8 : 6;
     const baseUnits = Math.round(amount * Math.pow(10, decimals)).toString();
     const contract = token === "sbtc" ? SBTC_CONTRACT : USDCX_CONTRACT;
@@ -248,8 +281,17 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   // ── Payment method chooser ─────────────────────────────────────
   if (method === "choose") {
-    const sbtcAmount = calcTokenAmount(paymentIntent.planType, paymentIntent.billingPeriod, "sbtc");
-    const usdcxAmount = calcTokenAmount(paymentIntent.planType, paymentIntent.billingPeriod, "usdcx");
+    const sbtcAmount = btcPriceUsd
+      ? calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd)
+      : null;
+    const usdcxAmount = calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
+    const usdTotal = (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
+      paymentIntent.billingPeriod *
+      (1 - (DISCOUNTS[paymentIntent.billingPeriod] ?? 0));
+    // USDCx has 6 decimals — convert raw balance to human-readable
+    const usdcxBalanceHuman = usdcxBalanceRaw !== null ? usdcxBalanceRaw / 1_000_000 : null;
+    const usdcxRequired = usdcxAmount;
+    const usdcxSufficient = usdcxBalanceHuman !== null && usdcxBalanceHuman >= usdcxRequired;
 
     return (
       <>
@@ -281,14 +323,19 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           {/* sBTC */}
           <button
             onClick={() => setMethod("sbtc")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(247,147,26,0.5)] hover:bg-[rgba(247,147,26,0.06)] transition-all text-left group"
+            disabled={btcLoading && !btcPriceUsd}
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(247,147,26,0.5)] hover:bg-[rgba(247,147,26,0.06)] transition-all text-left group disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <div className="w-10 h-10 rounded-xl bg-[rgba(247,147,26,0.15)] flex items-center justify-center flex-shrink-0">
               <CurrencyBtc className="w-5 h-5 text-[#F7931A]" weight="fill" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Pay with sBTC</p>
-              <p className="text-xs text-gray-500">{sbtcAmount.toFixed(8)} sBTC · Bitcoin-backed · Leather or Xverse</p>
+              <p className="text-xs text-gray-500">
+                {sbtcAmount
+                  ? `${sbtcAmount.toFixed(8)} sBTC · ≈ $${usdTotal.toFixed(2)} USD · Leather or Xverse`
+                  : "Loading BTC price... · Leather or Xverse"}
+              </p>
             </div>
             <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#F7931A] transition-colors flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-[#F7931A] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -305,7 +352,26 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Pay with USDCx</p>
-              <p className="text-xs text-gray-500">{usdcxAmount.toFixed(2)} USDCx · USD-pegged · Leather or Xverse</p>
+              <p className="text-xs text-gray-500">
+                {usdcxAmount.toFixed(2)} USDCx · USD-pegged
+                {connectedAddress && usdcxBalanceLoading && " · checking balance..."}
+                {connectedAddress && !usdcxBalanceLoading && usdcxBalanceHuman !== null && (
+                  usdcxSufficient
+                    ? ` · Balance: ${usdcxBalanceHuman.toFixed(2)} ✓`
+                    : ` · Balance: ${usdcxBalanceHuman.toFixed(2)} (insufficient)`
+                )}
+              </p>
+              {connectedAddress && !usdcxBalanceLoading && !usdcxSufficient && usdcxBalanceHuman !== null && (
+                <a
+                  href="https://bridge.stacks.co"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-[#2775CA] underline mt-0.5 inline-block"
+                >
+                  Bridge USDC → USDCx
+                </a>
+              )}
             </div>
             <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#2775CA] transition-colors flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-[#2775CA] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -398,18 +464,31 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   if (method === "sbtc" || method === "usdcx") {
     const isSbtc = method === "sbtc";
 
-    const tokenAmount = calcTokenAmount(
-      paymentIntent.planType,
-      paymentIntent.billingPeriod,
-      method
-    );
+    const tokenAmount = isSbtc
+      ? calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd ?? 87000)
+      : calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
     const displayAmount = isSbtc
       ? `${tokenAmount.toFixed(8)} sBTC`
       : `${tokenAmount.toFixed(2)} USDCx`;
-    const amountHint = isSbtc ? "(≈ $10 USD)" : "(USD-pegged)";
+    const usdEquivalent = isSbtc
+      ? (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
+        paymentIntent.billingPeriod *
+        (1 - (DISCOUNTS[paymentIntent.billingPeriod] ?? 0))
+      : tokenAmount;
+    const amountHint = isSbtc
+      ? btcPriceUsd ? `(≈ $${usdEquivalent.toFixed(2)} USD)` : ""
+      : "(USD-pegged)";
     const accentColor = isSbtc ? "#F7931A" : "#2775CA";
     const TokenIcon = isSbtc ? CurrencyBtc : CurrencyDollar;
     const label = isSbtc ? "sBTC" : "USDCx";
+
+    // USDCx-specific balance check on the payment screen
+    const usdcxBalanceHumanOnScreen = !isSbtc && usdcxBalanceRaw !== null
+      ? usdcxBalanceRaw / 1_000_000
+      : null;
+    const usdcxInsufficientOnScreen = !isSbtc &&
+      usdcxBalanceHumanOnScreen !== null &&
+      usdcxBalanceHumanOnScreen < tokenAmount;
 
     return (
       <>
@@ -431,7 +510,33 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             <p className="text-xs text-gray-400 mb-1">Amount to Pay</p>
             <p className="text-2xl font-bold text-white">{displayAmount}</p>
             <p className="text-xs text-gray-400 mt-1">{amountHint}</p>
+            {!isSbtc && usdcxBalanceHumanOnScreen !== null && (
+              <p className="text-xs mt-1" style={{ color: usdcxInsufficientOnScreen ? "#f87171" : "#6ee7b7" }}>
+                Your balance: {usdcxBalanceHumanOnScreen.toFixed(2)} USDCx
+              </p>
+            )}
           </div>
+
+          {/* Insufficient balance warning */}
+          {usdcxInsufficientOnScreen && (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/25">
+              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" weight="fill" />
+              <div>
+                <p className="text-sm font-medium text-red-300">Insufficient USDCx balance</p>
+                <p className="text-xs text-red-400/80 mt-0.5">
+                  You need {tokenAmount.toFixed(2)} USDCx but only have {usdcxBalanceHumanOnScreen!.toFixed(2)}.{" "}
+                  <a
+                    href="https://bridge.stacks.co"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-[#2775CA]"
+                  >
+                    Bridge USDC → USDCx
+                  </a>
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Pending confirmation banner */}
           {pending && (
@@ -449,8 +554,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           {/* Pay with wallet button */}
           <button
             onClick={() => handlePayToken(method)}
-            disabled={verifying || pending}
-            style={{ backgroundColor: verifying || pending ? undefined : accentColor }}
+            disabled={verifying || pending || !!usdcxInsufficientOnScreen}
+            style={{ backgroundColor: verifying || pending || usdcxInsufficientOnScreen ? undefined : accentColor }}
             className="w-full py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2 hover:opacity-90"
           >
             <TokenIcon className="w-5 h-5" weight="fill" />
