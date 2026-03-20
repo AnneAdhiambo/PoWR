@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { ProofChainPanel } from "../../../components/recruiter/ProofChainPanel";
 import { SkillRadarChart } from "../../../components/recruiter/SkillRadarChart";
 import { recruiterApiClient } from "../../../lib/recruiterApi";
-import { apiClient } from "../../../lib/api";
-import { getOrCreateKeypair, sendDM, RELAYS } from "../../../lib/nostr";
+import { getOrCreateKeypair, getPubkeyForIdentifier, sendDM, RELAYS } from "../../../lib/nostr";
 import { SimplePool } from "nostr-tools";
 import {
   ArrowLeft, PaperPlaneTilt, BookmarkSimple, ShieldCheck,
@@ -101,21 +100,26 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
     e.preventDefault();
     setSending(true);
     try {
-      // Try to send via Nostr if developer has a pubkey
-      const devPubkey = await apiClient.getUserNostrPubkey(username);
-      if (devPubkey) {
-        const recruiterEmail = localStorage.getItem("recruiter_email") || "";
-        const { sk } = await getOrCreateKeypair(recruiterEmail);
-        const pool = new SimplePool();
-        await sendDM(sk, devPubkey, contactMsg, pool);
-        pool.close(RELAYS);
-        toast.success("Message sent!");
-        router.push(`/recruiter/chat?with=${encodeURIComponent(devPubkey)}&name=${encodeURIComponent(username)}`);
-      } else {
-        // Fallback to traditional outreach
-        await recruiterApiClient.contactDeveloper(username, contactMsg);
-        toast.success("Request sent!");
-      }
+      const recruiterEmail = localStorage.getItem("recruiter_email") || "";
+      const recruiterCompany = localStorage.getItem("recruiter_company") || recruiterEmail;
+
+      // Derive developer pubkey deterministically from their username — no DB needed
+      const devPubkey = await getPubkeyForIdentifier(username);
+      const { sk } = await getOrCreateKeypair(recruiterEmail);
+      const pool = new SimplePool();
+
+      // Prefix message with recruiter identity so developer knows who reached out
+      const messageWithContext = `[${recruiterCompany} via PoWR]\n\n${contactMsg}`;
+      await sendDM(sk, devPubkey, messageWithContext, pool);
+
+      // Delay pool close so all relays receive the message
+      setTimeout(() => pool.close(RELAYS), 8000);
+
+      // Also log the outreach in DB for recruiter CRM
+      recruiterApiClient.contactDeveloper(username, contactMsg).catch(() => {});
+
+      toast.success("Message sent!");
+      router.push(`/recruiter/chat?with=${encodeURIComponent(devPubkey)}&name=${encodeURIComponent(username)}`);
       setContactOpen(false);
       setContactMsg("");
     } catch (error: any) {

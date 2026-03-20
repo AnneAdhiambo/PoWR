@@ -13,7 +13,7 @@ import {
   CurrencyBtc,
   CurrencyDollar,
 } from "phosphor-react";
-import { transferStx, transferSip10Token, getConnectedAddress } from "../../lib/stacksProvider";
+import { transferStx, transferSip10Token } from "../../lib/stacksProvider";
 import { WalletPickerModal } from "./WalletPickerModal";
 import { useBtcPrice } from "../../hooks/useBtcPrice";
 import { useStxPrice } from "../../hooks/useStxPrice";
@@ -187,8 +187,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   };
 
-  // Returns address from state → localStorage → wallet API (in that order).
-  // Only the last fallback can trigger a wallet prompt, so connected users go straight to signing.
+  // Returns address from state → localStorage → @stacks/connect cached wallet (in that order).
+  // None of these steps trigger a wallet picker popup; the picker is shown separately via WalletPickerModal.
   const resolveAddress = async (): Promise<string | null> => {
     if (connectedAddress) return connectedAddress;
     const stored = localStorage.getItem("stacks_wallet_address");
@@ -196,7 +196,20 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
       setConnectedAddress(stored);
       return stored;
     }
-    return getConnectedAddress();
+    // Try @stacks/connect's remembered provider without forcing a new selection
+    try {
+      const { request } = await import("@stacks/connect");
+      const res = await (request as any)({ forceWalletSelect: false }, "getAddresses");
+      const addr = res?.addresses?.find((a: any) => a.address?.startsWith("S"))?.address ?? null;
+      if (addr) {
+        setConnectedAddress(addr);
+        localStorage.setItem("stacks_wallet_address", addr);
+        return addr;
+      }
+    } catch {
+      // No wallet remembered — fall through to show the picker
+    }
+    return null;
   };
 
   const handlePayStx = async () => {

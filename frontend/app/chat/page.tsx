@@ -6,6 +6,8 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { Card } from "../components/ui";
 import { ChatCircle, PaperPlaneTilt, MagnifyingGlass, DotsThreeVertical } from "phosphor-react";
 import { useNostr } from "../hooks/useNostr";
+import { getOrCreateKeypair } from "../lib/nostr";
+import { apiClient } from "../lib/api";
 
 interface Message {
   id: string;
@@ -42,6 +44,14 @@ export default function ChatPage() {
     const storedEmail = localStorage.getItem("github_email");
     if (storedUsername) { setUsername(storedUsername); setDisplayName(storedUsername); }
     if (storedEmail) { setUserEmail(storedEmail); }
+
+    // Re-register Nostr pubkey on every chat page load — ensures it's always in DB
+    // (auth callback may have failed silently on first login)
+    if (storedUsername) {
+      getOrCreateKeypair(storedUsername).then(({ pk }) => {
+        apiClient.registerNostrPubkey(storedUsername, pk).catch(() => {});
+      }).catch(() => {});
+    }
   }, []);
 
   const { conversations: nostrConvs, sendMessage, connected, markRead } = useNostr(username, "developer");
