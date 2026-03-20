@@ -4,14 +4,29 @@ import { PoWProfile } from "./scoringEngine";
 import {
   makeContractCall,
   broadcastTransaction,
+  fetchCallReadOnlyFunction,
+  cvToValue,
   principalCV,
   uintCV,
   bufferCV,
   listCV,
   stringAsciiCV,
   PostConditionMode,
+  Cl,
 } from "@stacks/transactions";
 import { STACKS_TESTNET, STACKS_MAINNET } from "@stacks/network";
+
+// ── Explorer URL helpers ────────────────────────────────────────────────────
+const EXPLORER_BASE = "https://explorer.hiro.so";
+const CHAIN_SUFFIX = process.env.STACKS_NETWORK === "mainnet" ? "" : "?chain=testnet";
+
+export function explorerTxUrl(txId: string): string {
+  return `${EXPLORER_BASE}/txid/${txId}${CHAIN_SUFFIX}`;
+}
+
+export function explorerBlockUrl(height: number): string {
+  return `${EXPLORER_BASE}/block/${height}${CHAIN_SUFFIX}`;
+}
 
 // PoWRegistry Contract ABI (simplified)
 const POW_REGISTRY_ABI = [
@@ -32,8 +47,10 @@ export interface BlockchainProof {
   transactionHash: string;
   artifactHash: string;
   blockNumber: number;
+  stacksBlockHeight: number;
   timestamp: number;
   skillScores: number[];
+  explorerUrl: string;
 }
 
 export class BlockchainService {
@@ -95,18 +112,17 @@ export class BlockchainService {
     // Sort by ID for consistency
     artifactData.sort((a, b) => a.id.localeCompare(b.id));
 
-    // Create hash using keccak256 (ethers utility)
+    // Create hash using keccak256 (ethers utility) — return 64-char hex without 0x prefix
     const dataString = JSON.stringify(artifactData);
     const hash = ethers.keccak256(ethers.toUtf8Bytes(dataString));
-
-    return hash;
+    return hash.replace(/^0x/, "");
   }
 
   /**
    * Extract skill scores from PoW profile
    */
   extractSkillScores(profile: PoWProfile): number[] {
-    return profile.skills.map((skill) => Math.round(skill.score));
+    return profile.skills.map((skill) => Math.min(100, Math.max(0, Math.round(skill.score))));
   }
 
   /**
@@ -119,64 +135,75 @@ export class BlockchainService {
   async anchorSnapshot(
     artifacts: Artifact[],
     profile: PoWProfile,
-    userAddress?: string
+    userPrincipal?: string,
+    username?: string
   ): Promise<BlockchainProof> {
-    console.log('[Blockchain] anchorSnapshot called with', artifacts.length, 'artifacts');
-    this.ensureInitialized();
+    console.log("[Blockchain] anchorSnapshot called with", artifacts.length, "artifacts");
 
-    if (!this.contract || !this.signer || !this.provider) {
+    const rawKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
+    if (!rawKey) {
       throw new Error("Blockchain service not configured. Set BLOCKCHAIN_PRIVATE_KEY in .env");
     }
+    const oraclePrivateKey = this.normalizePrivateKey(rawKey);
+    const contractAddress =
+      process.env.POWR_REGISTRY_CONTRACT_ADDRESS ||
+      "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
+    const oracleAddress =
+      process.env.STACKS_ORACLE_ADDRESS || "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
+    const network =
+      process.env.STACKS_NETWORK === "mainnet" ? STACKS_MAINNET : STACKS_TESTNET;
 
-    // Generate artifact hash
     const artifactHash = this.generateArtifactHash(artifacts);
-    console.log('[Blockchain] Generated artifact hash:', artifactHash.substring(0, 20) + '...');
+    const hashBytes = Buffer.from(artifactHash, "hex");
+    const skillScores = this.extractSkillScores(profile).slice(0, 10);
 
-    // Extract skill scores
-    const skillScores = this.extractSkillScores(profile);
-    console.log('[Blockchain] Skill scores:', skillScores);
-    const skillScoresBigInt = skillScores.map((score) => BigInt(score));
+    const txOptions = {
+      contractAddress,
+      contractName: "powr-registry",
+      functionName: "anchor-snapshot",
+      functionArgs: [
+        Cl.principal(userPrincipal || oracleAddress),
+        Cl.buffer(hashBytes),
+        Cl.list(skillScores.map((s) => Cl.uint(s))),
+        Cl.stringAscii((username || "").slice(0, 64)),
+      ],
+      senderKey: oraclePrivateKey,
+      network,
+      postConditionMode: PostConditionMode.Allow,
+    };
 
-    // Use zero address if no user address provided
-    const githubIdentity = userAddress
-      ? ethers.getAddress(userAddress)
-      : ethers.ZeroAddress;
+    const transaction = await makeContractCall(txOptions);
+    const broadcastResponse = await broadcastTransaction({ transaction, network });
 
-    try {
-      console.log('[Blockchain] Sending transaction to contract...');
-      // Call the contract
-      const tx = await this.contract.anchorSnapshot(
-        artifactHash,
-        skillScoresBigInt,
-        githubIdentity
-      );
-      console.log('[Blockchain] Transaction sent! Hash:', tx.hash);
-
-      // Wait for transaction confirmation
-      console.log('[Blockchain] Waiting for confirmation...');
-      const receipt = await tx.wait();
-
-      if (!receipt) {
-        throw new Error("Transaction receipt not found");
-      }
-
-      console.log('[Blockchain] ✅ Transaction confirmed in block:', receipt.blockNumber);
-
-      // Get block to get timestamp
-      const block = await this.provider!.getBlock(receipt.blockNumber);
-
-      return {
-        transactionHash: receipt.hash,
-        artifactHash: artifactHash,
-        blockNumber: receipt.blockNumber || 0,
-        timestamp: block?.timestamp || Math.floor(Date.now() / 1000),
-        skillScores,
-      };
-    } catch (error: any) {
-      console.error("[Blockchain] ❌ Anchoring error:", error.message);
-      if (error.code) console.error("[Blockchain] Error code:", error.code);
-      throw new Error(`Failed to anchor snapshot: ${error.message}`);
+    if ("error" in broadcastResponse) {
+      throw new Error(`Broadcast failed: ${broadcastResponse.error}`);
     }
+
+    const txId = broadcastResponse.txid;
+    console.log(`[Blockchain] Proof anchored txId=${txId}`);
+
+    // Fetch block height and timestamp from Stacks API
+    const apiUrl = process.env.STACKS_API_URL || "https://api.testnet.hiro.so";
+    let stacksBlockHeight = 0;
+    let timestamp = Math.floor(Date.now() / 1000);
+    try {
+      const res = await fetch(`${apiUrl}/extended/v1/tx/${txId}`);
+      if (res.ok) {
+        const data = await res.json() as any;
+        stacksBlockHeight = data.block_height ?? 0;
+        timestamp = data.burn_block_time ?? timestamp;
+      }
+    } catch { /* non-fatal */ }
+
+    return {
+      transactionHash: txId,
+      artifactHash,
+      blockNumber: stacksBlockHeight,
+      stacksBlockHeight,
+      timestamp,
+      skillScores,
+      explorerUrl: explorerTxUrl(txId),
+    };
   }
 
   /**
@@ -208,20 +235,23 @@ export class BlockchainService {
   }
 
   /**
-   * Verify if a hash has been anchored on-chain
+   * Verify if a hash has been anchored on Stacks powr-registry
    */
   async verifySnapshot(hash: string): Promise<boolean> {
-    this.ensureInitialized();
-
-    if (!this.contract && this.provider) {
-      this.contract = new ethers.Contract(CONTRACT_ADDRESS, POW_REGISTRY_ABI, this.provider);
-    }
-
+    const contractAddress = process.env.POWR_REGISTRY_CONTRACT_ADDRESS;
+    if (!contractAddress) return false;
     try {
-      if (!this.contract) {
-        throw new Error("Contract not initialized");
-      }
-      return await this.contract.verifySnapshot(hash);
+      const network =
+        process.env.STACKS_NETWORK === "mainnet" ? STACKS_MAINNET : STACKS_TESTNET;
+      const result = await fetchCallReadOnlyFunction({
+        contractAddress,
+        contractName: "powr-registry",
+        functionName: "verify-snapshot",
+        functionArgs: [Cl.buffer(Buffer.from(hash, "hex"))],
+        network,
+        senderAddress: contractAddress,
+      });
+      return cvToValue(result) === true;
     } catch (error: any) {
       console.error("Error verifying snapshot:", error);
       return false;
@@ -229,11 +259,11 @@ export class BlockchainService {
   }
 
   /**
-   * Check if EVM blockchain service is configured
+   * Check if Stacks oracle key and contract address are configured
    */
   isConfigured(): boolean {
-    this.ensureInitialized();
-    return !!this.signer && !!this.contract;
+    return !!(process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY) &&
+      !!process.env.POWR_REGISTRY_CONTRACT_ADDRESS;
   }
 
   /**

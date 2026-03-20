@@ -16,6 +16,7 @@ import {
 import { transferStx, transferSip10Token, getConnectedAddress } from "../../lib/stacksProvider";
 import { WalletPickerModal } from "./WalletPickerModal";
 import { useBtcPrice } from "../../hooks/useBtcPrice";
+import { useStxPrice } from "../../hooks/useStxPrice";
 import { useTokenBalance } from "../../hooks/useTokenBalance";
 
 // Demo mode: simulates sBTC and USDCx payments without a real wallet or tokens
@@ -64,10 +65,14 @@ interface PaymentFlowProps {
     planType: string;
     billingPeriod: number;
     network: string;
+    usdTotal?: number; // canonical USD amount — overrides plan-based recalculation
   };
   onPaymentVerified: (txHash: string) => void;
   onCancel: () => void;
   walletAddress?: string;
+  /** When provided, replaces the default developer-API verify call.
+   *  Return { success, status?, message? } — same shape as apiClient.verifyPayment. */
+  onVerify?: (txHash: string, currency: string) => Promise<{ success: boolean; status?: string; message?: string }>;
 }
 
 type PaymentMethod = "choose" | "stx" | "sbtc" | "usdcx";
@@ -79,6 +84,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   onPaymentVerified,
   onCancel,
   walletAddress,
+  onVerify,
 }) => {
   const [method, setMethod] = useState<PaymentMethod>("choose");
   const [txHash, setTxHash] = useState("");
@@ -92,6 +98,12 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const [connectedAddress, setConnectedAddress] = useState<string | null>(walletAddress ?? null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { btcPriceUsd, loading: btcLoading } = useBtcPrice();
+  const { stxPriceUsd } = useStxPrice();
+  // Canonical USD total — from intent when provided (recruiter plans), else derived from developer plan lookup
+  const intentUsdTotal = paymentIntent.usdTotal ??
+    (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
+    paymentIntent.billingPeriod *
+    (1 - (DISCOUNTS[paymentIntent.billingPeriod] ?? 0));
   const { balance: usdcxBalanceRaw, loading: usdcxBalanceLoading } = useTokenBalance(
     connectedAddress,
     USDCX_CONTRACT
@@ -132,14 +144,14 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
 
     try {
-      const { apiClient } = await import("../../lib/api");
-      const username = localStorage.getItem("github_username") || "";
-      const result = await apiClient.verifyPayment(
-        username,
-        hashToVerify.trim(),
-        paymentIntent.planType,
-        currency
-      );
+      let result: { success: boolean; status?: string; message?: string };
+      if (onVerify) {
+        result = await onVerify(hashToVerify.trim(), currency);
+      } else {
+        const { apiClient } = await import("../../lib/api");
+        const username = localStorage.getItem("github_username") || "";
+        result = await apiClient.verifyPayment(username, hashToVerify.trim(), paymentIntent.planType, currency);
+      }
 
       if (result.success) {
         setPending(false);
@@ -195,7 +207,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
       setShowWalletPicker(true);
       return;
     }
-    const microStx = Math.round(parseFloat(paymentIntent.amount) * 1_000_000).toString();
+    const stxAmt = intentUsdTotal / (stxPriceUsd ?? 0.30);
+    const microStx = Math.round(stxAmt * 1_000_000).toString();
     try {
       const txId = await transferStx(
         paymentIntent.address,
@@ -237,8 +250,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
     const amount =
       token === "sbtc"
-        ? calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd ?? 87000)
-        : calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
+        ? intentUsdTotal / (btcPriceUsd ?? 87000)
+        : intentUsdTotal;
     const decimals = token === "sbtc" ? 8 : 6;
     const baseUnits = Math.round(amount * Math.pow(10, decimals)).toString();
     const contract = token === "sbtc" ? SBTC_CONTRACT : USDCX_CONTRACT;
@@ -286,14 +299,14 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   // ── Payment method chooser ─────────────────────────────────────
   if (method === "choose") {
-    const sbtcAmountCalc = calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd ?? 87000);
+    const sbtcAmountCalc = intentUsdTotal / (btcPriceUsd ?? 87000);
     const sbtcAmountDisplay = btcPriceUsd
       ? sbtcAmountCalc.toFixed(8)
       : `~${sbtcAmountCalc.toFixed(8)} (est.)`;
-    const usdcxAmount = calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
-    const usdTotal = (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
-      paymentIntent.billingPeriod *
-      (1 - (DISCOUNTS[paymentIntent.billingPeriod] ?? 0));
+    const usdcxAmount = intentUsdTotal;
+    const usdTotal = intentUsdTotal;
+    const stxAmountCalc = stxPriceUsd ? intentUsdTotal / stxPriceUsd : null;
+    const stxDisplay = stxAmountCalc ? `${Math.round(stxAmountCalc)} STX` : `≈ $${intentUsdTotal.toFixed(2)} USD`;
     // USDCx has 6 decimals — convert raw balance to human-readable
     const usdcxBalanceHuman = usdcxBalanceRaw !== null ? usdcxBalanceRaw / 1_000_000 : null;
     const usdcxRequired = usdcxAmount;
@@ -329,7 +342,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Pay with STX</p>
-              <p className="text-xs text-gray-500">{paymentIntent.amount} STX · Leather or Xverse</p>
+              <p className="text-xs text-gray-500">{stxDisplay} · Leather or Xverse</p>
             </div>
             <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#FF5500] transition-colors flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -426,8 +439,8 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     const isSbtc = method === "sbtc";
 
     const tokenAmount = isSbtc
-      ? calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd ?? 87000)
-      : calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
+      ? intentUsdTotal / (btcPriceUsd ?? 87000)
+      : intentUsdTotal;
     const displayAmount = isSbtc
       ? `${tokenAmount.toFixed(8)} sBTC`
       : `${tokenAmount.toFixed(2)} USDCx`;
@@ -673,7 +686,9 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         {/* Amount */}
         <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.05)]">
           <p className="text-xs text-gray-400 mb-1">Amount to Pay</p>
-          <p className="text-2xl font-bold text-white">{paymentIntent.amount} STX</p>
+          <p className="text-2xl font-bold text-white">
+            {stxPriceUsd ? `${Math.round(intentUsdTotal / stxPriceUsd)} STX` : `≈ $${intentUsdTotal.toFixed(2)} USD`}
+          </p>
           <p className="text-xs text-gray-400 mt-1">
             Network: Stacks{" "}
             {process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "Mainnet" : "Testnet"}
