@@ -15,6 +15,14 @@ async function fetchBtcPrice(): Promise<number> {
   return price;
 }
 
+async function fetchStxPrice(): Promise<number> {
+  const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=blockstack&vs_currencies=usd");
+  const data = await res.json() as any;
+  const price = data?.blockstack?.usd;
+  if (!price || typeof price !== "number") throw new Error("Could not fetch STX price");
+  return price;
+}
+
 const router = express.Router();
 
 // POST /api/recruiter/auth/signup
@@ -301,9 +309,9 @@ router.post("/billing/intent", requireRecruiter, async (req, res) => {
       const btcPrice = await fetchBtcPrice().catch(() => 87000);
       amount = (usdMonthly / btcPrice).toFixed(8);
     } else {
-      // STX: use a fixed STX/USD rate from env or fallback
-      const stxUsd = parseFloat(process.env.STX_USD_PRICE || "0.5");
-      amount = Math.round(usdMonthly / stxUsd).toString();
+      // STX: live price from CoinGecko, fallback $0.30
+      const stxPrice = await fetchStxPrice().catch(() => 0.30);
+      amount = Math.round(usdMonthly / stxPrice).toString();
     }
 
     res.json({
@@ -314,6 +322,7 @@ router.post("/billing/intent", requireRecruiter, async (req, res) => {
         planType: plan,
         billingPeriod: 1,
         network,
+        usdTotal: usdMonthly, // canonical USD amount — frontend uses this for cross-currency display
       },
     });
   } catch (error: any) {

@@ -110,24 +110,26 @@ export default function BillingPage() {
     }
   };
 
-  const handlePaymentVerified = async (txHash: string) => {
-    if (!pendingPlan) return;
+  // Called by PaymentFlow instead of the default developer API — recruiter-specific verify
+  const handleVerify = async (txHash: string, txCurrency: string) => {
+    if (!pendingPlan) return { success: false, message: "No plan selected" };
     try {
-      const result = await recruiterApiClient.verifyBillingPayment(txHash, pendingPlan, currency);
-      if (result.success) {
-        toast.success(`Upgraded to ${pendingPlan} plan!`);
-        setPaymentIntent(null);
-        setPendingPlan(null);
-        // Refresh recruiter data so plan badge updates
-        await load();
-      } else if (result.status === "pending") {
-        toast("Transaction pending — please wait and try again.");
-      } else {
-        toast.error(result.message || "Payment verification failed");
-      }
+      const result = await recruiterApiClient.verifyBillingPayment(
+        txHash,
+        pendingPlan,
+        txCurrency as "stx" | "sbtc" | "usdcx"
+      );
+      return result;
     } catch (err: any) {
-      toast.error(err.message || "Failed to verify payment");
+      return { success: false, status: "failed", message: err.message || "Verification failed" };
     }
+  };
+
+  const handlePaymentVerified = async () => {
+    toast.success(`Upgraded to ${pendingPlan} plan!`);
+    setPaymentIntent(null);
+    setPendingPlan(null);
+    await load();
   };
 
   const handleCancelPayment = () => {
@@ -161,6 +163,7 @@ export default function BillingPage() {
           <PaymentFlow
             paymentIntent={paymentIntent}
             onPaymentVerified={handlePaymentVerified}
+            onVerify={handleVerify}
             onCancel={handleCancelPayment}
           />
         </div>
