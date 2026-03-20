@@ -6,7 +6,19 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { Card, Pagination } from "../components/ui";
 import { Briefcase, MapPin, CurrencyDollar, Clock, Star, ArrowRight, GridFour, List } from "phosphor-react";
 import { savedItems } from "../lib/savedItems";
+import { apiClient } from "../lib/api";
 import toast from "react-hot-toast";
+
+function formatPosted(dateStr?: string): string {
+  if (!dateStr) return "Recently";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+  return `${Math.floor(days / 30)} months ago`;
+}
 
 interface Job {
   id: string;
@@ -54,8 +66,28 @@ function JobsPageContent() {
     const saved = savedItems.getSavedJobs();
     setSavedJobIds(new Set(saved.map(j => j.id)));
 
-    // Load jobs (mock data for now)
-    setTimeout(() => {
+    // Load jobs from API
+    apiClient.getJobs({ limit: 100 })
+      .then(({ jobs: apiJobs }) => {
+        setJobs(apiJobs.map(j => ({
+          id: String(j.id),
+          title: j.title,
+          company: j.company,
+          location: j.location,
+          salary: j.salary || "",
+          type: (j.type as "full-time" | "part-time" | "contract") || "full-time",
+          posted: formatPosted(j.created_at),
+          description: j.description || "",
+          tags: j.tags || [],
+        })));
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+    // eslint-disable-next-line -- legacy mock block below removed
+    if (false) {
+      setTimeout(() => {
       setJobs([
         {
           id: "1",
@@ -204,6 +236,7 @@ function JobsPageContent() {
       ]);
       setLoading(false);
     }, 500);
+    }
   }, []);
 
   const filteredJobs = filter === "all" 

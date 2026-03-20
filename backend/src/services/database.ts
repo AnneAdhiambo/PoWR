@@ -1,6 +1,16 @@
-import { Pool } from "pg";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 import { Artifact } from "./artifactIngestion";
 import { PoWProfile } from "./scoringEngine";
+
+// Force IPv4 for WebSocket connections — WSL2 has unreachable IPv6 routes
+// which cause Node.js happy-eyeballs to time out before falling back to IPv4
+class IPv4WebSocket extends ws {
+  constructor(url: string, protocols?: string | string[], options?: ws.ClientOptions) {
+    super(url, protocols as string, { ...options, family: 4 } as ws.ClientOptions);
+  }
+}
+neonConfig.webSocketConstructor = IPv4WebSocket;
 
 export interface Badge {
   id: number;
@@ -20,16 +30,13 @@ export interface GithubBadge {
   earnedAt: Date;
 }
 
-// Initialize PostgreSQL connection pool
+// Initialize PostgreSQL connection pool via Neon serverless WebSocket driver
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes("sslmode=require")
-    ? { rejectUnauthorized: false }
-    : false,
 });
 
 // Prevent unhandled pool errors from crashing the process
-pool.on("error", (err) => {
+pool.on("error", (err: Error) => {
   console.error("[DB] Pool error:", err.message);
 });
 
@@ -73,6 +80,7 @@ async function initializeTables() {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_updated TIMESTAMP DEFAULT NOW();
         ALTER TABLE users ADD COLUMN IF NOT EXISTS stacks_principal TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS nostr_pubkey TEXT;
         ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_artifact_hash TEXT;
         -- Drop NOT NULL on legacy password column only if it exists
         IF EXISTS (
@@ -87,6 +95,7 @@ async function initializeTables() {
         ) THEN
           ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS company_size TEXT;
           ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
+          ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS nostr_pubkey TEXT;
           BEGIN
             ALTER TABLE recruiters ADD COLUMN plan TEXT NOT NULL DEFAULT 'free';
           EXCEPTION WHEN duplicate_column THEN NULL;
@@ -214,6 +223,40 @@ async function initializeTables() {
       );
 
       CREATE INDEX IF NOT EXISTS idx_github_badges_username ON github_badges(username);
+
+      CREATE TABLE IF NOT EXISTS jobs (
+        id SERIAL PRIMARY KEY,
+        recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        company TEXT NOT NULL,
+        location TEXT NOT NULL,
+        salary TEXT,
+        type TEXT NOT NULL DEFAULT 'full-time',
+        description TEXT,
+        tags TEXT[],
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+      CREATE INDEX IF NOT EXISTS idx_jobs_recruiter ON jobs(recruiter_id);
+
+      CREATE TABLE IF NOT EXISTS gigs (
+        id SERIAL PRIMARY KEY,
+        recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        client TEXT NOT NULL,
+        location TEXT NOT NULL,
+        rate TEXT,
+        duration TEXT,
+        description TEXT,
+        tags TEXT[],
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gigs_status ON gigs(status);
+      CREATE INDEX IF NOT EXISTS idx_gigs_recruiter ON gigs(recruiter_id);
     `);
     console.log("PostgreSQL tables initialized successfully");
   } catch (error) {
@@ -897,6 +940,120 @@ export class DatabaseService {
       "DELETE FROM blockchain_proofs WHERE created_at < NOW() - INTERVAL '$1 days'",
       [olderThanDays]
     );
+  }
+
+  // ── Jobs CRUD ──────────────────────────────────────────────────────────────
+  async createJob(recruiterId: number, data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<any> {
+    const result = await pool.query(`
+      INSERT INTO jobs (recruiter_id, title, company, location, salary, type, description, tags)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [recruiterId, data.title, data.company, data.location, data.salary || null, data.type || 'full-time', data.description || null, data.tags || []]);
+    return result.rows[0];
+  }
+
+  async getJobs(params?: { status?: string; limit?: number; offset?: number }): Promise<{ jobs: any[]; total: number }> {
+    const { status = 'active', limit = 20, offset = 0 } = params || {};
+    const [dataResult, countResult] = await Promise.all([
+      pool.query('SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.status = $1 ORDER BY j.created_at DESC LIMIT $2 OFFSET $3', [status, limit, offset]),
+      pool.query('SELECT COUNT(*) FROM jobs WHERE status = $1', [status]),
+    ]);
+    return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
+  }
+
+  async getJobsByRecruiter(recruiterId: number): Promise<any[]> {
+    const result = await pool.query('SELECT * FROM jobs WHERE recruiter_id = $1 ORDER BY created_at DESC', [recruiterId]);
+    return result.rows;
+  }
+
+  async getJobById(id: number): Promise<any | null> {
+    const result = await pool.query('SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.id = $1', [id]);
+    return result.rows[0] || null;
+  }
+
+  async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<any> {
+    const fields: string[] = [];
+    const values: any[] = [id, recruiterId];
+    let idx = 3;
+    if (data.title !== undefined) { fields.push(`title = $${idx++}`); values.push(data.title); }
+    if (data.company !== undefined) { fields.push(`company = $${idx++}`); values.push(data.company); }
+    if (data.location !== undefined) { fields.push(`location = $${idx++}`); values.push(data.location); }
+    if (data.salary !== undefined) { fields.push(`salary = $${idx++}`); values.push(data.salary); }
+    if (data.type !== undefined) { fields.push(`type = $${idx++}`); values.push(data.type); }
+    if (data.description !== undefined) { fields.push(`description = $${idx++}`); values.push(data.description); }
+    if (data.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(data.tags); }
+    if (data.status !== undefined) { fields.push(`status = $${idx++}`); values.push(data.status); }
+    fields.push('updated_at = NOW()');
+    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND recruiter_id = $2 RETURNING *`, values);
+    return result.rows[0] || null;
+  }
+
+  async deleteJob(id: number, recruiterId: number): Promise<void> {
+    await pool.query('DELETE FROM jobs WHERE id = $1 AND recruiter_id = $2', [id, recruiterId]);
+  }
+
+  // ── Gigs CRUD ──────────────────────────────────────────────────────────────
+  async createGig(recruiterId: number, data: { title: string; client: string; location: string; rate?: string; duration?: string; description?: string; tags?: string[] }): Promise<any> {
+    const result = await pool.query(`
+      INSERT INTO gigs (recruiter_id, title, client, location, rate, duration, description, tags)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [recruiterId, data.title, data.client, data.location, data.rate || null, data.duration || null, data.description || null, data.tags || []]);
+    return result.rows[0];
+  }
+
+  async getGigs(params?: { status?: string; limit?: number; offset?: number }): Promise<{ gigs: any[]; total: number }> {
+    const { status = 'active', limit = 20, offset = 0 } = params || {};
+    const [dataResult, countResult] = await Promise.all([
+      pool.query('SELECT g.*, r.company_name AS recruiter_company FROM gigs g LEFT JOIN recruiters r ON r.id = g.recruiter_id WHERE g.status = $1 ORDER BY g.created_at DESC LIMIT $2 OFFSET $3', [status, limit, offset]),
+      pool.query('SELECT COUNT(*) FROM gigs WHERE status = $1', [status]),
+    ]);
+    return { gigs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
+  }
+
+  async getGigsByRecruiter(recruiterId: number): Promise<any[]> {
+    const result = await pool.query('SELECT * FROM gigs WHERE recruiter_id = $1 ORDER BY created_at DESC', [recruiterId]);
+    return result.rows;
+  }
+
+  async getGigById(id: number): Promise<any | null> {
+    const result = await pool.query('SELECT g.*, r.company_name AS recruiter_company FROM gigs g LEFT JOIN recruiters r ON r.id = g.recruiter_id WHERE g.id = $1', [id]);
+    return result.rows[0] || null;
+  }
+
+  async updateGig(id: number, recruiterId: number, data: Partial<{ title: string; client: string; location: string; rate: string; duration: string; description: string; tags: string[]; status: string }>): Promise<any> {
+    const fields: string[] = [];
+    const values: any[] = [id, recruiterId];
+    let idx = 3;
+    if (data.title !== undefined) { fields.push(`title = $${idx++}`); values.push(data.title); }
+    if (data.client !== undefined) { fields.push(`client = $${idx++}`); values.push(data.client); }
+    if (data.location !== undefined) { fields.push(`location = $${idx++}`); values.push(data.location); }
+    if (data.rate !== undefined) { fields.push(`rate = $${idx++}`); values.push(data.rate); }
+    if (data.duration !== undefined) { fields.push(`duration = $${idx++}`); values.push(data.duration); }
+    if (data.description !== undefined) { fields.push(`description = $${idx++}`); values.push(data.description); }
+    if (data.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(data.tags); }
+    if (data.status !== undefined) { fields.push(`status = $${idx++}`); values.push(data.status); }
+    fields.push('updated_at = NOW()');
+    const result = await pool.query(`UPDATE gigs SET ${fields.join(', ')} WHERE id = $1 AND recruiter_id = $2 RETURNING *`, values);
+    return result.rows[0] || null;
+  }
+
+  async deleteGig(id: number, recruiterId: number): Promise<void> {
+    await pool.query('DELETE FROM gigs WHERE id = $1 AND recruiter_id = $2', [id, recruiterId]);
+  }
+
+  // ── Nostr pubkey helpers ───────────────────────────────────────────────────
+  async updateUserNostrPubkey(username: string, pubkey: string): Promise<void> {
+    await pool.query('UPDATE users SET nostr_pubkey = $2, last_updated = NOW() WHERE username = $1', [username, pubkey]);
+  }
+
+  async getUserNostrPubkey(username: string): Promise<string | null> {
+    const result = await pool.query('SELECT nostr_pubkey FROM users WHERE username = $1', [username]);
+    return result.rows[0]?.nostr_pubkey || null;
+  }
+
+  async updateRecruiterNostrPubkey(recruiterId: number, pubkey: string): Promise<void> {
+    await pool.query('UPDATE recruiters SET nostr_pubkey = $2 WHERE id = $1', [recruiterId, pubkey]);
   }
 }
 

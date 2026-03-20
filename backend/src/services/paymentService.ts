@@ -116,6 +116,13 @@ export class PaymentService {
     currency?: string;
     blockHeight?: number;
   }> {
+    // Demo mode: auto-approve demo transactions (no real blockchain lookup)
+    if (process.env.DEMO_MODE === "true" && txId.startsWith("demo_")) {
+      console.log(`[DEMO] Auto-approving demo ${currency} payment: ${txId}`);
+      const demoAmount = currency === "usdcx" ? "6.000000" : "0.00006897";
+      return { verified: true, status: "confirmed", amount: demoAmount, currency, blockHeight: 999999 };
+    }
+
     try {
       const apiUrl = getStacksApiUrl();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -158,6 +165,22 @@ export class PaymentService {
       const baseUnits = BigInt(rawAmount.replace(/^u/, "") || "0");
       const decimals = currency === "sbtc" ? 8 : 6;
       const amount = (Number(baseUnits) / Math.pow(10, decimals)).toFixed(decimals);
+
+      // Minimum amount guards — prevents 1-satoshi subscriptions
+      if (currency === "usdcx") {
+        // USDCx has 6 decimals; minimum $1 = 1_000_000 base units
+        if (Number(baseUnits) < 1_000_000) {
+          console.error(`USDCx amount too low: ${baseUnits} base units`);
+          return { verified: false, status: "failed" };
+        }
+      }
+      if (currency === "sbtc") {
+        // sBTC minimum: 500 satoshis
+        if (Number(baseUnits) < 500) {
+          console.error(`sBTC amount too low: ${baseUnits} satoshis`);
+          return { verified: false, status: "failed" };
+        }
+      }
 
       return {
         verified: true,

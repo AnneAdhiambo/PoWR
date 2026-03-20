@@ -125,6 +125,40 @@ class RecruiterApiClient {
       method: "DELETE",
     });
   }
+
+  // Jobs CRUD
+  async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<{ job: any }> {
+    return this.request("/api/jobs", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async getMyJobs(): Promise<{ jobs: any[] }> {
+    return this.request("/api/jobs/my");
+  }
+
+  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[] }>): Promise<{ job: any }> {
+    return this.request(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  async deleteJob(id: string): Promise<void> {
+    await this.request(`/api/jobs/${id}`, { method: "DELETE" });
+  }
+
+  // Gigs CRUD
+  async createGig(data: { title: string; client: string; location: string; rate?: string; duration?: string; description?: string; tags?: string[] }): Promise<{ gig: any }> {
+    return this.request("/api/gigs", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async getMyGigs(): Promise<{ gigs: any[] }> {
+    return this.request("/api/gigs/my");
+  }
+
+  async updateGig(id: string, data: Partial<{ title: string; client: string; location: string; rate: string; duration: string; description: string; tags: string[] }>): Promise<{ gig: any }> {
+    return this.request(`/api/gigs/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  async deleteGig(id: string): Promise<void> {
+    await this.request(`/api/gigs/${id}`, { method: "DELETE" });
+  }
 }
 
 export const recruiterApiClient = new RecruiterApiClient();

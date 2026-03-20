@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   MagnifyingGlass, Users, Briefcase, Wrench, Bookmark,
-  ChatCircle, ChartBar, Gear, SignOut, Buildings, CaretUp
+  ChatCircle, ChartBar, Gear, SignOut, Buildings, CaretUp,
+  CreditCard, Lightning, ArrowRight
 } from "phosphor-react";
 import toast from "react-hot-toast";
 
@@ -36,6 +37,7 @@ export const RecruiterSidebar: React.FC = () => {
     { icon: Bookmark, label: "Saved", href: "/recruiter/saved" },
     { icon: ChatCircle, label: "Messages", href: "/recruiter/chat" },
     { icon: ChartBar, label: "Analytics", href: "/recruiter/analytics" },
+    { icon: CreditCard, label: "Billing", href: "/recruiter/billing" },
     { icon: Gear, label: "Account", href: "/recruiter/account" },
   ];
 
@@ -71,11 +73,43 @@ export const RecruiterSidebar: React.FC = () => {
         })}
       </nav>
 
+      {/* Upgrade nudge — free plan only */}
+      {plan === "free" && (
+        <div className="mx-4 mb-3 flex-shrink-0">
+          <Link
+            href="/recruiter/billing"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-[rgba(255,85,0,0.12)] to-[rgba(255,85,0,0.06)] border border-[#FF5500]/25 hover:border-[#FF5500]/50 transition-all group"
+          >
+            <div className="w-7 h-7 rounded-lg bg-[#FF5500]/20 flex items-center justify-center flex-shrink-0">
+              <Lightning className="w-3.5 h-3.5 text-[#FF5500]" weight="fill" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-white leading-tight">Upgrade to Pro</p>
+              <p className="text-[10px] text-gray-500 leading-tight mt-0.5">Unlimited views & outreach</p>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-[#FF5500] opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" weight="bold" />
+          </Link>
+        </div>
+      )}
+
       {/* Bottom: user */}
       <div className="p-4 border-t border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <div className="relative">
           {showMenu && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#12141a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden z-50">
+              <Link href="/recruiter/billing"
+                onClick={() => setShowMenu(false)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors">
+                <CreditCard className="w-4 h-4" weight="regular" />
+                Billing & Plans
+              </Link>
+              <Link href="/recruiter/account"
+                onClick={() => setShowMenu(false)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors">
+                <Gear className="w-4 h-4" weight="regular" />
+                Account Settings
+              </Link>
+              <div className="border-t border-[rgba(255,255,255,0.06)]" />
               <button onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:text-red-300 hover:bg-[rgba(255,255,255,0.05)] transition-colors">
                 <SignOut className="w-4 h-4" weight="regular" />

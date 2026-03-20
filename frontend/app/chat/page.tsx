@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Card } from "../components/ui";
 import { ChatCircle, PaperPlaneTilt, MagnifyingGlass, DotsThreeVertical } from "phosphor-react";
+import { useNostr } from "../hooks/useNostr";
 
 interface Message {
   id: string;
@@ -23,6 +24,7 @@ interface Conversation {
   lastMessageTime: Date;
   unread: number;
   messages: Message[];
+  recipientPubkey?: string;
 }
 
 export default function ChatPage() {
@@ -30,7 +32,6 @@ export default function ChatPage() {
   const [username, setUsername] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
   const [displayName, setDisplayName] = useState<string>("");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,99 +40,29 @@ export default function ChatPage() {
   useEffect(() => {
     const storedUsername = localStorage.getItem("github_username");
     const storedEmail = localStorage.getItem("github_email");
-    
-    if (storedUsername) {
-      setUsername(storedUsername);
-      setDisplayName(storedUsername);
-    }
-    if (storedEmail) {
-      setUserEmail(storedEmail);
-    }
-    
-    // Load conversations (mock data)
-    setConversations([
-      {
-        id: "1",
-        name: "Sarah Chen",
-        lastMessage: "Thanks for the help with the API integration!",
-        lastMessageTime: new Date(Date.now() - 5 * 60 * 1000),
-        unread: 0,
-        messages: [
-          {
-            id: "m1",
-            sender: "Sarah Chen",
-            senderId: "sarah",
-            text: "Hey! I saw your profile and was impressed with your backend work.",
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            isOwn: false,
-          },
-          {
-            id: "m2",
-            sender: displayName || username,
-            senderId: username,
-            text: "Thanks! I'd be happy to help with your project.",
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000 + 5 * 60 * 1000),
-            isOwn: true,
-          },
-          {
-            id: "m3",
-            sender: "Sarah Chen",
-            senderId: "sarah",
-            text: "Thanks for the help with the API integration!",
-            timestamp: new Date(Date.now() - 5 * 60 * 1000),
-            isOwn: false,
-          },
-        ],
-      },
-      {
-        id: "2",
-        name: "Alex Rodriguez",
-        lastMessage: "When can we schedule a call?",
-        lastMessageTime: new Date(Date.now() - 30 * 60 * 1000),
-        unread: 2,
-        messages: [
-          {
-            id: "m4",
-            sender: "Alex Rodriguez",
-            senderId: "alex",
-            text: "Hi! I'm looking for a React developer for a project.",
-            timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
-            isOwn: false,
-          },
-          {
-            id: "m5",
-            sender: "Alex Rodriguez",
-            senderId: "alex",
-            text: "When can we schedule a call?",
-            timestamp: new Date(Date.now() - 30 * 60 * 1000),
-            isOwn: false,
-          },
-        ],
-      },
-      {
-        id: "3",
-        name: "Tech Recruiter",
-        lastMessage: "We have a position that might interest you.",
-        lastMessageTime: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        unread: 0,
-        messages: [
-          {
-            id: "m6",
-            sender: "Tech Recruiter",
-            senderId: "recruiter",
-            text: "We have a position that might interest you.",
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            isOwn: false,
-          },
-        ],
-      },
-    ]);
+    if (storedUsername) { setUsername(storedUsername); setDisplayName(storedUsername); }
+    if (storedEmail) { setUserEmail(storedEmail); }
+  }, []);
 
-    // Set first conversation as active
-    if (conversations.length > 0) {
-      setActiveConversation(conversations[0].id);
-    }
-  }, [username, displayName]);
+  const { conversations: nostrConvs, sendMessage, connected, markRead } = useNostr(username, "developer");
+
+  // Map Nostr conversations to the existing Conversation shape
+  const conversations: Conversation[] = nostrConvs.map(c => ({
+    id: c.id,
+    name: c.name,
+    lastMessage: c.lastMessage,
+    lastMessageTime: c.lastMessageTime,
+    unread: c.unread,
+    recipientPubkey: c.recipientPubkey,
+    messages: c.messages.map(m => ({
+      id: m.id,
+      sender: m.sender,
+      senderId: m.senderId,
+      text: m.text,
+      timestamp: m.timestamp,
+      isOwn: m.isOwn,
+    })),
+  }));
 
   useEffect(() => {
     if (conversations.length > 0 && !activeConversation) {
@@ -143,33 +74,21 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeConversation, conversations]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageInput.trim() || !activeConversation) return;
+    const conv = conversations.find(c => c.id === activeConversation);
+    if (!conv?.recipientPubkey) return;
+    try {
+      await sendMessage(conv.recipientPubkey, messageInput);
+      setMessageInput("");
+    } catch {
+      // silently ignore send errors
+    }
+  };
 
-    const conversation = conversations.find(c => c.id === activeConversation);
-    if (!conversation) return;
-
-    const newMessage: Message = {
-      id: `m${Date.now()}`,
-      sender: displayName || username,
-      senderId: username,
-      text: messageInput,
-      timestamp: new Date(),
-      isOwn: true,
-    };
-
-    setConversations(conversations.map(conv => 
-      conv.id === activeConversation
-        ? {
-            ...conv,
-            messages: [...conv.messages, newMessage],
-            lastMessage: messageInput,
-            lastMessageTime: new Date(),
-          }
-        : conv
-    ));
-
-    setMessageInput("");
+  const handleSelectConversation = (id: string) => {
+    setActiveConversation(id);
+    markRead(id);
   };
 
   const activeConv = conversations.find(c => c.id === activeConversation);
@@ -192,9 +111,12 @@ export default function ChatPage() {
         {/* Conversations List */}
         <div className="w-80 border-r border-[rgba(255,255,255,0.04)] flex flex-col">
           <div className="p-4 border-b border-[rgba(255,255,255,0.04)]">
-            <h1 className="text-xl font-semibold text-white mb-4" style={{ fontWeight: 500 }}>
-              Messages
-            </h1>
+            <div className="flex items-center gap-2 mb-4">
+              <h1 className="text-xl font-semibold text-white" style={{ fontWeight: 500 }}>
+                Messages
+              </h1>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? "bg-emerald-400" : "bg-gray-600"}`} title={connected ? "Connected" : "Connecting..."} />
+            </div>
             <div className="relative">
               <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" weight="regular" />
               <input
@@ -213,7 +135,7 @@ export default function ChatPage() {
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setActiveConversation(conv.id)}
+                  onClick={() => handleSelectConversation(conv.id)}
                   className={`p-4 border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
                     isActive
                       ? "bg-[rgba(255,255,255,0.05)]"
@@ -335,10 +257,21 @@ export default function ChatPage() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <ChatCircle className="w-16 h-16 text-gray-500 mx-auto mb-4" weight="regular" />
-                <p className="text-gray-400 mb-2">Select a conversation to start chatting</p>
-                <p className="text-xs text-gray-500" style={{ opacity: 0.6 }}>
-                  Your messages will appear here
-                </p>
+                {conversations.length === 0 ? (
+                  <>
+                    <p className="text-gray-400 mb-2">No messages yet</p>
+                    <p className="text-xs text-gray-500" style={{ opacity: 0.6 }}>
+                      Messages from recruiters will appear here
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-gray-400 mb-2">Select a conversation to start chatting</p>
+                    <p className="text-xs text-gray-500" style={{ opacity: 0.6 }}>
+                      Your messages will appear here
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}

@@ -19,6 +19,11 @@ import { WalletPickerModal } from "./WalletPickerModal";
 import { useBtcPrice } from "../../hooks/useBtcPrice";
 import { useTokenBalance } from "../../hooks/useTokenBalance";
 
+// Demo mode: simulates sBTC and USDCx payments without a real wallet or tokens
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+// Testnet address used as the demo "connected wallet"
+const DEMO_ADDRESS = "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
+
 // Token contracts — mirrors backend defaults
 const SBTC_CONTRACT =
   process.env.NEXT_PUBLIC_SBTC_CONTRACT_ADDRESS ||
@@ -92,6 +97,11 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const { balance: usdcxBalanceRaw, loading: usdcxBalanceLoading } = useTokenBalance(
     connectedAddress,
     USDCX_CONTRACT
+  );
+  const { balance: sbtcBalanceRaw, loading: sbtcBalanceLoading } = useTokenBalance(
+    connectedAddress,
+    SBTC_CONTRACT,
+    "sbtc"
   );
 
   // Hydrate connectedAddress from localStorage on mount (catches wallets connected before this component rendered)
@@ -207,6 +217,20 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   const handlePayToken = async (token: "sbtc" | "usdcx") => {
     setError(null);
+
+    // Demo mode: skip real wallet, simulate broadcast + confirmation
+    if (DEMO_MODE) {
+      if (!connectedAddress) setConnectedAddress(DEMO_ADDRESS);
+      const demoTxId = `demo_${token}_${Date.now()}`;
+      setTxHash(demoTxId);
+      setPending(true);
+      setPollCount(1);
+      setVerifying(false);
+      // Simulate network delay then verify (backend auto-approves demo_ txids)
+      pollRef.current = setTimeout(() => handleVerify(demoTxId, token), 3000);
+      return;
+    }
+
     const addr = await resolveAddress();
     if (!addr) {
       setPendingTokenMethod(token);
@@ -281,9 +305,10 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   // ── Payment method chooser ─────────────────────────────────────
   if (method === "choose") {
-    const sbtcAmount = btcPriceUsd
-      ? calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd)
-      : null;
+    const sbtcAmountCalc = calcSbtcAmount(paymentIntent.planType, paymentIntent.billingPeriod, btcPriceUsd ?? 87000);
+    const sbtcAmountDisplay = btcPriceUsd
+      ? sbtcAmountCalc.toFixed(8)
+      : `~${sbtcAmountCalc.toFixed(8)} (est.)`;
     const usdcxAmount = calcUsdcxAmount(paymentIntent.planType, paymentIntent.billingPeriod);
     const usdTotal = (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
       paymentIntent.billingPeriod *
@@ -292,12 +317,22 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     const usdcxBalanceHuman = usdcxBalanceRaw !== null ? usdcxBalanceRaw / 1_000_000 : null;
     const usdcxRequired = usdcxAmount;
     const usdcxSufficient = usdcxBalanceHuman !== null && usdcxBalanceHuman >= usdcxRequired;
+    // sBTC has 8 decimals
+    const sbtcBalanceHuman = sbtcBalanceRaw !== null ? sbtcBalanceRaw / 1e8 : null;
+    const sbtcSufficient = sbtcBalanceHuman !== null && sbtcBalanceHuman >= sbtcAmountCalc;
 
     return (
       <>
         {walletPickerModal}
       <Card className="p-6 rounded-[16px]">
-        <h3 className="text-lg font-semibold text-white mb-1">Complete Payment</h3>
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="text-lg font-semibold text-white">Complete Payment</h3>
+          {DEMO_MODE && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+              Demo Mode
+            </span>
+          )}
+        </div>
         <p className="text-sm text-gray-400 mb-6 capitalize">
           {paymentIntent.planType} plan · {paymentIntent.billingPeriod} month{paymentIntent.billingPeriod > 1 ? "s" : ""}
         </p>
@@ -323,8 +358,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           {/* sBTC */}
           <button
             onClick={() => setMethod("sbtc")}
-            disabled={btcLoading && !btcPriceUsd}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(247,147,26,0.5)] hover:bg-[rgba(247,147,26,0.06)] transition-all text-left group disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(247,147,26,0.5)] hover:bg-[rgba(247,147,26,0.06)] transition-all text-left group"
           >
             <div className="w-10 h-10 rounded-xl bg-[rgba(247,147,26,0.15)] flex items-center justify-center flex-shrink-0">
               <CurrencyBtc className="w-5 h-5 text-[#F7931A]" weight="fill" />
@@ -332,10 +366,25 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Pay with sBTC</p>
               <p className="text-xs text-gray-500">
-                {sbtcAmount
-                  ? `${sbtcAmount.toFixed(8)} sBTC · ≈ $${usdTotal.toFixed(2)} USD · Leather or Xverse`
-                  : "Loading BTC price... · Leather or Xverse"}
+                {sbtcAmountDisplay} sBTC · ≈ ${usdTotal.toFixed(2)} USD · Leather or Xverse
+                {connectedAddress && sbtcBalanceLoading && " · checking balance..."}
+                {connectedAddress && !sbtcBalanceLoading && sbtcBalanceHuman !== null && (
+                  sbtcSufficient
+                    ? ` · Balance: ${sbtcBalanceHuman.toFixed(8)} ✓`
+                    : ` · Balance: ${sbtcBalanceHuman.toFixed(8)} (insufficient)`
+                )}
               </p>
+              {connectedAddress && !sbtcBalanceLoading && !sbtcSufficient && sbtcBalanceHuman !== null && (
+                <a
+                  href="https://app.stacks.co/bridge"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-[#F7931A] underline mt-0.5 inline-block"
+                >
+                  Bridge BTC → sBTC
+                </a>
+              )}
             </div>
             <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#F7931A] transition-colors flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-[#F7931A] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -486,9 +535,16 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
     const usdcxBalanceHumanOnScreen = !isSbtc && usdcxBalanceRaw !== null
       ? usdcxBalanceRaw / 1_000_000
       : null;
-    const usdcxInsufficientOnScreen = !isSbtc &&
+    const usdcxInsufficientOnScreen = !DEMO_MODE && !isSbtc &&
       usdcxBalanceHumanOnScreen !== null &&
       usdcxBalanceHumanOnScreen < tokenAmount;
+    // sBTC balance check on the payment screen
+    const sbtcBalanceHumanOnScreen = isSbtc && sbtcBalanceRaw !== null
+      ? sbtcBalanceRaw / 1e8
+      : null;
+    const sbtcInsufficientOnScreen = !DEMO_MODE && isSbtc &&
+      sbtcBalanceHumanOnScreen !== null &&
+      sbtcBalanceHumanOnScreen < tokenAmount;
 
     return (
       <>
@@ -496,13 +552,24 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
       <Card className="p-6 rounded-[16px]">
         <div className="flex items-center gap-3 mb-4">
           <button
-            onClick={() => { setMethod("choose"); setError(null); }}
+            onClick={() => { setMethod("choose"); setError(null); setPending(false); setVerifying(false); }}
             className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors"
           >
             <ArrowLeft className="w-4 h-4 text-gray-400" weight="bold" />
           </button>
           <h3 className="text-lg font-semibold text-white">Pay with {label}</h3>
+          {DEMO_MODE && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+              Demo Mode
+            </span>
+          )}
         </div>
+        {DEMO_MODE && (
+          <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+            <span className="mt-0.5">⚡</span>
+            <span>No wallet needed — clicking Pay will simulate a real {label} transaction and confirm automatically.</span>
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* Amount */}
@@ -513,6 +580,11 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
             {!isSbtc && usdcxBalanceHumanOnScreen !== null && (
               <p className="text-xs mt-1" style={{ color: usdcxInsufficientOnScreen ? "#f87171" : "#6ee7b7" }}>
                 Your balance: {usdcxBalanceHumanOnScreen.toFixed(2)} USDCx
+              </p>
+            )}
+            {isSbtc && sbtcBalanceHumanOnScreen !== null && (
+              <p className="text-xs mt-1" style={{ color: sbtcInsufficientOnScreen ? "#f87171" : "#6ee7b7" }}>
+                Your balance: {sbtcBalanceHumanOnScreen.toFixed(8)} sBTC
               </p>
             )}
           </div>
@@ -537,6 +609,25 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
               </div>
             </div>
           )}
+          {sbtcInsufficientOnScreen && (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/25">
+              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" weight="fill" />
+              <div>
+                <p className="text-sm font-medium text-red-300">Insufficient sBTC balance</p>
+                <p className="text-xs text-red-400/80 mt-0.5">
+                  You need {tokenAmount.toFixed(8)} sBTC but only have {sbtcBalanceHumanOnScreen!.toFixed(8)}.{" "}
+                  <a
+                    href="https://app.stacks.co/bridge"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-[#F7931A]"
+                  >
+                    Bridge BTC → sBTC
+                  </a>
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Pending confirmation banner */}
           {pending && (
@@ -547,6 +638,16 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
                 <p className="text-xs text-amber-400/70 mt-0.5">
                   Transaction broadcast · checking every 10s (attempt {pollCount}/{MAX_POLLS})
                 </p>
+                {txHash && (
+                  <a
+                    href={`https://explorer.hiro.so/txid/${txHash.replace(/^0x/, "")}?chain=testnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-amber-300 underline mt-1 inline-block"
+                  >
+                    View on Explorer ↗
+                  </a>
+                )}
               </div>
             </div>
           )}
@@ -554,12 +655,12 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           {/* Pay with wallet button */}
           <button
             onClick={() => handlePayToken(method)}
-            disabled={verifying || pending || !!usdcxInsufficientOnScreen}
-            style={{ backgroundColor: verifying || pending || usdcxInsufficientOnScreen ? undefined : accentColor }}
+            disabled={verifying || pending || !!usdcxInsufficientOnScreen || !!sbtcInsufficientOnScreen}
+            style={{ backgroundColor: verifying || pending || usdcxInsufficientOnScreen || sbtcInsufficientOnScreen ? undefined : accentColor }}
             className="w-full py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2 hover:opacity-90"
           >
             <TokenIcon className="w-5 h-5" weight="fill" />
-            Pay {displayAmount} with Wallet
+            {DEMO_MODE ? `Simulate ${label} Payment` : `Pay ${displayAmount} with Wallet`}
           </button>
 
           {/* Divider */}
@@ -679,6 +780,16 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
               <p className="text-xs text-amber-400/70 mt-0.5">
                 Testnet blocks take ~30–60 seconds.
               </p>
+              {txHash && (
+                <a
+                  href={`https://explorer.hiro.so/txid/${txHash.replace(/^0x/, "")}?chain=testnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-amber-300 underline mt-1 inline-block"
+                >
+                  View on Explorer ↗
+                </a>
+              )}
             </div>
           </div>
         )}

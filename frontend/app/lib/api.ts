@@ -62,6 +62,36 @@ export interface GithubBadge {
   description: string;
 }
 
+export interface Job {
+  id: number;
+  recruiter_id?: number;
+  title: string;
+  company: string;
+  location: string;
+  salary?: string;
+  type: string;
+  description?: string;
+  tags?: string[];
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Gig {
+  id: number;
+  recruiter_id?: number;
+  title: string;
+  client: string;
+  location: string;
+  rate?: string;
+  duration?: string;
+  description?: string;
+  tags?: string[];
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -226,6 +256,36 @@ class ApiClient {
     return this.request<{ skillBadges: Badge[]; achievements: GithubBadge[] }>(
       `/api/badges/${username}`
     );
+  }
+
+  async getJobs(params?: { page?: number; limit?: number }): Promise<{ jobs: Job[]; total: number }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    return this.request<{ jobs: Job[]; total: number }>(`/api/jobs?${q}`);
+  }
+
+  async getGigs(params?: { page?: number; limit?: number }): Promise<{ gigs: Gig[]; total: number }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    return this.request<{ gigs: Gig[]; total: number }>(`/api/gigs?${q}`);
+  }
+
+  async getUserNostrPubkey(username: string): Promise<string | null> {
+    try {
+      const data = await this.request<{ pubkey: string | null }>(`/api/user/nostr-pubkey/${username}`);
+      return data.pubkey;
+    } catch {
+      return null;
+    }
+  }
+
+  async registerNostrPubkey(username: string, pubkey: string): Promise<void> {
+    await this.request("/api/user/nostr-pubkey", {
+      method: "POST",
+      body: JSON.stringify({ username, pubkey }),
+    });
   }
 
 }

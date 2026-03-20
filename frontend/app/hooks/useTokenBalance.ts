@@ -10,7 +10,8 @@ const STACKS_API =
  */
 export function useTokenBalance(
   address: string | null,
-  contractId: string // e.g. "ST1PQ....usdcx"
+  contractId: string, // e.g. "ST1PQ....usdcx"
+  assetName?: string  // explicit asset name; falls back to contract-name segment
 ): { balance: number | null; loading: boolean } {
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,14 +31,14 @@ export function useTokenBalance(
         // Token key format: "{contract_address}.{contract_name}::{asset_name}"
         // e.g. "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx::usdcx"
         const tokens = data?.fungible_tokens ?? {};
-        const assetName = contractId.split(".")[1]; // "usdcx" from "ST1...usdcx"
-        const key = `${contractId}::${assetName}`;
+        const resolvedAssetName = assetName ?? contractId.split(".")[1];
+        const key = `${contractId}::${resolvedAssetName}`;
         const raw = tokens[key]?.balance;
         setBalance(raw !== undefined ? Number(raw) : 0);
       })
       .catch(() => setBalance(null))
       .finally(() => setLoading(false));
-  }, [address, contractId]);
+  }, [address, contractId, assetName]);
 
   return { balance, loading };
 }

@@ -86,9 +86,11 @@ export class RecruiterService {
   }
 
   async checkViewLimit(recruiterId: number, plan: string): Promise<{ allowed: boolean; viewsUsed: number; viewsLimit: number | null }> {
+    // pro and enterprise have unlimited views
     if (plan === "pro" || plan === "enterprise") {
       return { allowed: true, viewsUsed: 0, viewsLimit: null };
     }
+    // free plan: 10 views/month
     const since = startOfMonth();
     const viewsUsed = await dbService.getRecruiterViewCount(recruiterId, since);
     const allowed = viewsUsed < FREE_PLAN_VIEW_LIMIT;
@@ -99,9 +101,11 @@ export class RecruiterService {
     if (plan === "enterprise") {
       return { allowed: true, outreachUsed: 0, outreachLimit: null };
     }
+    // free plan has no outreach
     if (plan === "free") {
       return { allowed: false, outreachUsed: 0, outreachLimit: 0 };
     }
+    // pro: 50/month
     const since = startOfMonth();
     const outreachUsed = await dbService.getOutreachCount(recruiterId, since);
     const allowed = outreachUsed < PRO_OUTREACH_LIMIT;
