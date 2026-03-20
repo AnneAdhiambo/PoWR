@@ -27,11 +27,18 @@ function getUsdcxContract(): string {
     : "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx";
 }
 
-// Monthly prices per plan for non-STX tokens
-const TOKEN_PRICES: Record<string, { sbtc: number; usdcx: number }> = {
-  basic: { sbtc: 0.0001, usdcx: 6 },
-  pro: { sbtc: 0.00025, usdcx: 15 },
-};
+// USD prices per plan per month — USDCx prices are the single source of truth
+const USD_PRICES: Record<string, number> = { basic: 6, pro: 15 };
+
+async function fetchBtcPriceUsd(): Promise<number> {
+  const res = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+  );
+  const data = await res.json() as any;
+  const price = data?.bitcoin?.usd;
+  if (!price || typeof price !== "number") throw new Error("Could not fetch BTC price");
+  return price;
+}
 
 function getStacksApiUrl(): string {
   return process.env.STACKS_API_URL || "http://localhost:3999";
@@ -70,11 +77,13 @@ export class PaymentService {
 
     let amount: string;
     if (currency === "sbtc") {
-      const monthly = TOKEN_PRICES[planType]?.sbtc ?? 0;
-      const total = parseFloat((monthly * months * (1 - discount)).toFixed(8));
-      amount = total.toString();
+      const btcPrice = await fetchBtcPriceUsd();
+      const usdMonthly = USD_PRICES[planType] ?? 0;
+      const usdTotal = usdMonthly * months * (1 - discount);
+      const sbtcTotal = usdTotal / btcPrice;
+      amount = parseFloat(sbtcTotal.toFixed(8)).toString();
     } else if (currency === "usdcx") {
-      const monthly = TOKEN_PRICES[planType]?.usdcx ?? 0;
+      const monthly = USD_PRICES[planType] ?? 0;
       const total = Math.round(monthly * months * (1 - discount) * 100) / 100;
       amount = total.toString();
     } else {
