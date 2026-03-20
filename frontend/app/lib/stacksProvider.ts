@@ -85,6 +85,24 @@ export async function connectWallet(): Promise<string | null> {
   return stx?.address ?? null;
 }
 
+/**
+ * Opens the native @stacks/connect wallet selector and returns the Stacks address.
+ * Works regardless of which (if any) wallet is already installed — the native picker UI
+ * (Hiro Connect) shows all available wallets and install links for missing ones.
+ * Pass forceSelect=true to always show the wallet picker even if one is already remembered.
+ */
+export async function connectWalletNative(forceSelect = true): Promise<string | null> {
+  const { connect } = await import("@stacks/connect");
+  const result = await connect({ forceWalletSelect: forceSelect });
+  const stxAddr = result?.addresses?.find(
+    (a: any) => a.address?.startsWith("S")
+  )?.address ?? null;
+  if (stxAddr && typeof window !== "undefined") {
+    localStorage.setItem("stacks_wallet_address", stxAddr);
+  }
+  return stxAddr;
+}
+
 /** Sends a SIP-010 fungible token transfer and returns the txid.
  *  Uses stx_transferSip10Ft (Leather-native) first, falls back to stx_callContract (Xverse).
  *  Post-conditions are included on both paths to protect the user:

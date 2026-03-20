@@ -26,6 +26,16 @@ async function sha256Identifier(identifier: string): Promise<Uint8Array> {
   return new Uint8Array(buf);
 }
 
+/**
+ * Derive the Nostr public key for any identifier deterministically.
+ * Does NOT require localStorage — purely from the identifier string.
+ * This allows any party to compute another user's pubkey from their username.
+ */
+export async function getPubkeyForIdentifier(identifier: string): Promise<string> {
+  const sk = await sha256Identifier(identifier);
+  return getPublicKey(sk);
+}
+
 export async function getOrCreateKeypair(
   identifier: string
 ): Promise<{ sk: Uint8Array; pk: string }> {

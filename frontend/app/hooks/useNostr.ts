@@ -105,13 +105,18 @@ export function useNostr(
             return; // Not for us or can't decrypt
           }
 
+          // Parse optional "[Company via PoWR]\n\nMessage" prefix
+          const powrMatch = decrypted.match(/^\[(.+?) via PoWR\]\n\n([\s\S]*)$/);
+          const senderName = powrMatch ? powrMatch[1] : `${counterpartPk.slice(0, 8)}...`;
+          const messageText = powrMatch ? powrMatch[2] : decrypted;
+
           const message: NostrMessage = {
             id: event.id,
             sender: isOwn
               ? identifierRef.current
-              : `${counterpartPk.slice(0, 8)}...`,
+              : senderName,
             senderId: isOwn ? myPkRef.current : counterpartPk,
-            text: decrypted,
+            text: messageText,
             timestamp: new Date(event.created_at * 1000),
             isOwn,
           };
@@ -124,14 +129,18 @@ export function useNostr(
 
             if (existing) {
               if (existing.messages.some((m) => m.id === event.id)) return prev;
+              // Update conversation name if we now have a better one
+              const updatedName = (!isOwn && senderName !== `${counterpartPk.slice(0, 8)}...`)
+                ? senderName : existing.name;
               updated = prev.map((c) =>
                 c.recipientPubkey === counterpartPk
                   ? {
                       ...c,
+                      name: updatedName,
                       messages: [...c.messages, message].sort(
                         (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
                       ),
-                      lastMessage: decrypted,
+                      lastMessage: messageText,
                       lastMessageTime: message.timestamp,
                       unread: c.unread + (isOwn ? 0 : 1),
                     }
@@ -140,16 +149,16 @@ export function useNostr(
             } else {
               const newConv: NostrConversation = {
                 id: counterpartPk,
-                name: `${counterpartPk.slice(0, 8)}...`,
+                name: isOwn ? `${counterpartPk.slice(0, 8)}...` : senderName,
                 recipientPubkey: counterpartPk,
-                lastMessage: decrypted,
+                lastMessage: messageText,
                 lastMessageTime: message.timestamp,
                 unread: isOwn ? 0 : 1,
                 messages: [message],
               };
               updated = [newConv, ...prev];
               if (!isOwn) {
-                toast.success(`New message from ${counterpartPk.slice(0, 8)}…`);
+                toast.success(`New message from ${senderName}`);
               }
             }
 
