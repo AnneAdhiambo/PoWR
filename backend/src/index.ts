@@ -14,9 +14,10 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://powr-xi.vercel.app",
-  process.env.FRONTEND_URL?.replace(/\/$/, ""), // Remove trailing slash
+  process.env.FRONTEND_URL?.replace(/\/$/, ""),
 ].filter(Boolean);
+
+console.log("Allowed origins at startup:", allowedOrigins); 
 
 app.use(cors({
   origin: (origin, callback) => {
