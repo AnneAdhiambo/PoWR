@@ -1,13 +1,12 @@
 # PoWR — Proof-of-Work Reputation Platform
 ## Technical Specification v2.0 — Stacks Native
 
-> **Status:** Implementation-Ready  
 > **Version:** 2.0.0  
 > **Date:** March 2026  
 > **Network:** Stacks Mainnet (Bitcoin L2)  
 > **Stack:** Next.js 14 · Clarity 2.0 · Supabase · Hiro Platform · Stripe  
-> **Audience:** Engineers · Designers · Stakeholders
 
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?name=powr&type=git&repository=AnneAdhiambo%2FPoWR&branch=main&workdir=.%2Fbackend&privileged=true&instance_type=free&regions=fra&instances_min=0&autoscaling_sleep_idle_delay=3900)
 ---
 
 ## Table of Contents
