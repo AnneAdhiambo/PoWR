@@ -126,22 +126,23 @@ class RecruiterApiClient {
     });
   }
 
-  async createBillingIntent(plan: string, currency: "stx" | "sbtc" | "usdcx") {
+  async createBillingIntent(plan: string) {
     return this.request<{ paymentIntent: any }>("/api/recruiter/billing/intent", {
       method: "POST",
-      body: JSON.stringify({ plan, currency }),
+      body: JSON.stringify({ plan }),
     });
   }
 
-  async verifyBillingPayment(txHash: string, plan: string, currency: "stx" | "sbtc" | "usdcx") {
+  async verifyBillingPayment(txHash: string, plan: string) {
     return this.request<{ success: boolean; status?: string; message?: string; plan?: string }>(
       "/api/recruiter/billing/verify",
       {
         method: "POST",
-        body: JSON.stringify({ txHash, plan, currency }),
+        body: JSON.stringify({ txHash, plan }),
       }
     );
   }
+
 
   // Jobs CRUD
   async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<{ job: any }> {

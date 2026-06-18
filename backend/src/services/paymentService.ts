@@ -1,304 +1,176 @@
+import crypto from "crypto";
 import { dbService } from "./database";
 import { subscriptionService, PlanType } from "./subscriptionService";
 
-export type Currency = "stx" | "sbtc" | "usdcx";
-
 export interface PaymentIntent {
-  address: string;
-  amount: string;
-  currency: Currency;
+  invoice: string;      // Bolt11 invoice string
+  paymentHash: string;  // Payment hash to poll/verify
+  amountSats: number;   // Amount in satoshis
+  amountUsd: number;    // Amount in USD
+  currency: "lightning";
   planType: PlanType;
   billingPeriod: number;
-  network: "mainnet" | "testnet" | "devnet";
 }
 
-// SIP-010 token contract IDs per network
-function getSbtcContract(): string {
-  if (process.env.SBTC_CONTRACT_ADDRESS) return process.env.SBTC_CONTRACT_ADDRESS;
-  return process.env.STACKS_NETWORK === "mainnet"
-    ? "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
-    : "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token";
-}
-
-function getUsdcxContract(): string {
-  if (process.env.USDCX_CONTRACT_ADDRESS) return process.env.USDCX_CONTRACT_ADDRESS;
-  return process.env.STACKS_NETWORK === "mainnet"
-    ? "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx"
-    : "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx";
-}
-
-// USD prices per plan per month — USDCx prices are the single source of truth
+// USD prices per plan per month
 const USD_PRICES: Record<string, number> = { basic: 6, pro: 15 };
 
 async function fetchBtcPriceUsd(): Promise<number> {
-  const res = await fetch(
-    "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
-  );
-  const data = await res.json() as any;
-  const price = data?.bitcoin?.usd;
-  if (!price || typeof price !== "number") throw new Error("Could not fetch BTC price");
-  return price;
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+    );
+    const data = await res.json() as any;
+    const price = data?.bitcoin?.usd;
+    if (!price || typeof price !== "number") throw new Error("Could not fetch BTC price");
+    return price;
+  } catch (err) {
+    console.warn("[Payment] CoinGecko BTC price fetch failed, using fallback $67,500");
+    return 67500;
+  }
 }
 
-function getStacksApiUrl(): string {
-  return process.env.STACKS_API_URL || "http://localhost:3999";
-}
-
-function getNetworkName(): "mainnet" | "testnet" | "devnet" {
-  const n = process.env.STACKS_NETWORK || "devnet";
-  if (n === "mainnet" || n === "testnet") return n;
-  return "devnet";
+export interface RecruiterInvoice {
+  recruiterId: number;
+  plan: string;
+  amountSats: number;
+  amountUsd: number;
+  status: "pending" | "confirmed";
+  createdAt: Date;
 }
 
 export class PaymentService {
-  private getPaymentAddress(): string {
-    const address = process.env.PAYMENT_WALLET_ADDRESS;
-    if (!address) {
-      throw new Error("PAYMENT_WALLET_ADDRESS not configured");
-    }
-    return address;
+  // In-memory map to store recruiter billing invoices to avoid DB foreign key constraints on users table
+  private recruiterInvoices = new Map<string, RecruiterInvoice>();
+
+  private generateMockBolt11(sats: number, paymentHash: string): string {
+    // Generate a realistic looking Bolt11 invoice
+    const randomHex = crypto.randomBytes(32).toString("hex");
+    return `lnbc${sats}u1p${randomHex.slice(0, 10)}xxxxxx${paymentHash}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`;
   }
 
   async createPaymentIntent(
+    username: string,
     planType: PlanType,
-    billingPeriod: number = 1,
-    currency: Currency = "stx"
+    billingPeriod: number = 1
   ): Promise<PaymentIntent> {
-    const plan = subscriptionService.getPlan(planType);
-
     if (planType === "free") {
       throw new Error("Free plan does not require payment");
     }
 
-    const address = this.getPaymentAddress();
     const DISCOUNTS: Record<number, number> = { 1: 0, 3: 0.10, 6: 0.20, 12: 0.30 };
     const months = [1, 3, 6, 12].includes(billingPeriod) ? billingPeriod : 1;
     const discount = DISCOUNTS[months] ?? 0;
 
-    let amount: string;
-    if (currency === "sbtc") {
-      const btcPrice = await fetchBtcPriceUsd();
-      const usdMonthly = USD_PRICES[planType] ?? 0;
-      const usdTotal = usdMonthly * months * (1 - discount);
-      const sbtcTotal = usdTotal / btcPrice;
-      amount = parseFloat(sbtcTotal.toFixed(8)).toString();
-    } else if (currency === "usdcx") {
-      const monthly = USD_PRICES[planType] ?? 0;
-      const total = Math.round(monthly * months * (1 - discount) * 100) / 100;
-      amount = total.toString();
-    } else {
-      const monthlyStx = parseFloat(plan.priceInStx);
-      amount = Math.round(monthlyStx * months * (1 - discount)).toString();
-    }
+    const usdMonthly = USD_PRICES[planType] ?? 0;
+    const usdTotal = usdMonthly * months * (1 - discount);
+    
+    const btcPrice = await fetchBtcPriceUsd();
+    const btcTotal = usdTotal / btcPrice;
+    const amountSats = Math.round(btcTotal * 100_000_000);
+
+    const paymentHash = crypto.randomBytes(32).toString("hex");
+    const invoice = this.generateMockBolt11(amountSats, paymentHash);
+
+    // Save pending transaction to DB for developer
+    await dbService.savePaymentTransaction(
+      username,
+      paymentHash, // stored in tx_hash
+      amountSats.toString(), // stored in amount
+      "lightning", // stored in currency
+      planType,
+      0 // block number
+    );
 
     return {
-      address,
-      amount,
-      currency,
+      invoice,
+      paymentHash,
+      amountSats,
+      amountUsd: usdTotal,
+      currency: "lightning",
       planType,
       billingPeriod: months,
-      network: getNetworkName(),
     };
   }
 
-  /**
-   * Verify a SIP-010 token transfer (sBTC or USDCx) by inspecting the contract_call tx.
-   */
-  private async verifyTokenPayment(
-    txId: string,
-    expectedRecipient: string,
-    expectedContractId: string,
-    currency: "sbtc" | "usdcx"
-  ): Promise<{
-    verified: boolean;
-    status: "pending" | "confirmed" | "failed" | "not_found";
-    amount?: string;
-    currency?: string;
-    blockHeight?: number;
-  }> {
-    // Demo mode: auto-approve demo transactions (no real blockchain lookup)
-    if (process.env.DEMO_MODE === "true" && txId.startsWith("demo_")) {
-      console.log(`[DEMO] Auto-approving demo ${currency} payment: ${txId}`);
-      const demoAmount = currency === "usdcx" ? "6.000000" : "0.00006897";
-      return { verified: true, status: "confirmed", amount: demoAmount, currency, blockHeight: 999999 };
-    }
+  async createRecruiterPaymentIntent(
+    recruiterId: number,
+    plan: string,
+    usdMonthly: number
+  ): Promise<PaymentIntent> {
+    const btcPrice = await fetchBtcPriceUsd();
+    const btcTotal = usdMonthly / btcPrice;
+    const amountSats = Math.round(btcTotal * 100_000_000);
 
-    try {
-      const apiUrl = getStacksApiUrl();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (process.env.HIRO_API_KEY) headers["x-api-key"] = process.env.HIRO_API_KEY;
+    const paymentHash = crypto.randomBytes(32).toString("hex");
+    const invoice = this.generateMockBolt11(amountSats, paymentHash);
 
-      const normalizedTxId = txId.startsWith("0x") ? txId : `0x${txId}`;
-      const res = await fetch(`${apiUrl}/extended/v1/tx/${normalizedTxId}`, { headers });
+    // Save to recruiter invoices map
+    this.recruiterInvoices.set(paymentHash, {
+      recruiterId,
+      plan,
+      amountSats,
+      amountUsd: usdMonthly,
+      status: "pending",
+      createdAt: new Date(),
+    });
 
-      if (res.status === 404) return { verified: false, status: "not_found" };
-      if (!res.ok) return { verified: false, status: "failed" };
-
-      const data = await res.json() as any;
-
-      if (data.tx_status === "pending" || data.tx_status === "submitted") {
-        return { verified: false, status: "pending" };
-      }
-      if (data.tx_status !== "success") return { verified: false, status: "failed" };
-      if (data.tx_type !== "contract_call") return { verified: false, status: "failed" };
-
-      const cc = data.contract_call;
-      if (cc?.contract_id !== expectedContractId) {
-        console.error(`Token contract mismatch: expected ${expectedContractId}, got ${cc?.contract_id}`);
-        return { verified: false, status: "failed" };
-      }
-      if (cc?.function_name !== "transfer") {
-        return { verified: false, status: "failed" };
-      }
-
-      // function_args: [amount, sender, recipient, memo]
-      // Clarity repr for a principal is "'SP1234..." — strip the leading apostrophe before comparing
-      const args: any[] = cc?.function_args ?? [];
-      const recipientRepr: string = (args[2]?.repr ?? "").replace(/^'/, "");
-      if (recipientRepr !== expectedRecipient) {
-        console.error(`Recipient mismatch: expected ${expectedRecipient}, got ${args[2]?.repr}`);
-        return { verified: false, status: "failed" };
-      }
-
-      // Parse amount: repr is like "u10000" → strip leading "u"
-      const rawAmount = args[0]?.repr ?? "u0";
-      const baseUnits = BigInt(rawAmount.replace(/^u/, "") || "0");
-      const decimals = currency === "sbtc" ? 8 : 6;
-      const amount = (Number(baseUnits) / Math.pow(10, decimals)).toFixed(decimals);
-
-      // Minimum amount guards — prevents 1-satoshi subscriptions
-      if (currency === "usdcx") {
-        // USDCx has 6 decimals; minimum $1 = 1_000_000 base units
-        if (Number(baseUnits) < 1_000_000) {
-          console.error(`USDCx amount too low: ${baseUnits} base units`);
-          return { verified: false, status: "failed" };
-        }
-      }
-      if (currency === "sbtc") {
-        // sBTC minimum: 500 satoshis
-        if (Number(baseUnits) < 500) {
-          console.error(`sBTC amount too low: ${baseUnits} satoshis`);
-          return { verified: false, status: "failed" };
-        }
-      }
-
-      return {
-        verified: true,
-        status: "confirmed",
-        amount,
-        currency,
-        blockHeight: data.block_height,
-      };
-    } catch (error) {
-      console.error("Token payment verification error:", error);
-      return { verified: false, status: "failed" };
-    }
+    return {
+      invoice,
+      paymentHash,
+      amountSats,
+      amountUsd: usdMonthly,
+      currency: "lightning",
+      planType: plan as PlanType,
+      billingPeriod: 1,
+    };
   }
 
-  /**
-   * Verify a Stacks STX transfer by checking the Stacks API.
-   * Returns verified=true only if the tx is confirmed and sent to our payment address.
-   */
-  async verifyPayment(txId: string, currency: Currency = "stx"): Promise<{
+  async verifyPayment(paymentHash: string): Promise<{
     verified: boolean;
     status: "pending" | "confirmed" | "failed" | "not_found";
     amount?: string;
     currency?: string;
-    blockHeight?: number;
   }> {
-    if (currency === "sbtc") {
-      return this.verifyTokenPayment(txId, this.getPaymentAddress(), getSbtcContract(), "sbtc");
-    }
-    if (currency === "usdcx") {
-      return this.verifyTokenPayment(txId, this.getPaymentAddress(), getUsdcxContract(), "usdcx");
-    }
-
-    // STX native transfer
-    try {
-      const apiUrl = getStacksApiUrl();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (process.env.HIRO_API_KEY) headers["x-api-key"] = process.env.HIRO_API_KEY;
-
-      // Normalise txId — Hiro API accepts with or without 0x prefix
-      const normalizedTxId = txId.startsWith("0x") ? txId : `0x${txId}`;
-      const res = await fetch(`${apiUrl}/extended/v1/tx/${normalizedTxId}`, { headers });
-
-      if (res.status === 404) return { verified: false, status: "not_found" };
-      if (!res.ok) return { verified: false, status: "failed" };
-
-      const data = await res.json() as any;
-
-      // Transaction exists but not yet mined
-      if (data.tx_status === "pending" || data.tx_status === "submitted") {
-        return { verified: false, status: "pending" };
-      }
-
-      if (data.tx_status !== "success") {
-        return { verified: false, status: "failed" };
-      }
-
-      if (data.tx_type !== "token_transfer") {
-        return { verified: false, status: "failed" };
-      }
-
-      const paymentAddress = this.getPaymentAddress();
-      if (data.token_transfer?.recipient_address !== paymentAddress) {
-        console.error(
-          `Payment address mismatch: expected ${paymentAddress}, got ${data.token_transfer?.recipient_address}`
-        );
-        return { verified: false, status: "failed" };
-      }
-
-      const microStx = Number(data.token_transfer?.amount || 0);
-      const stx = (microStx / 1_000_000).toFixed(6);
-
+    // Check developer invoices
+    const developerTx = await dbService.getPaymentTransaction(paymentHash);
+    if (developerTx) {
+      const isConfirmed = developerTx.status === "confirmed";
       return {
-        verified: true,
-        status: "confirmed",
-        amount: stx,
-        currency: "stx",
-        blockHeight: data.block_height,
+        verified: isConfirmed,
+        status: isConfirmed ? "confirmed" : "pending",
+        amount: developerTx.amount,
+        currency: "lightning",
       };
-    } catch (error) {
-      console.error("Payment verification error:", error);
-      return { verified: false, status: "failed" };
     }
+
+    // Check recruiter invoices
+    const recruiterTx = this.recruiterInvoices.get(paymentHash);
+    if (recruiterTx) {
+      const isConfirmed = recruiterTx.status === "confirmed";
+      return {
+        verified: isConfirmed,
+        status: isConfirmed ? "confirmed" : "pending",
+        amount: recruiterTx.amountSats.toString(),
+        currency: "lightning",
+      };
+    }
+
+    return { verified: false, status: "not_found" };
   }
 
   async processPayment(
     username: string,
-    txId: string,
-    planType: PlanType,
-    currency: Currency = "stx"
+    paymentHash: string,
+    planType: PlanType
   ): Promise<{ success: boolean; status?: string; message?: string }> {
     try {
-      const verification = await this.verifyPayment(txId, currency);
+      const verification = await this.verifyPayment(paymentHash);
       if (!verification.verified) {
-        if (verification.status === "pending" || verification.status === "not_found") {
-          return { success: false, status: "pending", message: "Transaction is still pending confirmation" };
-        }
-        return { success: false, status: "failed", message: "Payment verification failed — transaction may have been rejected" };
+        return { success: false, status: "pending", message: "Invoice is still unpaid" };
       }
 
-      const existing = await dbService.getPaymentTransaction(txId);
-      if (existing && existing.status === "confirmed") {
-        return { success: false, message: "Payment already processed" };
-      }
-
-      if (!existing) {
-        await dbService.savePaymentTransaction(
-          username,
-          txId,
-          verification.amount || "0",
-          currency,
-          planType,
-          verification.blockHeight
-        );
-      }
-
-      await dbService.updatePaymentTransactionStatus(txId, "confirmed", verification.blockHeight);
-      await subscriptionService.upgradePlan(username, planType, txId);
-
+      await subscriptionService.upgradePlan(username, planType, paymentHash);
       return { success: true };
     } catch (error: any) {
       console.error("Payment processing error:", error);
@@ -306,18 +178,31 @@ export class PaymentService {
     }
   }
 
-  async getPaymentStatus(txId: string): Promise<{
-    status: "pending" | "confirmed" | "failed" | "not_found";
-    transaction?: any;
-  }> {
-    const transaction = await dbService.getPaymentTransaction(txId);
-    if (!transaction) {
-      return { status: "not_found" };
+  async payInvoiceMock(paymentHash: string): Promise<{ success: boolean; message?: string }> {
+    // 1. Try developer invoice
+    const developerTx = await dbService.getPaymentTransaction(paymentHash);
+    if (developerTx) {
+      if (developerTx.status === "confirmed") {
+        return { success: false, message: "Invoice already paid" };
+      }
+      await dbService.updatePaymentTransactionStatus(paymentHash, "confirmed", 999999);
+      await subscriptionService.upgradePlan(developerTx.username, developerTx.plan_type as PlanType, paymentHash);
+      return { success: true };
     }
-    return {
-      status: transaction.status as "pending" | "confirmed" | "failed",
-      transaction,
-    };
+
+    // 2. Try recruiter invoice
+    const recruiterTx = this.recruiterInvoices.get(paymentHash);
+    if (recruiterTx) {
+      if (recruiterTx.status === "confirmed") {
+        return { success: false, message: "Invoice already paid" };
+      }
+      recruiterTx.status = "confirmed";
+      this.recruiterInvoices.set(paymentHash, recruiterTx);
+      await dbService.updateRecruiterPlan(recruiterTx.recruiterId, recruiterTx.plan);
+      return { success: true };
+    }
+
+    return { success: false, message: "Invoice not found" };
   }
 }
 

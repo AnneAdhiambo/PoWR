@@ -1,12 +1,11 @@
+import "dotenv/config";
 // Force IPv4 DNS resolution — required in WSL2 where IPv6 is unreachable
 import dns from "dns";
 dns.setDefaultResultOrder("ipv4first");
 
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

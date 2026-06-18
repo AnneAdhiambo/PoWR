@@ -5,820 +5,354 @@ import { Card } from "../ui";
 import {
   Copy,
   CheckCircle,
-  XCircle,
   CircleNotch,
-  Wallet,
   ArrowLeft,
-  HourglassHigh,
+  Lightning,
   CurrencyBtc,
-  CurrencyDollar,
+  Clock,
 } from "phosphor-react";
-import { transferStx, transferSip10Token } from "../../lib/stacksProvider";
-import { WalletPickerModal } from "./WalletPickerModal";
-import { useBtcPrice } from "../../hooks/useBtcPrice";
-import { useStxPrice } from "../../hooks/useStxPrice";
-import { useTokenBalance } from "../../hooks/useTokenBalance";
-
-// Demo mode: simulates sBTC and USDCx payments without a real wallet or tokens
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-// Testnet address used as the demo "connected wallet"
-const DEMO_ADDRESS = "STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA";
-
-// Token contracts — mirrors backend defaults
-const SBTC_CONTRACT =
-  process.env.NEXT_PUBLIC_SBTC_CONTRACT_ADDRESS ||
-  (process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet"
-    ? "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
-    : "ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token");
-
-const USDCX_CONTRACT =
-  process.env.NEXT_PUBLIC_USDCX_CONTRACT_ADDRESS ||
-  (process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet"
-    ? "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx"
-    : "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdcx");
-
-// USD prices per plan per month — USDCx prices are the single source of truth
-const USD_PRICES_MONTHLY: Record<string, number> = { basic: 6, pro: 15 };
-
-const USDCX_PRICES: Record<string, number> = { basic: 6, pro: 15 };
-
-const DISCOUNTS: Record<number, number> = { 1: 0, 3: 0.1, 6: 0.2, 12: 0.3 };
-
-function calcUsdcxAmount(planType: string, billingPeriod: number): number {
-  const monthly = USDCX_PRICES[planType] ?? 0;
-  const discount = DISCOUNTS[billingPeriod] ?? 0;
-  return monthly * billingPeriod * (1 - discount);
-}
-
-function calcSbtcAmount(planType: string, billingPeriod: number, btcPriceUsd: number): number {
-  const usdMonthly = USD_PRICES_MONTHLY[planType] ?? 0;
-  const discount = DISCOUNTS[billingPeriod] ?? 0;
-  const usdTotal = usdMonthly * billingPeriod * (1 - discount);
-  return usdTotal / btcPriceUsd;
-}
+import toast from "react-hot-toast";
 
 interface PaymentFlowProps {
   paymentIntent: {
-    address: string;
-    amount: string;
-    currency: "stx" | "sbtc" | "usdcx";
+    invoice: string;      // Bolt11 invoice string
+    paymentHash: string;  // Payment hash to poll/verify
+    amountSats: number;   // Amount in satoshis
+    amountUsd: number;    // Amount in USD
+    currency: "lightning";
     planType: string;
     billingPeriod: number;
-    network: string;
-    usdTotal?: number; // canonical USD amount — overrides plan-based recalculation
+    network?: string;
   };
-  onPaymentVerified: (txHash: string) => void;
+  onPaymentVerified: (paymentHash: string) => void;
   onCancel: () => void;
-  walletAddress?: string;
-  /** When provided, replaces the default developer-API verify call.
-   *  Return { success, status?, message? } — same shape as apiClient.verifyPayment. */
-  onVerify?: (txHash: string, currency: string) => Promise<{ success: boolean; status?: string; message?: string }>;
+  walletAddress?: string; // Kept for signature compatibility
+  onVerify?: (paymentHash: string, currency: string) => Promise<{ success: boolean; status?: string; message?: string }>;
 }
 
-type PaymentMethod = "choose" | "stx" | "sbtc" | "usdcx";
-
-const MAX_POLLS = 24; // 24 × 10s = 4 minutes max
+const MAX_POLLS = 60; // 60 * 5s = 5 minutes polling duration
 
 export const PaymentFlow: React.FC<PaymentFlowProps> = ({
   paymentIntent,
   onPaymentVerified,
   onCancel,
-  walletAddress,
   onVerify,
 }) => {
-  const [method, setMethod] = useState<PaymentMethod>("choose");
-  const [txHash, setTxHash] = useState("");
-  const [verifying, setVerifying] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [pollCount, setPollCount] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [polling, setPolling] = useState(true);
+  const [pollCount, setPollCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [showWalletPicker, setShowWalletPicker] = useState(false);
-  const [pendingTokenMethod, setPendingTokenMethod] = useState<"sbtc" | "usdcx" | null>(null);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(walletAddress ?? null);
+  const [simulating, setSimulating] = useState(false);
+  
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { btcPriceUsd, loading: btcLoading } = useBtcPrice();
-  const { stxPriceUsd } = useStxPrice();
-  // Canonical USD total — from intent when provided (recruiter plans), else derived from developer plan lookup
-  const intentUsdTotal = paymentIntent.usdTotal ??
-    (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
-    paymentIntent.billingPeriod *
-    (1 - (DISCOUNTS[paymentIntent.billingPeriod] ?? 0));
-  const { balance: usdcxBalanceRaw, loading: usdcxBalanceLoading } = useTokenBalance(
-    connectedAddress,
-    USDCX_CONTRACT
-  );
-  const { balance: sbtcBalanceRaw, loading: sbtcBalanceLoading } = useTokenBalance(
-    connectedAddress,
-    SBTC_CONTRACT,
-    "sbtc"
-  );
 
-  // Hydrate connectedAddress from localStorage on mount (catches wallets connected before this component rendered)
+  // Poll for payment confirmation
   useEffect(() => {
-    if (!connectedAddress) {
-      const stored = localStorage.getItem("stacks_wallet_address");
-      if (stored) setConnectedAddress(stored);
+    startPolling();
+    return () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
+  }, [paymentIntent.paymentHash]);
+
+  const startPolling = (attempt = 0) => {
+    if (attempt >= MAX_POLLS) {
+      setPolling(false);
+      setError("Payment window expired. Please create a new invoice.");
+      return;
     }
-  }, []);
 
-  // Clean up polling on unmount
-  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
+    pollRef.current = setTimeout(async () => {
+      try {
+        let success = false;
+        if (onVerify) {
+          const res = await onVerify(paymentIntent.paymentHash, "lightning");
+          success = res.success;
+        } else {
+          const { apiClient } = await import("../../lib/api");
+          const username = localStorage.getItem("github_username") || "";
+          const res = await apiClient.verifyPayment(
+            username,
+            paymentIntent.paymentHash,
+            paymentIntent.planType,
+            "lightning"
+          );
+          success = res.success;
+        }
 
-  const copyAddress = () => {
-    navigator.clipboard.writeText(paymentIntent.address);
+        if (success) {
+          setPolling(false);
+          onPaymentVerified(paymentIntent.paymentHash);
+        } else {
+          setPollCount(attempt + 1);
+          startPolling(attempt + 1);
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+        setPollCount(attempt + 1);
+        startPolling(attempt + 1);
+      }
+    }, 5000); // Poll every 5 seconds
+  };
+
+  const copyInvoice = () => {
+    navigator.clipboard.writeText(paymentIntent.invoice);
     setCopied(true);
+    toast.success("Invoice copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleVerify = async (hashToVerify: string, currency: string, attempt = 0) => {
-    if (!hashToVerify.trim()) {
-      setError("Please enter a transaction hash");
-      return;
+  // Pay using WebLN if available in the browser (e.g. Alby, GetAlby, Mutiny)
+  const handlePayWebLN = async () => {
+    const win = window as any;
+    if (typeof win !== "undefined" && win.webln) {
+      try {
+        setVerifying(true);
+        await win.webln.enable();
+        await win.webln.sendPayment(paymentIntent.invoice);
+        toast.success("Payment broadcasted via WebLN!");
+        // Instantly check verification
+        checkVerificationImmediate();
+      } catch (err: any) {
+        setVerifying(false);
+        toast.error(err.message || "WebLN payment failed");
+      }
+    } else {
+      toast.error("No WebLN wallet found. Please copy the invoice or scan the QR code.");
     }
-    if (attempt === 0) {
-      setVerifying(true);
-      setPending(false);
-      setPollCount(0);
-      setError(null);
-    }
+  };
 
+  const checkVerificationImmediate = async () => {
+    setVerifying(true);
     try {
-      let result: { success: boolean; status?: string; message?: string };
+      let success = false;
       if (onVerify) {
-        result = await onVerify(hashToVerify.trim(), currency);
+        const res = await onVerify(paymentIntent.paymentHash, "lightning");
+        success = res.success;
       } else {
         const { apiClient } = await import("../../lib/api");
         const username = localStorage.getItem("github_username") || "";
-        result = await apiClient.verifyPayment(username, hashToVerify.trim(), paymentIntent.planType, currency);
+        const res = await apiClient.verifyPayment(
+          username,
+          paymentIntent.paymentHash,
+          paymentIntent.planType,
+          "lightning"
+        );
+        success = res.success;
       }
 
-      if (result.success) {
-        setPending(false);
-        setVerifying(false);
-        onPaymentVerified(hashToVerify.trim());
-        return;
+      if (success) {
+        if (pollRef.current) clearTimeout(pollRef.current);
+        onPaymentVerified(paymentIntent.paymentHash);
+      } else {
+        toast.error("Payment not detected yet. Keep polling...");
       }
+    } catch (err: any) {
+      toast.error(err.message || "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
-      if ((result as any).status === "pending") {
-        if (attempt < MAX_POLLS) {
-          setPending(true);
-          setVerifying(false);
-          setPollCount(attempt + 1);
-          pollRef.current = setTimeout(
-            () => handleVerify(hashToVerify, currency, attempt + 1),
-            10_000
-          );
-        } else {
-          setPending(false);
-          setVerifying(false);
-          setError("Transaction is taking longer than expected. Check the Stacks Explorer and paste the tx ID manually once confirmed.");
+  // Simulate payment on the backend in sandbox development environment
+  const handleSimulatePayment = async () => {
+    setSimulating(true);
+    try {
+      const isRecruiter = !!onVerify;
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      
+      let endpoint = `${baseUrl}/api/payments/lightning/pay-mock`;
+      let headers: HeadersInit = { "Content-Type": "application/json" };
+      
+      if (isRecruiter) {
+        endpoint = `${baseUrl}/api/recruiter/billing/lightning/pay-mock`;
+        const token = localStorage.getItem("recruiter_token");
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
         }
-        return;
       }
 
-      setPending(false);
-      setVerifying(false);
-      setError(result.message || "Payment verification failed");
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ paymentHash: paymentIntent.paymentHash }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Simulation failed");
+      }
+
+      toast.success("Simulation successful! Invoice paid.");
+      if (pollRef.current) clearTimeout(pollRef.current);
+      onPaymentVerified(paymentIntent.paymentHash);
     } catch (err: any) {
-      setPending(false);
-      setVerifying(false);
-      setError(err.message || "Failed to verify payment");
+      toast.error(err.message || "Failed to simulate payment");
+    } finally {
+      setSimulating(false);
     }
   };
 
-  // Returns address from state → localStorage → @stacks/connect cached wallet (in that order).
-  // None of these steps trigger a wallet picker popup; the picker is shown separately via WalletPickerModal.
-  const resolveAddress = async (): Promise<string | null> => {
-    if (connectedAddress) return connectedAddress;
-    const stored = localStorage.getItem("stacks_wallet_address");
-    if (stored) {
-      setConnectedAddress(stored);
-      return stored;
-    }
-    // Try @stacks/connect's remembered provider without forcing a new selection
-    try {
-      const { request } = await import("@stacks/connect");
-      const res = await (request as any)({ forceWalletSelect: false }, "getAddresses");
-      const addr = res?.addresses?.find((a: any) => a.address?.startsWith("S"))?.address ?? null;
-      if (addr) {
-        setConnectedAddress(addr);
-        localStorage.setItem("stacks_wallet_address", addr);
-        return addr;
-      }
-    } catch {
-      // No wallet remembered — fall through to show the picker
-    }
-    return null;
-  };
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=ffffff&bgcolor=0c0d10&data=${encodeURIComponent(
+    paymentIntent.invoice
+  )}`;
 
-  const handlePayStx = async () => {
-    setError(null);
-    const addr = await resolveAddress();
-    if (!addr) {
-      setPendingTokenMethod(null);
-      setShowWalletPicker(true);
-      return;
-    }
-    const stxAmt = intentUsdTotal / (stxPriceUsd ?? 0.30);
-    const microStx = Math.round(stxAmt * 1_000_000).toString();
-    try {
-      const txId = await transferStx(
-        paymentIntent.address,
-        microStx,
-        `PoWR ${paymentIntent.planType} subscription`
-      );
-      setTxHash(txId);
-      handleVerify(txId, "stx");
-    } catch (err: any) {
-      if (err?.code === 4001 || err?.message?.toLowerCase().includes("cancel")) {
-        setError("Transaction cancelled.");
-      } else {
-        setError(err?.message || "Failed to send transaction.");
-      }
-    }
-  };
+  return (
+    <Card className="p-6 rounded-[24px] border border-[rgba(255,255,255,0.06)] bg-gradient-to-b from-[#12141c] to-[#0c0d10] shadow-2xl relative overflow-hidden">
+      {/* Background glow */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF5500]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#F7931A]/10 rounded-full blur-3xl pointer-events-none" />
 
-  const handlePayToken = async (token: "sbtc" | "usdcx") => {
-    setError(null);
-
-    // Demo mode: skip real wallet, simulate broadcast + confirmation
-    if (DEMO_MODE) {
-      if (!connectedAddress) setConnectedAddress(DEMO_ADDRESS);
-      const demoTxId = `demo_${token}_${Date.now()}`;
-      setTxHash(demoTxId);
-      setPending(true);
-      setPollCount(1);
-      setVerifying(false);
-      // Simulate network delay then verify (backend auto-approves demo_ txids)
-      pollRef.current = setTimeout(() => handleVerify(demoTxId, token), 3000);
-      return;
-    }
-
-    const addr = await resolveAddress();
-    if (!addr) {
-      setPendingTokenMethod(token);
-      setShowWalletPicker(true);
-      return;
-    }
-    const amount =
-      token === "sbtc"
-        ? intentUsdTotal / (btcPriceUsd ?? 87000)
-        : intentUsdTotal;
-    const decimals = token === "sbtc" ? 8 : 6;
-    const baseUnits = Math.round(amount * Math.pow(10, decimals)).toString();
-    const contract = token === "sbtc" ? SBTC_CONTRACT : USDCX_CONTRACT;
-    const assetName = token === "sbtc" ? "sbtc" : "usdcx";
-    try {
-      const txId = await transferSip10Token(
-        contract,
-        assetName,
-        paymentIntent.address,
-        baseUnits
-      );
-      setTxHash(txId);
-      handleVerify(txId, token);
-    } catch (err: any) {
-      if (err?.code === 4001 || err?.message?.toLowerCase().includes("cancel")) {
-        setError("Transaction cancelled.");
-      } else {
-        setError(err?.message || "Failed to send transaction.");
-      }
-    }
-  };
-
-  const handleWalletConnected = (address: string) => {
-    setConnectedAddress(address);
-    setShowWalletPicker(false);
-    // Auto-proceed with the pending payment
-    if (pendingTokenMethod) {
-      const token = pendingTokenMethod;
-      setPendingTokenMethod(null);
-      setTimeout(() => handlePayToken(token), 0);
-    } else {
-      // was waiting for STX payment
-      setPendingTokenMethod(null);
-      setTimeout(() => handlePayStx(), 0);
-    }
-  };
-
-  const walletPickerModal = (
-    <WalletPickerModal
-      isOpen={showWalletPicker}
-      onClose={() => { setShowWalletPicker(false); setPendingTokenMethod(null); }}
-      onConnected={handleWalletConnected}
-    />
-  );
-
-  // ── Payment method chooser ─────────────────────────────────────
-  if (method === "choose") {
-    const sbtcAmountCalc = intentUsdTotal / (btcPriceUsd ?? 87000);
-    const sbtcAmountDisplay = btcPriceUsd
-      ? sbtcAmountCalc.toFixed(8)
-      : `~${sbtcAmountCalc.toFixed(8)} (est.)`;
-    const usdcxAmount = intentUsdTotal;
-    const usdTotal = intentUsdTotal;
-    const stxAmountCalc = stxPriceUsd ? intentUsdTotal / stxPriceUsd : null;
-    const stxDisplay = stxAmountCalc ? `${Math.round(stxAmountCalc)} STX` : `≈ $${intentUsdTotal.toFixed(2)} USD`;
-    // USDCx has 6 decimals — convert raw balance to human-readable
-    const usdcxBalanceHuman = usdcxBalanceRaw !== null ? usdcxBalanceRaw / 1_000_000 : null;
-    const usdcxRequired = usdcxAmount;
-    const usdcxSufficient = usdcxBalanceHuman !== null && usdcxBalanceHuman >= usdcxRequired;
-    // sBTC has 8 decimals
-    const sbtcBalanceHuman = sbtcBalanceRaw !== null ? sbtcBalanceRaw / 1e8 : null;
-    const sbtcSufficient = sbtcBalanceHuman !== null && sbtcBalanceHuman >= sbtcAmountCalc;
-
-    return (
-      <>
-        {walletPickerModal}
-      <Card className="p-6 rounded-[16px]">
-        <div className="flex items-center gap-3 mb-1">
-          <h3 className="text-lg font-semibold text-white">Complete Payment</h3>
-          {DEMO_MODE && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
-              Demo Mode
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-gray-400 mb-6 capitalize">
-          {paymentIntent.planType} plan · {paymentIntent.billingPeriod} month{paymentIntent.billingPeriod > 1 ? "s" : ""}
-        </p>
-
-        <div className="space-y-3">
-          {/* STX */}
-          <button
-            onClick={() => setMethod("stx")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,85,0,0.5)] hover:bg-[rgba(255,85,0,0.06)] transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[rgba(255,85,0,0.15)] flex items-center justify-center flex-shrink-0">
-              <Wallet className="w-5 h-5 text-[#FF5500]" weight="fill" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-white">Pay with STX</p>
-              <p className="text-xs text-gray-500">{stxDisplay} · Leather or Xverse</p>
-            </div>
-            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#FF5500] transition-colors flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </button>
-
-          {/* sBTC */}
-          <button
-            onClick={() => setMethod("sbtc")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(247,147,26,0.5)] hover:bg-[rgba(247,147,26,0.06)] transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[rgba(247,147,26,0.15)] flex items-center justify-center flex-shrink-0">
-              <CurrencyBtc className="w-5 h-5 text-[#F7931A]" weight="fill" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-white">Pay with sBTC</p>
-              <p className="text-xs text-gray-500">
-                {sbtcAmountDisplay} sBTC · ≈ ${usdTotal.toFixed(2)} USD · Leather or Xverse
-                {connectedAddress && sbtcBalanceLoading && " · checking balance..."}
-                {connectedAddress && !sbtcBalanceLoading && sbtcBalanceHuman !== null && (
-                  sbtcSufficient
-                    ? ` · Balance: ${sbtcBalanceHuman.toFixed(8)} ✓`
-                    : ` · Balance: ${sbtcBalanceHuman.toFixed(8)} (insufficient)`
-                )}
-              </p>
-              {connectedAddress && !sbtcBalanceLoading && !sbtcSufficient && sbtcBalanceHuman !== null && (
-                <a
-                  href="https://app.stacks.co/bridge"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-[#F7931A] underline mt-0.5 inline-block"
-                >
-                  Bridge BTC → sBTC
-                </a>
-              )}
-            </div>
-            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#F7931A] transition-colors flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[#F7931A] opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </button>
-
-          {/* USDCx */}
-          <button
-            onClick={() => setMethod("usdcx")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(39,117,202,0.5)] hover:bg-[rgba(39,117,202,0.06)] transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[rgba(39,117,202,0.15)] flex items-center justify-center flex-shrink-0">
-              <CurrencyDollar className="w-5 h-5 text-[#2775CA]" weight="fill" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-white">Pay with USDCx</p>
-              <p className="text-xs text-gray-500">
-                {usdcxAmount.toFixed(2)} USDCx · USD-pegged
-                {connectedAddress && usdcxBalanceLoading && " · checking balance..."}
-                {connectedAddress && !usdcxBalanceLoading && usdcxBalanceHuman !== null && (
-                  usdcxSufficient
-                    ? ` · Balance: ${usdcxBalanceHuman.toFixed(2)} ✓`
-                    : ` · Balance: ${usdcxBalanceHuman.toFixed(2)} (insufficient)`
-                )}
-              </p>
-              {connectedAddress && !usdcxBalanceLoading && !usdcxSufficient && usdcxBalanceHuman !== null && (
-                <a
-                  href="https://bridge.stacks.co"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-[#2775CA] underline mt-0.5 inline-block"
-                >
-                  Bridge USDC → USDCx
-                </a>
-              )}
-            </div>
-            <div className="w-5 h-5 rounded-full border border-[rgba(255,255,255,0.15)] group-hover:border-[#2775CA] transition-colors flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[#2775CA] opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </button>
-
-        </div>
-
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-5 border-b border-white/[0.05] pb-4">
         <button
           onClick={onCancel}
-          className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-300 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-white transition-colors"
         >
-          Cancel
+          <ArrowLeft className="w-4 h-4" weight="bold" />
         </button>
-      </Card>
-      </>
-    );
-  }
-
-  // ── Token payment screen (sBTC or USDCx) ──────────────────────
-  if (method === "sbtc" || method === "usdcx") {
-    const isSbtc = method === "sbtc";
-
-    const tokenAmount = isSbtc
-      ? intentUsdTotal / (btcPriceUsd ?? 87000)
-      : intentUsdTotal;
-    const displayAmount = isSbtc
-      ? `${tokenAmount.toFixed(8)} sBTC`
-      : `${tokenAmount.toFixed(2)} USDCx`;
-    const usdEquivalent = isSbtc
-      ? (USD_PRICES_MONTHLY[paymentIntent.planType] ?? 0) *
-        paymentIntent.billingPeriod *
-        (1 - (DISCOUNTS[paymentIntent.billingPeriod] ?? 0))
-      : tokenAmount;
-    const amountHint = isSbtc
-      ? btcPriceUsd ? `(≈ $${usdEquivalent.toFixed(2)} USD)` : ""
-      : "(USD-pegged)";
-    const accentColor = isSbtc ? "#F7931A" : "#2775CA";
-    const TokenIcon = isSbtc ? CurrencyBtc : CurrencyDollar;
-    const label = isSbtc ? "sBTC" : "USDCx";
-
-    // USDCx-specific balance check on the payment screen
-    const usdcxBalanceHumanOnScreen = !isSbtc && usdcxBalanceRaw !== null
-      ? usdcxBalanceRaw / 1_000_000
-      : null;
-    const usdcxInsufficientOnScreen = !DEMO_MODE && !isSbtc &&
-      usdcxBalanceHumanOnScreen !== null &&
-      usdcxBalanceHumanOnScreen < tokenAmount;
-    // sBTC balance check on the payment screen
-    const sbtcBalanceHumanOnScreen = isSbtc && sbtcBalanceRaw !== null
-      ? sbtcBalanceRaw / 1e8
-      : null;
-    const sbtcInsufficientOnScreen = !DEMO_MODE && isSbtc &&
-      sbtcBalanceHumanOnScreen !== null &&
-      sbtcBalanceHumanOnScreen < tokenAmount;
-
-    return (
-      <>
-        {walletPickerModal}
-      <Card className="p-6 rounded-[16px]">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => { setMethod("choose"); setError(null); setPending(false); setVerifying(false); }}
-            className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 text-gray-400" weight="bold" />
-          </button>
-          <h3 className="text-lg font-semibold text-white">Pay with {label}</h3>
-          {DEMO_MODE && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
-              Demo Mode
-            </span>
-          )}
+        <div>
+          <h3 className="text-lg font-bold text-white flex items-center gap-1.5">
+            <Lightning className="w-5 h-5 text-[#F7931A]" weight="fill" />
+            Bitcoin Lightning
+          </h3>
+          <p className="text-xs text-gray-400 capitalize">
+            {paymentIntent.planType} plan · {paymentIntent.billingPeriod} month{paymentIntent.billingPeriod > 1 ? "s" : ""}
+          </p>
         </div>
-        {DEMO_MODE && (
-          <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
-            <span className="mt-0.5">⚡</span>
-            <span>No wallet needed — clicking Pay will simulate a real {label} transaction and confirm automatically.</span>
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {/* Amount */}
-          <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.05)]">
-            <p className="text-xs text-gray-400 mb-1">Amount to Pay</p>
-            <p className="text-2xl font-bold text-white">{displayAmount}</p>
-            <p className="text-xs text-gray-400 mt-1">{amountHint}</p>
-            {!isSbtc && usdcxBalanceHumanOnScreen !== null && (
-              <p className="text-xs mt-1" style={{ color: usdcxInsufficientOnScreen ? "#f87171" : "#6ee7b7" }}>
-                Your balance: {usdcxBalanceHumanOnScreen.toFixed(2)} USDCx
-              </p>
-            )}
-            {isSbtc && sbtcBalanceHumanOnScreen !== null && (
-              <p className="text-xs mt-1" style={{ color: sbtcInsufficientOnScreen ? "#f87171" : "#6ee7b7" }}>
-                Your balance: {sbtcBalanceHumanOnScreen.toFixed(8)} sBTC
-              </p>
-            )}
-          </div>
-
-          {/* Insufficient balance warning */}
-          {usdcxInsufficientOnScreen && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/25">
-              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" weight="fill" />
-              <div>
-                <p className="text-sm font-medium text-red-300">Insufficient USDCx balance</p>
-                <p className="text-xs text-red-400/80 mt-0.5">
-                  You need {tokenAmount.toFixed(2)} USDCx but only have {usdcxBalanceHumanOnScreen!.toFixed(2)}.{" "}
-                  <a
-                    href="https://bridge.stacks.co"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline text-[#2775CA]"
-                  >
-                    Bridge USDC → USDCx
-                  </a>
-                </p>
-              </div>
-            </div>
-          )}
-          {sbtcInsufficientOnScreen && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/25">
-              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" weight="fill" />
-              <div>
-                <p className="text-sm font-medium text-red-300">Insufficient sBTC balance</p>
-                <p className="text-xs text-red-400/80 mt-0.5">
-                  You need {tokenAmount.toFixed(8)} sBTC but only have {sbtcBalanceHumanOnScreen!.toFixed(8)}.{" "}
-                  <a
-                    href="https://app.stacks.co/bridge"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline text-[#F7931A]"
-                  >
-                    Bridge BTC → sBTC
-                  </a>
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Pending confirmation banner */}
-          {pending && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/25">
-              <HourglassHigh className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5 animate-pulse" weight="fill" />
-              <div>
-                <p className="text-sm font-medium text-amber-300">Waiting for confirmation</p>
-                <p className="text-xs text-amber-400/70 mt-0.5">
-                  Transaction broadcast · checking every 10s (attempt {pollCount}/{MAX_POLLS})
-                </p>
-                {txHash && (
-                  <a
-                    href={`https://explorer.hiro.so/txid/${txHash.replace(/^0x/, "")}?chain=testnet`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-amber-300 underline mt-1 inline-block"
-                  >
-                    View on Explorer ↗
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Pay with wallet button */}
-          <button
-            onClick={() => handlePayToken(method)}
-            disabled={verifying || pending || !!usdcxInsufficientOnScreen || !!sbtcInsufficientOnScreen}
-            style={{ backgroundColor: verifying || pending || usdcxInsufficientOnScreen || sbtcInsufficientOnScreen ? undefined : accentColor }}
-            className="w-full py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2 hover:opacity-90"
-          >
-            <TokenIcon className="w-5 h-5" weight="fill" />
-            {DEMO_MODE ? `Simulate ${label} Payment` : `Pay ${displayAmount} with Wallet`}
-          </button>
-
-          {/* Divider */}
-          <div className="relative py-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[rgba(255,255,255,0.1)]" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-[#12141a] px-2 text-gray-500">Or enter tx manually</span>
-            </div>
-          </div>
-
-          {/* Payment address */}
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-[rgba(255,255,255,0.05)]">
-            <code className="flex-1 text-xs text-gray-300 font-mono break-all">
-              {paymentIntent.address}
-            </code>
-            <button
-              onClick={copyAddress}
-              className="flex-shrink-0 p-1.5 rounded hover:bg-[rgba(255,255,255,0.1)] transition-colors"
-            >
-              {copied ? (
-                <CheckCircle className="w-4 h-4 text-green-400" weight="fill" />
-              ) : (
-                <Copy className="w-4 h-4 text-gray-400" weight="regular" />
-              )}
-            </button>
-          </div>
-
-          {/* Tx hash input */}
-          <div>
-            <p className="text-xs text-gray-400 mb-2">Transaction ID (manual payment):</p>
-            <input
-              type="text"
-              value={txHash}
-              onChange={(e) => setTxHash(e.target.value)}
-              placeholder="0x..."
-              className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white text-sm font-mono placeholder-gray-500 focus:outline-none focus:border-[#FF5500]"
-            />
-            {error && !pending && (
-              <div className="flex items-start gap-2 mt-2 text-xs text-red-400">
-                <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" weight="fill" />
-                <span>{error}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={onCancel}
-              className="flex-1 py-2.5 px-4 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] text-gray-300 text-sm font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleVerify(txHash, method)}
-              disabled={verifying || pending || !txHash.trim()}
-              className="flex-1 py-2.5 px-4 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              {pending ? (
-                <>
-                  <HourglassHigh className="w-4 h-4 animate-pulse" weight="fill" />
-                  Confirming...
-                </>
-              ) : verifying ? (
-                <>
-                  <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
-                  Verifying...
-                </>
-              ) : (
-                "Verify Transaction"
-              )}
-            </button>
-          </div>
-        </div>
-      </Card>
-      </>
-    );
-  }
-
-  // ── STX flow ───────────────────────────────────────────────────
-  return (
-    <>
-      {walletPickerModal}
-    <Card className="p-6 rounded-[16px]">
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={() => { setMethod("choose"); setError(null); }}
-          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 text-gray-400" weight="bold" />
-        </button>
-        <h3 className="text-lg font-semibold text-white">Pay with STX</h3>
       </div>
 
-      <div className="space-y-4">
-        {/* Amount */}
-        <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.05)]">
-          <p className="text-xs text-gray-400 mb-1">Amount to Pay</p>
-          <p className="text-2xl font-bold text-white">
-            {stxPriceUsd ? `${Math.round(intentUsdTotal / stxPriceUsd)} STX` : `≈ $${intentUsdTotal.toFixed(2)} USD`}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Network: Stacks{" "}
-            {process.env.NEXT_PUBLIC_STACKS_NETWORK === "mainnet" ? "Mainnet" : "Testnet"}
-          </p>
+      {/* Amount Display */}
+      <div className="mb-6 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04] text-center">
+        <p className="text-xs text-gray-400 mb-1">Amount to Pay</p>
+        <div className="flex items-baseline justify-center gap-1">
+          <span className="text-2xl font-black text-white font-mono">
+            {paymentIntent.amountSats.toLocaleString()}
+          </span>
+          <span className="text-xs font-bold text-[#F7931A]">sats</span>
         </div>
+        <p className="text-xs text-gray-500 mt-1 font-medium">
+          ≈ ${paymentIntent.amountUsd.toFixed(2)} USD
+        </p>
+      </div>
 
-        {/* Pending confirmation banner */}
-        {pending && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/25">
-            <HourglassHigh className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5 animate-pulse" weight="fill" />
-            <div>
-              <p className="text-sm font-medium text-amber-300">Waiting for confirmation</p>
-              <p className="text-xs text-amber-400/70 mt-0.5">
-                Transaction broadcast · checking every 10s (attempt {pollCount}/{MAX_POLLS})
-              </p>
-              <p className="text-xs text-amber-400/70 mt-0.5">
-                Testnet blocks take ~30–60 seconds.
-              </p>
-              {txHash && (
-                <a
-                  href={`https://explorer.hiro.so/txid/${txHash.replace(/^0x/, "")}?chain=testnet`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-amber-300 underline mt-1 inline-block"
-                >
-                  View on Explorer ↗
-                </a>
-              )}
-            </div>
-          </div>
-        )}
+      {/* QR Code with scanning animation */}
+      <div className="flex flex-col items-center mb-6">
+        <div className="relative p-3 rounded-2xl bg-[#0c0d10] border border-white/[0.08] shadow-inner group overflow-hidden">
+          {/* Scanning line animation */}
+          {polling && (
+            <div className="absolute left-0 right-0 h-0.5 bg-[#F7931A] shadow-[0_0_10px_#F7931A] animate-[scan_3s_linear_infinite]" 
+              style={{
+                animationName: "scan",
+                animationDuration: "3s",
+                animationIterationCount: "infinite",
+                animationTimingFunction: "linear"
+              }}
+            />
+          )}
+          <img
+            src={qrCodeUrl}
+            alt="Bitcoin Lightning Invoice QR Code"
+            className="w-48 h-48 rounded-lg select-none pointer-events-none"
+          />
+        </div>
+        
+        {/* Status Indicator */}
+        <div className="flex items-center gap-2 mt-4 text-xs">
+          {polling ? (
+            <>
+              <CircleNotch className="w-3.5 h-3.5 text-[#F7931A] animate-spin" weight="bold" />
+              <span className="text-gray-400 font-medium animate-pulse">
+                Waiting for payment...
+              </span>
+            </>
+          ) : (
+            <span className="text-red-400 font-semibold">{error}</span>
+          )}
+        </div>
+      </div>
 
-        {/* Pay with wallet button */}
+      {/* Actions */}
+      <div className="space-y-3">
+        {/* Copy Invoice String */}
         <button
-          onClick={handlePayStx}
-          disabled={verifying || pending}
-          className="w-full py-3 px-4 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
+          onClick={copyInvoice}
+          className="w-full flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.12] transition-all text-left group"
         >
-          <Wallet className="w-5 h-5" />
-          Pay {paymentIntent.amount} STX with Wallet
-        </button>
-
-        {/* Divider */}
-        <div className="relative py-2">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[rgba(255,255,255,0.1)]" />
+          <div className="flex-1 min-w-0 pr-3">
+            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">
+              Bolt11 Invoice
+            </p>
+            <p className="text-xs text-gray-300 font-mono truncate">
+              {paymentIntent.invoice}
+            </p>
           </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-[#12141a] px-2 text-gray-500">Or enter tx manually</span>
-          </div>
-        </div>
-
-        {/* Payment address */}
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-[rgba(255,255,255,0.05)]">
-          <code className="flex-1 text-xs text-gray-300 font-mono break-all">
-            {paymentIntent.address}
-          </code>
-          <button
-            onClick={copyAddress}
-            className="flex-shrink-0 p-1.5 rounded hover:bg-[rgba(255,255,255,0.1)] transition-colors"
-          >
+          <div className="p-2 rounded-lg bg-white/[0.04] text-gray-400 group-hover:text-white transition-colors">
             {copied ? (
               <CheckCircle className="w-4 h-4 text-green-400" weight="fill" />
             ) : (
-              <Copy className="w-4 h-4 text-gray-400" weight="regular" />
+              <Copy className="w-4 h-4" />
             )}
-          </button>
-        </div>
+          </div>
+        </button>
 
-        {/* Tx hash input */}
-        <div>
-          <p className="text-xs text-gray-400 mb-2">Transaction ID (manual payment):</p>
-          <input
-            type="text"
-            value={txHash}
-            onChange={(e) => setTxHash(e.target.value)}
-            placeholder="0x..."
-            className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white text-sm font-mono placeholder-gray-500 focus:outline-none focus:border-[#FF5500]"
-          />
-          {error && !pending && (
-            <div className="flex items-start gap-2 mt-2 text-xs text-red-400">
-              <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" weight="fill" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
+        {/* WebLN pay button */}
+        <button
+          onClick={handlePayWebLN}
+          disabled={!polling || verifying}
+          className="w-full py-3.5 px-4 rounded-xl bg-[#F7931A] hover:bg-[#e28212] disabled:opacity-50 disabled:cursor-not-allowed text-black font-extrabold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#F7931A]/10 hover:shadow-[#F7931A]/20"
+        >
+          <Lightning className="w-4 h-4" weight="fill" />
+          Pay with Wallet
+        </button>
 
-        {/* Actions */}
-        <div className="flex gap-3">
+        {/* Sandbox Simulation Mode */}
+        <div className="border-t border-white/[0.05] pt-4 mt-2">
+          <div className="flex items-center gap-1.5 justify-center mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+              Local Dev Sandbox
+            </p>
+          </div>
+          
           <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 px-4 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] text-gray-300 text-sm font-medium transition-colors"
+            onClick={handleSimulatePayment}
+            disabled={simulating || !polling}
+            className="w-full py-2.5 px-4 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
           >
-            Cancel
-          </button>
-          <button
-            onClick={() => handleVerify(txHash, "stx")}
-            disabled={verifying || pending || !txHash.trim()}
-            className="flex-1 py-2.5 px-4 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            {pending ? (
+            {simulating ? (
               <>
-                <HourglassHigh className="w-4 h-4 animate-pulse" weight="fill" />
-                Confirming...
-              </>
-            ) : verifying ? (
-              <>
-                <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
-                Verifying...
+                <CircleNotch className="w-3.5 h-3.5 animate-spin" weight="bold" />
+                Simulating...
               </>
             ) : (
-              "Verify Transaction"
+              <>
+                <CheckCircle className="w-3.5 h-3.5" weight="fill" />
+                Simulate Lightning Payment
+              </>
             )}
           </button>
         </div>
+
+        {/* Immediate check verification button */}
+        <button
+          onClick={checkVerificationImmediate}
+          disabled={verifying || !polling}
+          className="w-full py-2 text-xs text-gray-500 hover:text-gray-300 font-medium transition-colors flex items-center justify-center gap-1"
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Check Payment Status
+        </button>
       </div>
+
+      {/* Inline styles for custom scan keyframes */}
+      <style jsx global>{`
+        @keyframes scan {
+          0% { top: 0%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
+        }
+      `}</style>
     </Card>
-    </>
   );
 };

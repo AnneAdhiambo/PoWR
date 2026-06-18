@@ -120,41 +120,24 @@ export default function SubscriptionContent() {
       return;
     }
 
-    const planData = plans.find((p) => p.type === planType);
-    const monthlyStx = parseInt(planData?.priceInCrypto?.stx ?? "0", 10);
-    const totalStx = calcStxTotal(monthlyStx, billingPeriod).toString();
-
     try {
       toast.loading("Preparing payment...", { id: "payment-intent" });
       const result = await apiClient.createPaymentIntent(
-        username, planType, "stx", billingPeriod
+        username, planType, "lightning", billingPeriod
       );
       setPaymentIntent(result.paymentIntent);
       setSelectedPlan(planType);
       toast.dismiss("payment-intent");
-    } catch {
+    } catch (error: any) {
       toast.dismiss("payment-intent");
-      const paymentAddress = process.env.NEXT_PUBLIC_PAYMENT_WALLET_ADDRESS;
-      if (!paymentAddress || !planData) {
-        toast.error("Payment not available — PAYMENT_WALLET_ADDRESS not configured.");
-        return;
-      }
-      setPaymentIntent({
-        address: paymentAddress,
-        amount: totalStx,
-        currency: "stx" as const,
-        planType,
-        billingPeriod,
-        network: process.env.NEXT_PUBLIC_STACKS_NETWORK || "testnet",
-      });
-      setSelectedPlan(planType);
+      toast.error(error.message || "Failed to generate Lightning invoice");
     }
   };
 
-  const handlePaymentVerified = async (txHash: string) => {
+  const handlePaymentVerified = async (paymentHash: string) => {
     try {
       toast.loading("Upgrading subscription...", { id: "upgrade" });
-      await apiClient.upgradeSubscription(username, selectedPlan!, txHash);
+      await apiClient.upgradeSubscription(username, selectedPlan!, paymentHash);
       await loadSubscriptionData(username);
       setPaymentIntent(null);
       setSelectedPlan(null);
@@ -191,7 +174,7 @@ export default function SubscriptionContent() {
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">Billing</h1>
               <p className="text-gray-400">
-                Pay with STX, sBTC, or USDCx. Lock in a longer period for a bigger discount.
+                Pay instantly with Bitcoin via the Lightning Network. Lock in a longer period for a bigger discount.
               </p>
             </div>
             <ConnectWalletButton />
@@ -266,7 +249,7 @@ export default function SubscriptionContent() {
               {/* Savings callout for multi-month */}
               {billingPeriod > 1 && (
                 <p className="text-center text-xs text-gray-600 mt-6">
-                  Prices are charged as a single STX transaction. No recurring charges.
+                  Prices are charged as a single Bitcoin Lightning transaction. No recurring charges.
                 </p>
               )}
             </>
@@ -276,3 +259,4 @@ export default function SubscriptionContent() {
     </div>
   );
 }
+

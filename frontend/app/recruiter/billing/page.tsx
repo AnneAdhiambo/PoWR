@@ -72,7 +72,6 @@ export default function BillingPage() {
   // Payment flow state
   const [paymentIntent, setPaymentIntent] = useState<any>(null);
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<"stx" | "sbtc" | "usdcx">("usdcx");
   const [intentLoading, setIntentLoading] = useState(false);
 
   useEffect(() => {
@@ -100,7 +99,7 @@ export default function BillingPage() {
     if (planId === recruiter?.plan || planId === "free") return;
     setIntentLoading(true);
     try {
-      const { paymentIntent: intent } = await recruiterApiClient.createBillingIntent(planId, currency);
+      const { paymentIntent: intent } = await recruiterApiClient.createBillingIntent(planId);
       setPendingPlan(planId);
       setPaymentIntent(intent);
     } catch (err: any) {
@@ -111,13 +110,12 @@ export default function BillingPage() {
   };
 
   // Called by PaymentFlow instead of the default developer API — recruiter-specific verify
-  const handleVerify = async (txHash: string, txCurrency: string) => {
+  const handleVerify = async (paymentHash: string) => {
     if (!pendingPlan) return { success: false, message: "No plan selected" };
     try {
       const result = await recruiterApiClient.verifyBillingPayment(
-        txHash,
-        pendingPlan,
-        txCurrency as "stx" | "sbtc" | "usdcx"
+        paymentHash,
+        pendingPlan
       );
       return result;
     } catch (err: any) {
@@ -181,23 +179,7 @@ export default function BillingPage() {
         <p className="text-gray-500 mt-1.5">Scale your hiring with verified on-chain developer profiles.</p>
       </div>
 
-      {/* Currency selector */}
-      <div className="mb-8 flex items-center gap-3">
-        <span className="text-xs text-gray-500 font-medium">Pay with:</span>
-        {(["usdcx", "stx", "sbtc"] as const).map((c) => (
-          <button
-            key={c}
-            onClick={() => setCurrency(c)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-              currency === c
-                ? "bg-[#FF5500]/15 border-[#FF5500]/40 text-[#FF5500]"
-                : "border-[rgba(255,255,255,0.08)] text-gray-500 hover:text-gray-300 hover:border-[rgba(255,255,255,0.15)]"
-            }`}
-          >
-            {c === "usdcx" ? "USDCx" : c === "sbtc" ? "sBTC" : "STX"}
-          </button>
-        ))}
-      </div>
+
 
       {/* Current plan usage card — free */}
       {currentPlan === "free" && (
@@ -369,7 +351,7 @@ export default function BillingPage() {
       )}
 
       <p className="text-xs text-gray-600 text-center mt-6">
-        Payments processed on-chain via Stacks · STX · sBTC · USDCx
+        Payments processed instantly via the Bitcoin Lightning Network
       </p>
     </div>
   );
