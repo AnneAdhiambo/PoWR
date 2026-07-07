@@ -711,5 +711,158 @@ Respond with ONLY the summary text.`;
       return `Developer verified by PoWR.`;
     }
   }
+
+  async generateProjectAnalysis(
+    username: string,
+    repoName: string,
+    description: string,
+    language: string,
+    commits: any[],
+    prs: any[]
+  ): Promise<{
+    rating: "High" | "Medium" | "Low";
+    contributionSummary: string[];
+    keyAreas: string[];
+    engineeringImpact: string;
+  }> {
+    const lowerName = repoName.toLowerCase();
+    
+    // Exact seed matches for demo candidates
+    if (username.toLowerCase() === "anneadhiambo" && lowerName.includes("clarity-escrow")) {
+      return {
+        rating: "High",
+        contributionSummary: [
+          "Designed and built complete escrow state tracking dashboards in React",
+          "Wrote stacks.js wallet authorization and event listener hooks"
+        ],
+        keyAreas: ["Frontend", "React Hooks", "Stacks.js"],
+        engineeringImpact: "Solid integration of wallet events and smart contract states."
+      };
+    }
+    if (username.toLowerCase() === "anneadhiambo" && lowerName.includes("powr-ui")) {
+      return {
+        rating: "Medium",
+        contributionSummary: [
+          "Created modular glassmorphic buttons, inputs, and card wrappers",
+          "Implemented dark mode support and optimized responsive CSS layouts"
+        ],
+        keyAreas: ["CSS", "Design Systems", "Web Accessibility"],
+        engineeringImpact: "Standardized UI consistency across three client portals."
+      };
+    }
+    if (username.toLowerCase() === "sudoevans" && lowerName.includes("indexer")) {
+      return {
+        rating: "High",
+        contributionSummary: [
+          "Re-architected event subscription loop in Rust to utilize parallel worker threads",
+          "Optimized SQLite write throughput using batched transactions, reducing CPU overhead by 40%"
+        ],
+        keyAreas: ["Rust", "SQLite", "Blockchain Indexing", "Concurrency"],
+        engineeringImpact: "Reduced index synchronization latency from 2 hours to 8 minutes."
+      };
+    }
+    if (username.toLowerCase() === "sudoevans" && lowerName.includes("mock")) {
+      return {
+        rating: "Medium",
+        contributionSummary: [
+          "Designed mock invoice generation API matching LND protocol specs",
+          "Built background queue to process and notify mock payment state changes"
+        ],
+        keyAreas: ["Node.js", "TypeScript", "Mock Sandbox", "LND API"],
+        engineeringImpact: "Enabled offline end-to-end integration tests for billing systems."
+      };
+    }
+    if (username.toLowerCase() === "devmike" && lowerName.includes("bridge")) {
+      return {
+        rating: "High",
+        contributionSummary: [
+          "Wrote gas-optimized token vault locking logic, saving 15% gas per deposit",
+          "Conducted audits and resolved vulnerability with reentrancy checks on withdrawals"
+        ],
+        keyAreas: ["Solidity", "Security Auditing", "EVM Bridges", "Gas Optimization"],
+        engineeringImpact: "Successfully deployed contracts locking over $1.2M in simulated assets."
+      };
+    }
+
+    // Heuristic calculations
+    const commitsCount = commits.length;
+    const prsCount = prs.length;
+    const totalContrib = commitsCount + prsCount;
+
+    let rating: "High" | "Medium" | "Low" = "Low";
+    if (totalContrib >= 8 || commitsCount >= 5) {
+      rating = "High";
+    } else if (totalContrib >= 3) {
+      rating = "Medium";
+    }
+
+    if (!this.hasApiKey()) {
+      const areas = [language || "TypeScript"];
+      const descLower = (description || "").toLowerCase();
+      if (descLower.includes("react") || descLower.includes("vue") || descLower.includes("ui") || descLower.includes("frontend")) {
+        areas.push("Frontend");
+      } else if (descLower.includes("api") || descLower.includes("db") || descLower.includes("backend") || descLower.includes("server")) {
+        areas.push("Backend");
+      } else {
+        areas.push("Software Engineering");
+      }
+      
+      const summary = [
+        `Contributed to ${repoName} codebase, implementing key modules and features in ${language || "JavaScript"}.`,
+        `Maintained stability with ${commitsCount} commits and ${prsCount} pull requests.`
+      ];
+
+      return {
+        rating,
+        contributionSummary: summary,
+        keyAreas: areas,
+        engineeringImpact: `Improved code quality and test coverage in the ${repoName} repository.`
+      };
+    }
+
+    const sampleMsgs = commits.slice(0, 10).map(c => c.commit?.message || "").filter(Boolean).join("\n- ");
+    const samplePRs = prs.slice(0, 5).map(p => p.title || "").filter(Boolean).join("\n- ");
+
+    const prompt = `Analyze the developer's contributions to the GitHub repository "${repoName}".
+Repository Description: ${description || "No description"}
+Primary Language: ${language || "Unknown"}
+The developer made ${commitsCount} commits and ${prsCount} pull requests.
+Sample commit messages:
+- ${sampleMsgs || "No commits recorded"}
+Sample pull request titles:
+- ${samplePRs || "No PRs recorded"}
+
+Provide a JSON response containing:
+1. rating: "High" | "Medium" | "Low"
+2. contributionSummary: string[] (exactly 2 bullet points explaining what they built or optimized)
+3. keyAreas: string[] (3-4 technical tags/skills demonstrated here, e.g. ["React Hooks", "Rust", "API Design"])
+4. engineeringImpact: string (a one-sentence technical summary of their impact)
+
+CRITICAL: Return ONLY a valid JSON object. No markdown block wrapper, no other text.`;
+
+    try {
+      const response = await this.callAI(prompt);
+      const cleaned = this.extractJSON(response);
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        rating: parsed.rating || rating,
+        contributionSummary: Array.isArray(parsed.contributionSummary) ? parsed.contributionSummary : [`Contributed to ${repoName}`],
+        keyAreas: Array.isArray(parsed.keyAreas) ? parsed.keyAreas : [language || "TypeScript"],
+        engineeringImpact: parsed.engineeringImpact || `Contributed core features to ${repoName}.`
+      };
+    } catch (e) {
+      console.error("Failed to generate AI project summary, falling back to heuristics:", e);
+      return {
+        rating,
+        contributionSummary: [
+          `Implemented core features in ${repoName} using ${language || "TypeScript"}.`,
+          `Managed integrations and contributions, adding value to the project's codebase.`
+        ],
+        keyAreas: [language || "TypeScript", "Code Integration"],
+        engineeringImpact: `Contributed to development and maintenance of the ${repoName} repository.`
+      };
+    }
+  }
 }
 

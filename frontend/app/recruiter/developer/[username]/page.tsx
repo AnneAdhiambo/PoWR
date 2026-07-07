@@ -332,6 +332,128 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
               <p className="text-sm text-gray-600">No skill data available.</p>
             )}
           </div>
+
+          {/* Open Source Contributions */}
+          <div className="bg-white/3 border border-white/8 rounded-2xl p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-6">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Open Source Contributions</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  AI-filtered summaries prioritizing meaningful engineering work over contribution spam.
+                </p>
+              </div>
+              <span className="text-[10px] px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400 font-semibold self-start md:self-auto">
+                {data.projects?.length || 0} Projects
+              </span>
+            </div>
+
+            {data.projects && data.projects.length > 0 ? (
+              <div className="space-y-6">
+                {data.projects.map((project: any) => {
+                  const isHigh = project.rating === "High";
+                  const isMedium = project.rating === "Medium";
+                  
+                  return (
+                    <div 
+                      key={project.fullName} 
+                      className="group relative rounded-xl border border-white/6 bg-white/2 hover:bg-white/4 hover:border-white/10 transition-all p-5"
+                    >
+                      {/* Badge indicator */}
+                      <div className="flex items-start justify-between gap-4 mb-2">
+                        <div>
+                          <h4 className="text-base font-bold text-white group-hover:text-[#FF5500] transition-colors">
+                            {project.name}
+                          </h4>
+                          <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                            {project.description}
+                          </p>
+                        </div>
+                        <span 
+                          className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border shrink-0 ${
+                            isHigh 
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                              : isMedium 
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
+                              : "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                          }`}
+                        >
+                          {project.rating} Impact
+                        </span>
+                      </div>
+
+                      {/* Meta information row */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mt-3 pt-3 border-t border-white/4">
+                        {project.language && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#B19EEF]" />
+                            <span>{project.language}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Star size={14} weight="fill" className="text-gray-500" />
+                          <span>{project.stars} stars</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <GitCommit size={14} className="text-gray-500" />
+                          <span>{project.contributionsCount} meaningful contrib.</span>
+                        </div>
+                        {project.lastActive && (
+                          <span className="text-gray-600">
+                            Active {new Date(project.lastActive).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Contribution summary section */}
+                      <div className="mt-4 pt-4 border-t border-white/4 space-y-4">
+                        {project.contributionSummary && project.contributionSummary.length > 0 && (
+                          <div>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-2">Contribution Summary</span>
+                            <ul className="list-disc pl-4 space-y-1.5 text-xs text-gray-300">
+                              {project.contributionSummary.map((bullet: string, idx: number) => (
+                                <li key={idx}>{bullet}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {project.keyAreas && project.keyAreas.length > 0 && (
+                          <div>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-2">Key Areas</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {project.keyAreas.map((area: string) => (
+                                <span 
+                                  key={area} 
+                                  className="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/6 text-gray-300 font-medium"
+                                >
+                                  {area}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {project.engineeringImpact && (
+                          <div className="bg-white/2 rounded-lg p-3 border border-white/4">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-1">Engineering Impact</span>
+                            <p className="text-xs text-gray-200 leading-relaxed italic">
+                              "{project.engineeringImpact}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-white/8 rounded-xl bg-white/2">
+                <Folder size={32} className="text-gray-600 mb-2" />
+                <p className="text-sm text-gray-500 font-medium">No open-source repositories found</p>
+                <p className="text-xs text-gray-600 mt-0.5">This developer has not created or contributed to public repositories.</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right column */}

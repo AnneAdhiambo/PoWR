@@ -62,3 +62,6 @@ backend/history.txt
 # Clarinet network configs that contain mnemonics — never commit
 settings/Testnet.toml
 settings/Mainnet.toml
+
+# Excluded folders
+powr-frontend/

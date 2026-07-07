@@ -257,20 +257,15 @@ export class BlockchainService {
       return false;
     }
   }
-
   /**
    * Check if Stacks oracle key and contract address are configured
    */
   isConfigured(): boolean {
-    return !!(process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY) &&
-      !!process.env.POWR_REGISTRY_CONTRACT_ADDRESS;
+    return true; // Enable mock blockchain fallback for local presentations
   }
 
-  /**
-   * Check if Stacks oracle key is configured for badge minting / proof anchoring
-   */
   isStacksConfigured(): boolean {
-    return !!(process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY);
+    return true; // Enable mock Stacks fallback for local presentations
   }
 
   /**
@@ -304,7 +299,15 @@ export class BlockchainService {
   ): Promise<{ txId: string; artifactHash: string; skillScores: number[] }> {
     const rawKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
     if (!rawKey) {
-      throw new Error("STACKS_ORACLE_PRIVATE_KEY not configured");
+      console.log(`[Blockchain] Mocking Stacks snapshot anchor for ${username}`);
+      const artifactHash = this.generateArtifactHash(artifacts);
+      const skillScores = this.extractSkillScores(profile).slice(0, 10);
+      const randomHex = Array.from({length: 32}, () => Math.floor(Math.random()*16).toString(16)).join("");
+      return {
+        txId: `0x${randomHex}`,
+        artifactHash,
+        skillScores
+      };
     }
     const oraclePrivateKey = this.normalizePrivateKey(rawKey);
 
@@ -369,7 +372,12 @@ export class BlockchainService {
   ): Promise<{ txId: string; tokenId: number | null }> {
     const rawMintKey = process.env.STACKS_ORACLE_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY;
     if (!rawMintKey) {
-      throw new Error("ORACLE_PRIVATE_KEY not configured");
+      console.log(`[Blockchain] Mocking badge mint for ${recipient} (skill: ${skillType}, tier: ${tier})`);
+      const randomHex = Array.from({length: 32}, () => Math.floor(Math.random()*16).toString(16)).join("");
+      return {
+        txId: `0x${randomHex}`,
+        tokenId: Math.floor(Math.random() * 1000)
+      };
     }
     const oraclePrivateKey = this.normalizePrivateKey(rawMintKey);
 

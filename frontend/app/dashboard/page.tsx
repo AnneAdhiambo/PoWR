@@ -38,6 +38,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [skillBadges, setSkillBadges] = useState<Badge[]>([]);
   const [achievements, setAchievements] = useState<GithubBadge[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
 
   // Get from sessionStorage (set by auth callback)
   const [username, setUsername] = useState<string>("");
@@ -186,11 +187,28 @@ export default function DashboardPage() {
         });
         setArtifacts([]);
         setProofs([]);
+        setProjects([
+          {
+            name: "powr-ui",
+            fullName: `${username || "dev"}/powr-ui`,
+            description: "Custom glassmorphic component library for Web3 portals.",
+            language: "CSS",
+            stars: 12,
+            contributionsCount: 15,
+            rating: "Medium",
+            contributionSummary: [
+              "Created modular glassmorphic components, inputs, and card wrappers",
+              "Implemented dark mode support and optimized responsive CSS layouts"
+            ],
+            keyAreas: ["CSS", "Design Systems", "Web Accessibility"],
+            engineeringImpact: "Standardized UI consistency across three client portals."
+          }
+        ]);
       } else {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:95', message: 'Promise.all start', data: { username }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
-        const [profileData, artifactsData, proofsData, subscriptionData, nextUpdateData, analysisStatusData, badgesData] = await Promise.all([
+        const [profileData, artifactsData, proofsData, subscriptionData, nextUpdateData, analysisStatusData, badgesData, projectsData] = await Promise.all([
           apiClient.getUserProfile(username, accessToken).catch(err => {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:96', message: 'getUserProfile error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
@@ -213,6 +231,7 @@ export default function DashboardPage() {
           apiClient.getNextUpdateDate(username).catch(() => ({ nextUpdateDate: null, planType: "free" })),
           apiClient.getAnalysisStatus(username).catch(() => ({ hasProfile: false, hasUnpublished: false, lastAnalyzed: null, lastPublished: null })),
           apiClient.getUserBadges(username).catch(() => ({ skillBadges: [], achievements: [] })),
+          apiClient.getUserProjects(username).catch(() => ({ projects: [] })),
         ]);
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:100', message: 'Promise.all complete', data: { hasProfile: !!profileData, hasArtifacts: !!artifactsData, hasProofs: !!proofsData }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
@@ -228,6 +247,7 @@ export default function DashboardPage() {
         });
         setSkillBadges(badgesData.skillBadges);
         setAchievements(badgesData.achievements);
+        setProjects(projectsData.projects || []);
       }
     } catch (error: any) {
       // #region agent log
@@ -446,7 +466,7 @@ export default function DashboardPage() {
                   <SkillsRadarChart skills={profile.skills} />
 
                   {/* Recent Verified Work */}
-                  <RecentWorkFeed artifacts={artifacts} limit={5} />
+                  <RecentWorkFeed artifacts={artifacts} limit={5} projects={projects} />
                 </div>
 
                 {/* Bottom Section: On-Chain Proofs */}

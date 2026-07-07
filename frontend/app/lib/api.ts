@@ -288,6 +288,10 @@ class ApiClient {
     });
   }
 
+  async getUserProjects(username: string): Promise<{ projects: any[] }> {
+    return this.request<{ projects: any[] }>(`/api/user/projects?username=${username}`);
+  }
+
 }
 
 export const apiClient = new ApiClient();
