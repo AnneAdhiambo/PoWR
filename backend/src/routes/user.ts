@@ -116,11 +116,11 @@ router.get("/projects", async (req, res) => {
         repos.map(async (repo) => {
           const repoName = repo.repository?.name || (repo.data as any).name;
           const repoOwner = repo.repository?.owner || (repo.data as any).owner?.login;
-          
-          const repoCommits = commits.filter((c) => 
+
+          const repoCommits = commits.filter((c) =>
             c.repository?.name?.toLowerCase() === repoName?.toLowerCase()
           );
-          const repoPRs = prs.filter((p) => 
+          const repoPRs = prs.filter((p) =>
             p.repository?.name?.toLowerCase() === repoName?.toLowerCase()
           );
 
@@ -146,6 +146,78 @@ router.get("/projects", async (req, res) => {
         })
       );
       projects.push(...analyzedRepos);
+    }
+
+    // Surface OSS/fork contributions from commit and PR artifacts.
+    // These are repos the user has pushed to or submitted PRs to that
+    // aren't owned repos — forks of OSS projects, upstream PR targets, etc.
+    const coveredRepoKeys = new Set(
+      repos.map((r) => {
+        const owner = r.repository?.owner || (r.data as any).owner?.login || "";
+        const name = r.repository?.name || (r.data as any).name || "";
+        return `${owner}/${name}`.toLowerCase();
+      })
+    );
+
+    const ossReposMap = new Map<string, { owner: string; name: string; repoCommits: any[]; repoPRs: any[] }>();
+
+    // Common git branch prefixes that get stored as fake "owners" due to event API quirks
+    const GIT_BRANCH_PREFIXES = new Set([
+      "feat", "feature", "fix", "hotfix", "bugfix", "chore", "ui", "ux",
+      "release", "develop", "main", "master", "refactor", "test", "docs",
+      "ci", "build", "perf", "style", "revert", "wip",
+    ]);
+
+    for (const artifact of [...commits, ...prs]) {
+      const owner = artifact.repository?.owner || "";
+      const name = artifact.repository?.name || "";
+      if (!name || name === "unknown") continue;
+      // Skip entries that look like git branch prefixes — these are bad data
+      // from PR events where the branch name was stored instead of owner/repo
+      if (GIT_BRANCH_PREFIXES.has(owner.toLowerCase())) continue;
+      const key = `${owner}/${name}`.toLowerCase();
+      if (coveredRepoKeys.has(key)) continue;
+
+      if (!ossReposMap.has(key)) {
+        ossReposMap.set(key, { owner, name, repoCommits: [], repoPRs: [] });
+      }
+      const entry = ossReposMap.get(key)!;
+      if (artifact.type === "commit") entry.repoCommits.push(artifact);
+      else entry.repoPRs.push(artifact);
+    }
+
+    if (ossReposMap.size > 0) {
+      const ossEntries = Array.from(ossReposMap.values()).slice(0, 10);
+      const ossProjects = await Promise.all(
+        ossEntries.map(async ({ owner, name, repoCommits, repoPRs }) => {
+          const analysis = await aiService.generateProjectAnalysis(
+            username as string,
+            name,
+            "",
+            "",
+            repoCommits,
+            repoPRs
+          );
+
+          const lastActive = [...repoCommits, ...repoPRs]
+            .map((a) => a.timestamp)
+            .sort()
+            .reverse()[0] || new Date().toISOString();
+
+          return {
+            name,
+            fullName: `${owner}/${name}`,
+            description: `Contribution to ${owner}/${name}`,
+            language: "",
+            stars: 0,
+            contributionsCount: repoCommits.length + repoPRs.length,
+            lastActive,
+            ossContribution: true,
+            ...analysis,
+          };
+        })
+      );
+      projects.push(...ossProjects);
     }
 
     // Fallback/demo merging

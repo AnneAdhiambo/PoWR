@@ -202,6 +202,11 @@ export const RecentWorkFeed: React.FC<RecentWorkFeedProps> = ({
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${ratingColor} font-semibold uppercase tracking-wider`}>
                           {project.rating || "Low"}
                         </span>
+                        {project.ossContribution && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full border bg-sky-500/10 text-sky-400 border-sky-500/25 font-semibold uppercase tracking-wider">
+                            OSS
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] text-gray-500 mt-1 truncate">
                         {project.description || "No description provided."}
