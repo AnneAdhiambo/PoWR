@@ -11,6 +11,11 @@ vi.mock("@stacks/transactions", () => ({
   AnchorMode: { Any: 3 },
   PostConditionMode: { Deny: 1, Allow: 2 },
   ClarityType: { OptionalSome: 9, OptionalNone: 10, BoolTrue: 3 },
+  principalCV: (v: string) => ({ type: "principal", value: v }),
+  bufferCV: (v: Buffer) => ({ type: "buffer", buffer: v }),
+  uintCV: (v: number | bigint) => ({ type: "uint", value: BigInt(v) }),
+  listCV: (v: any[]) => ({ type: "list", list: v }),
+  stringAsciiCV: (v: string) => ({ type: "string-ascii", data: v }),
   Cl: {
     principal: (v: string) => ({ type: "principal", value: v }),
     buffer: (v: Buffer) => ({ type: "buffer", buffer: v }),
@@ -63,6 +68,7 @@ describe("BlockchainService", () => {
   afterEach(() => {
     delete process.env.STACKS_ORACLE_PRIVATE_KEY;
     delete process.env.POWR_REGISTRY_CONTRACT_ADDRESS;
+    delete process.env.STACKS_ORACLE_ADDRESS;
     delete process.env.STACKS_NETWORK;
   });
 
@@ -125,9 +131,10 @@ describe("BlockchainService", () => {
       expect(service.isConfigured()).toBe(false);
     });
 
-    it("returns true when both key and contract address are set", () => {
+    it("returns true when key, contract address, and oracle address are all set", () => {
       process.env.STACKS_ORACLE_PRIVATE_KEY = "aa".repeat(32);
       process.env.POWR_REGISTRY_CONTRACT_ADDRESS = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM";
+      process.env.STACKS_ORACLE_ADDRESS = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM";
       expect(new BlockchainService().isConfigured()).toBe(true);
     });
   });
@@ -136,31 +143,26 @@ describe("BlockchainService", () => {
   // anchorSnapshot
 
   describe("anchorSnapshot", () => {
-    it("throws when not configured", async () => {
-      await expect(
-        service.anchorSnapshot(FAKE_ARTIFACTS, FAKE_PROFILE, "ST1XXX", "alice")
-      ).rejects.toThrow(/not configured/i);
+    it("mocks a txId when no oracle key is configured", async () => {
+      const proof = await service.anchorSnapshot(FAKE_ARTIFACTS, FAKE_PROFILE, "alice", "ST1XXX");
+      expect(proof.txId).toMatch(/^0x[0-9a-f]+$/);
+      expect(proof.skillScores).toEqual([85, 72, 60, 90]);
+      expect(stacksTx.makeContractCall).not.toHaveBeenCalled();
     });
 
     it("broadcasts and returns a proof on success", async () => {
       process.env.STACKS_ORACLE_PRIVATE_KEY = "bb".repeat(32);
       process.env.POWR_REGISTRY_CONTRACT_ADDRESS = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM";
 
-      const fakeTxId = "0xdeadbeef" + "0".repeat(58);
+      const fakeTxId = "deadbeef" + "0".repeat(58);
       vi.mocked(stacksTx.makeContractCall).mockResolvedValue({} as any);
       vi.mocked(stacksTx.broadcastTransaction).mockResolvedValue({ txid: fakeTxId } as any);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ tx_status: "success", block_height: 42, burn_block_time: 1700000000 }),
-      });
+      const proof = await new BlockchainService().anchorSnapshot(FAKE_ARTIFACTS, FAKE_PROFILE, "alice", "ST1XXX");
 
-      const proof = await new BlockchainService().anchorSnapshot(FAKE_ARTIFACTS, FAKE_PROFILE, "ST1XXX", "alice");
-
-      expect(proof.transactionHash).toBe(fakeTxId);
-      expect(proof.stacksBlockHeight).toBe(42);
+      expect(proof.txId).toBe(fakeTxId);
+      expect(proof.artifactHash).toBe(service.generateArtifactHash(FAKE_ARTIFACTS));
       expect(proof.skillScores).toEqual([85, 72, 60, 90]);
-      expect(proof.explorerUrl).toContain(fakeTxId);
     });
 
     it("throws when broadcast returns an error response", async () => {
@@ -169,8 +171,8 @@ describe("BlockchainService", () => {
       vi.mocked(stacksTx.makeContractCall).mockResolvedValue({} as any);
       vi.mocked(stacksTx.broadcastTransaction).mockResolvedValue({ error: "ContractNotFound", reason: "no such contract" } as any);
 
-      await expect(new BlockchainService().anchorSnapshot(FAKE_ARTIFACTS, FAKE_PROFILE, "ST1XXX", "alice"))
-        .rejects.toThrow(/Broadcast failed/i);
+      await expect(new BlockchainService().anchorSnapshot(FAKE_ARTIFACTS, FAKE_PROFILE, "alice", "ST1XXX"))
+        .rejects.toThrow(/Stacks broadcast failed/i);
     });
   });
 

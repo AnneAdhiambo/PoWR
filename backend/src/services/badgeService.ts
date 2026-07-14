@@ -152,7 +152,7 @@ export class BadgeService {
         let txId: string | null = null;
         let tokenId: number | null = null;
 
-        if (stacksPrincipal && blockchainService.isStacksConfigured()) {
+        if (stacksPrincipal && blockchainService.isConfigured()) {
           try {
             const result = await blockchainService.mintBadge(
               stacksPrincipal,

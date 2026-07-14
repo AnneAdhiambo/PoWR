@@ -8,28 +8,18 @@ const router = express.Router();
 router.get("/status", async (req, res) => {
     const blockchainConfigured = blockchainService.isConfigured();
 
-    let blockchainStatus = {
+    const blockchainStatus = {
         configured: blockchainConfigured,
-        network: "Base Sepolia",
-        connected: false,
-        walletBalance: "unknown",
-        contractAddress: process.env.CONTRACT_ADDRESS || "default",
+        network: process.env.STACKS_NETWORK === "mainnet" ? "Stacks Mainnet" : "Stacks Testnet",
+        connected: blockchainConfigured,
+        registryContract: process.env.POWR_REGISTRY_CONTRACT_ADDRESS
+            ? `${process.env.POWR_REGISTRY_CONTRACT_ADDRESS}.powr-registry`
+            : "not configured",
+        badgesContract: process.env.POWR_BADGES_CONTRACT_ADDRESS
+            ? `${process.env.POWR_BADGES_CONTRACT_ADDRESS}.powr-badges`
+            : "not configured",
         error: null as string | null
     };
-
-    // If configured, try to check connection
-    if (blockchainConfigured) {
-        try {
-            // We'll add a helper in blockchain service or just use what we have
-            // Ideally we'd check provider connection here
-            // For now, let's assume if configured it's "ready" but let's try a simple verifiction
-            // We can't easily check balance without exposing it in the service, 
-            // so we will just report configured state for now.
-            blockchainStatus.connected = true;
-        } catch (e: any) {
-            blockchainStatus.error = e.message;
-        }
-    }
 
     // Check DB
     let dbStatus = "unknown";
@@ -48,7 +38,7 @@ router.get("/status", async (req, res) => {
         blockchain: blockchainStatus,
         env: {
             node_env: process.env.NODE_ENV,
-            has_private_key: !!process.env.BLOCKCHAIN_PRIVATE_KEY
+            has_oracle_key: !!process.env.STACKS_ORACLE_PRIVATE_KEY
         }
     });
 });

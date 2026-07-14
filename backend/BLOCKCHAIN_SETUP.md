@@ -2,15 +2,15 @@
 
 ## Overview
 
-PoWR anchors proof-of-work snapshots to Base Sepolia blockchain for tamper-proof reputation verification.
+PoWR anchors proof-of-work snapshots to the **Stacks** blockchain (secured by
+Bitcoin via Proof of Transfer) for tamper-proof reputation verification.
 
 ## What Gets Anchored On-Chain
 
-According to the requirements, we store:
-- **Artifact Hash**: Hash of the analyzed artifact set (repos, commits, PRs)
-- **Skill Scores**: Array of skill-specific PoW scores (0-100)
-- **Timestamp**: When the snapshot was created
-- **GitHub Identity**: Optional wallet address linked to GitHub (can be zero address)
+- **Artifact Hash**: keccak256 hash of the analyzed artifact set (repos, commits, PRs)
+- **Skill Scores**: Array of skill-specific PoW scores (0-100), up to 10 dimensions
+- **GitHub Identity**: GitHub username (stored as a `string-ascii`)
+- **Anchored-at block height**: Set automatically by the contract
 
 **We do NOT store:**
 - Code content
@@ -20,41 +20,64 @@ According to the requirements, we store:
 
 ## Contract Details
 
-- **Contract Address**: `0x8fb4fF2123E9a11fC027c494551794fc75e76980`
-- **Network**: Base Sepolia (Testnet)
-- **Chain ID**: 84532
-- **Explorer**: https://sepolia.basescan.org
+- **Registry contract**: `ST3VEJ5TMJK30S4PK5WXP9J1W86FCDH6DY3K3DBG5.powr-registry`
+- **Badges contract**: `ST3VEJ5TMJK30S4PK5WXP9J1W86FCDH6DY3K3DBG5.powr-badges`
+- **Network**: Stacks Testnet
+- **Explorer**: https://explorer.hiro.so/?chain=testnet
+- **Source**: `contracts/powr-registry.clar`, `contracts/powr-badges.clar`
+
+Both contracts are oracle-gated: only the configured oracle principal can call
+`anchor-snapshot` / `mint-badge`. All read-only functions (`get-snapshot`,
+`verify-snapshot`, `get-skill-scores`, `has-badge`, ...) are public and free.
 
 ## Setup Instructions
 
-### 1. Get Base Sepolia ETH
+### 1. Get an oracle wallet + testnet STX
 
-You need ETH on Base Sepolia to pay for gas:
-- **Faucet**: https://www.alchemy.com/faucets/base-sepolia
-- **Alternative**: https://faucet.quicknode.com/base/sepolia
+The backend signs every anchor/mint transaction with a single "oracle" keypair.
+Generate one (e.g. via `@stacks/wallet-sdk` or `clarinet console`), then fund it
+from the public faucet:
 
-### 2. Create a Wallet (Optional)
+```bash
+curl -X POST "https://api.testnet.hiro.so/extended/v1/faucets/stx?address=<YOUR_ADDRESS>"
+```
 
-For testing, you can use the deployer wallet. For production:
-- Create a new wallet or use an existing one
-- Fund it with Base Sepolia ETH
-- Keep the private key secure
-
-### 3. Configure Backend
+### 2. Configure Backend
 
 Add to `backend/.env`:
 
 ```env
-# Blockchain Configuration
-BLOCKCHAIN_PRIVATE_KEY=your_private_key_here
-CONTRACT_ADDRESS=0x8fb4fF2123E9a11fC027c494551794fc75e76980
-BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+STACKS_NETWORK=testnet
+STACKS_ORACLE_PRIVATE_KEY=your_oracle_private_key_hex
+STACKS_ORACLE_ADDRESS=ST...your_oracle_address
+POWR_REGISTRY_CONTRACT_ADDRESS=ST3VEJ5TMJK30S4PK5WXP9J1W86FCDH6DY3K3DBG5
+POWR_BADGES_CONTRACT_ADDRESS=ST3VEJ5TMJK30S4PK5WXP9J1W86FCDH6DY3K3DBG5
+STACKS_API_URL=https://api.testnet.hiro.so
 ```
 
-**Important**: 
+**Important**:
 - Never commit private keys to git
-- Use a dedicated wallet for the backend (not your main wallet)
-- Keep at least 0.01 ETH for gas fees
+- Use a dedicated oracle wallet, not a personal one
+- Keep enough testnet STX for gas (deploys cost ~0.6 STX each; anchor/mint calls are cheap)
+
+If `STACKS_ORACLE_PRIVATE_KEY` is unset, `blockchainService.anchorSnapshot()` and
+`mintBadge()` fall back to generating a mocked txId instead of failing — this
+keeps local demos working without live credentials.
+
+### 3. Deploying / redeploying the contracts
+
+Clarinet's own `deployments apply` command expects a BIP39 mnemonic in
+`settings/Testnet.toml`. Since the oracle key here is a raw private key (not
+derived from a mnemonic we hold), contracts are deployed directly with
+`@stacks/transactions` instead:
+
+```bash
+cd backend
+npx ts-node scripts/deploy-stacks-contracts.ts
+```
+
+This broadcasts `powr-badges` then `powr-registry` from the oracle address
+configured in `.env`, using sequential nonces fetched from the Stacks API.
 
 ### 4. How It Works
 
@@ -62,107 +85,81 @@ BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
    - Artifacts are analyzed
    - Skill scores are calculated
    - Artifact hash is generated (keccak256 of artifact set)
-   - Transaction is sent to blockchain
-
-2. **Automatic Anchoring**: 
-   - Happens automatically after profile generation
-   - Non-blocking (won't fail if blockchain is unavailable)
-   - Transaction hash is stored in database
-
-3. **Viewing Proofs**:
-   - Users can see all their on-chain proofs in the dashboard
-   - Each proof links to Basescan for verification
-   - Shows transaction hash, block number, and skill scores
+   - `anchor-snapshot` is called on `powr-registry` by the oracle
+2. **Automatic Anchoring**:
+   - Happens automatically after profile generation (scheduled + webhook-triggered updates)
+   - Non-blocking (won't fail profile generation if blockchain is unavailable)
+   - Transaction ID is stored in the database
+3. **Badges**: Skill badges are minted (soulbound, SIP-009) on `powr-badges` once a user
+   crosses a skill threshold, gated the same way.
+4. **Viewing Proofs**:
+   - Users see all their on-chain proofs in the dashboard
+   - Each proof links to the Hiro Explorer for verification
 
 ## Contract Functions
 
-### `anchorSnapshot(bytes32 artifactHash, uint256[] skillScores, address githubIdentity)`
-- Anchors a PoW snapshot on-chain
+### `anchor-snapshot(user principal, artifact-hash (buff 32), skill-scores (list 10 uint), github-identity (string-ascii 64))`
+- Anchors a PoW snapshot on-chain — oracle-only
 - Called automatically after profile generation
-- Requires gas (paid by backend wallet)
 
-### `getSnapshot(address user)`
-- Returns the latest snapshot for a user address
-- View function (no gas required)
+### `get-snapshot(user principal)`
+- Returns the latest snapshot for a principal — read-only, free
 
-### `verifySnapshot(bytes32 hash)`
-- Verifies if a hash has been anchored
-- View function (no gas required)
+### `verify-snapshot(artifact-hash (buff 32))`
+- Verifies if a hash has been anchored — read-only, free
+
+### `mint-badge(recipient principal, skill-type uint, tier uint)`
+- Mints a soulbound skill badge — oracle-only, idempotent
 
 ## Gas Costs
 
-- **Estimated Cost**: ~0.0001 - 0.001 ETH per snapshot
-- **Frequency**: Once per profile generation (or when user refreshes)
-- **Optimization**: Only anchors when profile is actually updated
+- **Per anchor/mint call**: a small fraction of a STX
+- **Frequency**: once per profile generation/refresh, and once per badge earned
+- **Optimization**: only anchors when the profile is actually updated
 
 ## Testing
 
 ### Test Blockchain Anchoring
 
-1. Ensure you have Base Sepolia ETH in your wallet
-2. Set `BLOCKCHAIN_PRIVATE_KEY` in `backend/.env`
+1. Ensure the oracle wallet has testnet STX
+2. Set `STACKS_ORACLE_PRIVATE_KEY` etc. in `backend/.env`
 3. Generate a profile (login → dashboard → refresh analysis)
-4. Check the dashboard for "On-Chain Proofs" section
-5. Click "View on BaseScan" to see the transaction
+4. Check the dashboard for "On-Chain Proofs"
+5. Click through to the Hiro Explorer to see the transaction
 
-### Verify on Basescan
+### Run the unit tests
 
-1. Go to https://sepolia.basescan.org
-2. Search for your transaction hash
-3. Verify the data matches your profile
-
-## Production Considerations
-
-1. **Wallet Security**:
-   - Use a hardware wallet or secure key management
-   - Rotate keys periodically
-   - Monitor wallet balance
-
-2. **Gas Optimization**:
-   - Consider batching multiple snapshots
-   - Use gas price oracles
-   - Implement retry logic for failed transactions
-
-3. **Error Handling**:
-   - Blockchain failures shouldn't break profile generation
-   - Log all blockchain operations
-   - Provide user feedback on anchoring status
-
-4. **Cost Management**:
-   - Monitor gas costs
-   - Set daily/weekly limits
-   - Consider L2 solutions for lower costs
+```bash
+cd backend
+npx vitest run tests/blockchain.test.ts
+```
 
 ## Troubleshooting
 
-### "Blockchain service not configured"
-- Check that `BLOCKCHAIN_PRIVATE_KEY` is set in `.env`
-- Restart the backend server
+### "Blockchain not configured" (503 on `/publish-proof`)
+- Set `STACKS_ORACLE_PRIVATE_KEY`, `STACKS_ORACLE_ADDRESS`, and
+  `POWR_REGISTRY_CONTRACT_ADDRESS` in `backend/.env`, then restart the backend
 
-### "Insufficient funds"
-- Add more Base Sepolia ETH to your wallet
-- Check balance: https://sepolia.basescan.org/address/YOUR_ADDRESS
-
-### "Transaction failed"
-- Check gas price (may be too low)
-- Verify contract address is correct
-- Check RPC URL is accessible
+### "Stacks broadcast failed: ..."
+- Check the oracle wallet's STX balance
+- Verify `POWR_REGISTRY_CONTRACT_ADDRESS` / `POWR_BADGES_CONTRACT_ADDRESS` match
+  a contract that's actually deployed on `STACKS_NETWORK`
+- Check `STACKS_API_URL` is reachable
 
 ### "No proofs showing"
-- Verify transaction was successful on Basescan
-- Check database for stored proofs
-- Ensure profile was generated after blockchain setup
+- Verify the transaction succeeded on the explorer
+- Check the database for stored proofs (`blockchain_proofs` table)
 
-## Next Steps
+## Production Considerations
 
-1. ✅ Contract deployed
-2. ✅ Blockchain service created
-3. ✅ Database integration
-4. ✅ Automatic anchoring on profile generation
-5. ✅ Frontend display of proofs
+1. **Wallet Security**: dedicated oracle key, rotated via `set-oracle` if compromised
+2. **Cost Management**: monitor oracle wallet STX balance; each anchor/mint is one tx
+3. **Error Handling**: blockchain failures never block profile generation — logged and retried on next update
 
-The system is ready to anchor PoW snapshots to the blockchain!
+## Status
 
-
-
-
+1. ✅ Contracts written (`powr-registry.clar`, `powr-badges.clar`) and unit-tested (33/33, Clarinet simnet)
+2. ✅ Contracts deployed to Stacks testnet
+3. ✅ Blockchain service anchors/mints/reads via `@stacks/transactions`
+4. ✅ Automatic anchoring on profile generation (scheduled + webhook paths)
+5. ✅ Frontend on-chain verification (`frontend/app/lib/web3.ts`, `@stacks/connect`)

@@ -697,7 +697,7 @@ router.post("/publish-proof", async (req, res) => {
     }
 
     // Check if Stacks oracle is configured
-    if (!blockchainService.isStacksConfigured()) {
+    if (!blockchainService.isConfigured()) {
       return res.status(503).json({
         error: "Blockchain not configured",
         message: "Blockchain publishing is currently unavailable"
@@ -750,7 +750,7 @@ router.post("/publish-proof", async (req, res) => {
     // Anchor to Stacks blockchain via oracle
     const { stacksPrincipal } = req.body;
     console.log(`[Publish] Publishing proof for ${username}...`);
-    const proof = await blockchainService.anchorSnapshotStacks(
+    const proof = await blockchainService.anchorSnapshot(
       artifacts,
       profile,
       username,

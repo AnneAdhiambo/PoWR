@@ -71,20 +71,18 @@ export class SchedulerService {
 
     await dbService.saveProfile(username, profile, artifacts.length);
 
-    if (blockchainService.isConfigured()) {
-      try {
-        const proof = await blockchainService.anchorSnapshot(artifacts, profile);
-        await dbService.saveBlockchainProof(
-          username,
-          proof.transactionHash,
-          proof.artifactHash,
-          proof.blockNumber,
-          proof.timestamp,
-          proof.skillScores
-        );
-      } catch (error) {
-        console.error(`Blockchain anchoring failed for ${username}:`, error);
-      }
+    try {
+      const proof = await blockchainService.anchorSnapshot(artifacts, profile, username);
+      await dbService.saveBlockchainProof(
+        username,
+        proof.txId,
+        proof.artifactHash,
+        0,
+        Math.floor(Date.now() / 1000),
+        proof.skillScores
+      );
+    } catch (error) {
+      console.error(`Blockchain anchoring failed for ${username}:`, error);
     }
 
     await dbService.markScheduledUpdateComplete(scheduleId);

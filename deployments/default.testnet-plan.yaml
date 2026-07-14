@@ -36,14 +36,14 @@ plan:
     transactions:
     - transaction-type: contract-publish
       contract-name: powr-badges
-      expected-sender: STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA
+      expected-sender: ST3VEJ5TMJK30S4PK5WXP9J1W86FCDH6DY3K3DBG5
       cost: 569125
       path: contracts/powr-badges.clar
       anchor-block-only: true
       clarity-version: 3
     - transaction-type: contract-publish
       contract-name: powr-registry
-      expected-sender: STVNGSFM9S5N3BZCPV220SE51TBGZEEDPZVW30EA
+      expected-sender: ST3VEJ5TMJK30S4PK5WXP9J1W86FCDH6DY3K3DBG5
       cost: 568197
       path: contracts/powr-registry.clar
       anchor-block-only: true
