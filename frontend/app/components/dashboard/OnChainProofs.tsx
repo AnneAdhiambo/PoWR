@@ -108,6 +108,9 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
   };
 
   const getExplorerUrl = (txHash: string) => getExplorerTxUrl(txHash);
+  // Mock-era proofs stored a fake 16-byte hash instead of a real Stacks txid;
+  // Hiro's explorer 400s on anything that isn't a real 32-byte (64 hex char) txid.
+  const isValidTxHash = (txHash?: string) => !!txHash && /^(0x)?[a-fA-F0-9]{64}$/.test(txHash);
   const getContractUrl = () => getExplorerContractUrl();
   const getBlockNum = (proof: Proof) => proof.stacksBlockHeight ?? proof.blockNumber ?? 0;
   const getBlockUrl = (blockNumber: number) => getExplorerBlockUrl(blockNumber);
@@ -296,17 +299,28 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                     >
                       <span>#{getBlockNum(latestProof)}</span>
                     </a>
-                    <a
-                      href={getExplorerUrl(latestProof.transactionHash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-gray-400 hover:text-[#FF6B2B] text-[10px] transition-colors"
-                      style={{ opacity: 0.6 }}
-                      title="View transaction on Hiro Explorer"
-                    >
-                      <Link className="w-3 h-3" weight="regular" />
-                      View TX
-                    </a>
+                    {isValidTxHash(latestProof.transactionHash) ? (
+                      <a
+                        href={getExplorerUrl(latestProof.transactionHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-gray-400 hover:text-[#FF6B2B] text-[10px] transition-colors"
+                        style={{ opacity: 0.6 }}
+                        title="View transaction on Hiro Explorer"
+                      >
+                        <Link className="w-3 h-3" weight="regular" />
+                        View TX
+                      </a>
+                    ) : (
+                      <span
+                        className="flex items-center gap-1 text-gray-600 text-[10px] cursor-not-allowed"
+                        style={{ opacity: 0.4 }}
+                        title="Legacy record — no valid on-chain transaction to view"
+                      >
+                        <Link className="w-3 h-3" weight="regular" />
+                        View TX
+                      </span>
+                    )}
                   </div>
                 </div>
                 {latestProof.skillScores && latestProof.skillScores.length > 0 && (
@@ -371,17 +385,28 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                           >
                             #{getBlockNum(proof)}
                           </a>
-                          <a
-                            href={getExplorerUrl(proof.transactionHash)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-gray-400 hover:text-[#FF5500] text-[10px] transition-colors"
-                            style={{ opacity: 0.6 }}
-                            title="View transaction on Hiro Explorer"
-                          >
-                            <Link className="w-3 h-3" weight="regular" />
-                            View
-                          </a>
+                          {isValidTxHash(proof.transactionHash) ? (
+                            <a
+                              href={getExplorerUrl(proof.transactionHash)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-gray-400 hover:text-[#FF5500] text-[10px] transition-colors"
+                              style={{ opacity: 0.6 }}
+                              title="View transaction on Hiro Explorer"
+                            >
+                              <Link className="w-3 h-3" weight="regular" />
+                              View
+                            </a>
+                          ) : (
+                            <span
+                              className="flex items-center gap-1 text-gray-600 text-[10px] cursor-not-allowed"
+                              style={{ opacity: 0.4 }}
+                              title="Legacy record — no valid on-chain transaction to view"
+                            >
+                              <Link className="w-3 h-3" weight="regular" />
+                              View
+                            </span>
+                          )}
                         </div>
                       </div>
                       {isExpanded && (

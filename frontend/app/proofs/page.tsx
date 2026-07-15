@@ -156,6 +156,9 @@ export default function ProofsPage() {
     };
 
     const getExplorerUrl = (txHash: string) => getExplorerTxUrl(txHash);
+    // Mock-era proofs stored a fake 16-byte hash instead of a real Stacks txid;
+    // Hiro's explorer 400s on anything that isn't a real 32-byte (64 hex char) txid.
+    const isValidTxHash = (txHash?: string) => !!txHash && /^(0x)?[a-fA-F0-9]{64}$/.test(txHash);
     const getContractUrl = () => getExplorerContractUrl();
     const getBlockUrl = (blockNumber: number) => getExplorerBlockUrl(blockNumber);
 
@@ -363,15 +366,25 @@ export default function ProofsPage() {
                                                     >
                                                         Block #{proof.stacksBlockHeight ?? proof.blockNumber ?? 0}
                                                     </a>
-                                                    <a
-                                                        href={getExplorerUrl(proof.transactionHash)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-1 text-xs text-[#FF6B2B] hover:text-[#FF7F45] transition-colors"
-                                                    >
-                                                        <Link className="w-3.5 h-3.5" weight="regular" />
-                                                        View TX
-                                                    </a>
+                                                    {isValidTxHash(proof.transactionHash) ? (
+                                                        <a
+                                                            href={getExplorerUrl(proof.transactionHash)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1 text-xs text-[#FF6B2B] hover:text-[#FF7F45] transition-colors"
+                                                        >
+                                                            <Link className="w-3.5 h-3.5" weight="regular" />
+                                                            View TX
+                                                        </a>
+                                                    ) : (
+                                                        <span
+                                                            className="flex items-center gap-1 text-xs text-gray-600 cursor-not-allowed"
+                                                            title="Legacy record — no valid on-chain transaction to view"
+                                                        >
+                                                            <Link className="w-3.5 h-3.5" weight="regular" />
+                                                            View TX
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
 

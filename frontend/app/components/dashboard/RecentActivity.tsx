@@ -57,6 +57,9 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ proofs, unpublis
   };
 
   const getExplorerUrl = (txHash: string) => getExplorerTxUrl(txHash);
+  // Mock-era proofs stored a fake 16-byte hash instead of a real Stacks txid;
+  // Hiro's explorer 400s on anything that isn't a real 32-byte (64 hex char) txid.
+  const isValidTxHash = (txHash?: string) => !!txHash && /^(0x)?[a-fA-F0-9]{64}$/.test(txHash);
   const getContractUrl = () => getExplorerContractUrl();
 
   // Show 1 proof if there's an unpublished analysis, otherwise show 2
@@ -144,21 +147,34 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ proofs, unpublis
                       On-Chain
                     </span>
                   </div>
-                  <a
-                    href={getExplorerUrl(proof.transactionHash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[#FF5500] transition-colors group"
-                    style={{ opacity: 0.7 }}
-                  >
-                    <Link className="w-3 h-3" weight="regular" />
-                    <span className="font-mono truncate max-w-[120px]">
-                      {proof.transactionHash.slice(0, 10)}...{proof.transactionHash.slice(-8)}
+                  {isValidTxHash(proof.transactionHash) ? (
+                    <a
+                      href={getExplorerUrl(proof.transactionHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[#FF5500] transition-colors group"
+                      style={{ opacity: 0.7 }}
+                    >
+                      <Link className="w-3 h-3" weight="regular" />
+                      <span className="font-mono truncate max-w-[120px]">
+                        {proof.transactionHash.slice(0, 10)}...{proof.transactionHash.slice(-8)}
+                      </span>
+                      <span className="text-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity">
+                        View
+                      </span>
+                    </a>
+                  ) : (
+                    <span
+                      className="flex items-center gap-1 text-[10px] text-gray-600 cursor-not-allowed"
+                      style={{ opacity: 0.5 }}
+                      title="Legacy record — no valid on-chain transaction to view"
+                    >
+                      <Link className="w-3 h-3" weight="regular" />
+                      <span className="font-mono truncate max-w-[120px]">
+                        {proof.transactionHash.slice(0, 10)}...{proof.transactionHash.slice(-8)}
+                      </span>
                     </span>
-                    <span className="text-[#FF5500] opacity-0 group-hover:opacity-100 transition-opacity">
-                      View
-                    </span>
-                  </a>
+                  )}
                 </div>
               </div>
             </div>
