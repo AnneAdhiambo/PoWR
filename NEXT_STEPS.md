@@ -99,6 +99,10 @@ Currently, data is calculated on-the-fly. For production:
 - Gas estimation
 - Error handling for failed transactions
 
+### Recruiting Ecosystem and Referral Reliability
+- [ ] Implement the multi-tenant company recruiting system described in `RECRUITING_ECOSYSTEM_SPEC.md`.
+- [ ] Add the consented developer-to-developer job referral graph, including verified outcomes, appeals, anti-abuse controls, and bounded referral-reliability adjustments. A job rejection alone must not lower a referrer's PoWR rating.
+
 ## 📋 Testing Checklist
 
 ### Frontend Testing

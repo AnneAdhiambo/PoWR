@@ -1,17 +1,9 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import { Pool } from "pg";
 import { Artifact } from "./artifactIngestion";
 import { PoWProfile } from "./scoringEngine";
 
 // Force IPv4 for WebSocket connections — WSL2 has unreachable IPv6 routes
 // which cause Node.js happy-eyeballs to time out before falling back to IPv4
-class IPv4WebSocket extends ws {
-  constructor(url: string, protocols?: string | string[], options?: ws.ClientOptions) {
-    super(url, protocols as string, { ...options, family: 4 } as ws.ClientOptions);
-  }
-}
-neonConfig.webSocketConstructor = IPv4WebSocket;
-
 export interface Badge {
   id: number;
   username: string;
@@ -33,6 +25,9 @@ export interface GithubBadge {
 // Initialize PostgreSQL connection pool via Neon serverless WebSocket driver
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes("sslmode=require")
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 // Prevent unhandled pool errors from crashing the process
@@ -257,6 +252,155 @@ async function initializeTables() {
       );
       CREATE INDEX IF NOT EXISTS idx_gigs_status ON gigs(status);
       CREATE INDEX IF NOT EXISTS idx_gigs_recruiter ON gigs(recruiter_id);
+
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version TEXT PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS organizations (
+        id SERIAL PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by_recruiter_id INTEGER UNIQUE REFERENCES recruiters(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT organizations_status_check CHECK (status IN ('pending', 'active', 'suspended', 'archived'))
+      );
+
+      CREATE TABLE IF NOT EXISTS organization_domains (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        hostname TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL DEFAULT 'powr_subdomain',
+        verified_at TIMESTAMP,
+        is_primary BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_primary_domain
+        ON organization_domains(organization_id) WHERE is_primary = true;
+
+      CREATE TABLE IF NOT EXISTS organization_members (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'recruiter',
+        status TEXT NOT NULL DEFAULT 'active',
+        invited_by INTEGER REFERENCES recruiters(id),
+        joined_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(organization_id, recruiter_id),
+        CONSTRAINT organization_members_role_check CHECK (role IN ('owner', 'admin', 'recruiter', 'hiring_manager', 'interviewer')),
+        CONSTRAINT organization_members_status_check CHECK (status IN ('invited', 'active', 'suspended', 'removed'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_organization_members_recruiter
+        ON organization_members(recruiter_id, status);
+
+      CREATE TABLE IF NOT EXISTS organization_invitations (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'recruiter',
+        token_hash TEXT NOT NULL UNIQUE,
+        invited_by INTEGER NOT NULL REFERENCES recruiters(id),
+        expires_at TIMESTAMP NOT NULL,
+        accepted_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT organization_invitations_role_check CHECK (role IN ('admin', 'recruiter', 'hiring_manager', 'interviewer'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_organization_invitations_email
+        ON organization_invitations(lower(email), accepted_at);
+
+      CREATE TABLE IF NOT EXISTS audit_events (
+        id BIGSERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        actor_recruiter_id INTEGER REFERENCES recruiters(id),
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_events_organization_created
+        ON audit_events(organization_id, created_at DESC);
+
+      ALTER TABLE jobs
+        ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+      ALTER TABLE gigs
+        ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+      ALTER TABLE saved_pools
+        ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+
+      CREATE INDEX IF NOT EXISTS idx_jobs_organization_status
+        ON jobs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_gigs_organization_status
+        ON gigs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_saved_pools_organization
+        ON saved_pools(organization_id);
+
+      INSERT INTO organizations (slug, display_name, created_by_recruiter_id)
+      SELECT
+        COALESCE(
+          NULLIF(
+            trim(BOTH '-' FROM lower(regexp_replace(company_name, '[^a-zA-Z0-9]+', '-', 'g'))),
+            ''
+          ),
+          'company'
+        ) || '-' || id::text,
+        company_name,
+        id
+      FROM recruiters
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM organizations existing
+        WHERE existing.created_by_recruiter_id = recruiters.id
+      );
+
+      INSERT INTO organization_domains (organization_id, hostname, is_primary, verified_at)
+      SELECT o.id, o.slug || '.powr.dev', true, NOW()
+      FROM organizations o
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM organization_domains d
+        WHERE d.organization_id = o.id AND d.is_primary = true
+      );
+
+      INSERT INTO organization_members (organization_id, recruiter_id, role, status)
+      SELECT o.id, o.created_by_recruiter_id, 'owner', 'active'
+      FROM organizations o
+      WHERE o.created_by_recruiter_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM organization_members m
+          WHERE m.organization_id = o.id AND m.recruiter_id = o.created_by_recruiter_id
+        );
+
+      UPDATE jobs j
+      SET organization_id = o.id
+      FROM organizations o
+      WHERE o.created_by_recruiter_id = j.recruiter_id
+        AND j.organization_id IS NULL;
+
+      UPDATE gigs g
+      SET organization_id = o.id
+      FROM organizations o
+      WHERE o.created_by_recruiter_id = g.recruiter_id
+        AND g.organization_id IS NULL;
+
+      UPDATE saved_pools p
+      SET organization_id = o.id
+      FROM organizations o
+      WHERE o.created_by_recruiter_id = p.recruiter_id
+        AND p.organization_id IS NULL;
+
+      INSERT INTO schema_migrations (version)
+      VALUES ('recruiting_organizations_v1')
+      ON CONFLICT (version) DO NOTHING;
     `);
     console.log("PostgreSQL tables initialized successfully");
   } catch (error) {
@@ -788,7 +932,13 @@ export class DatabaseService {
 
   async createSavedPool(recruiterId: number, name: string): Promise<any> {
     const result = await pool.query(
-      "INSERT INTO saved_pools (recruiter_id, name) VALUES ($1, $2) RETURNING *",
+      `INSERT INTO saved_pools (recruiter_id, organization_id, name)
+       SELECT $1, organization_id, $2
+       FROM organization_members
+       WHERE recruiter_id = $1 AND status = 'active'
+       ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+       LIMIT 1
+       RETURNING *`,
       [recruiterId, name]
     );
     return result.rows[0];
@@ -818,7 +968,12 @@ export class DatabaseService {
 
   async deleteSavedPool(poolId: number, recruiterId: number): Promise<void> {
     await pool.query(
-      "DELETE FROM saved_pools WHERE id = $1 AND recruiter_id = $2",
+      `DELETE FROM saved_pools
+       WHERE id = $1 AND recruiter_id = $2
+         AND organization_id IN (
+           SELECT organization_id FROM organization_members
+           WHERE recruiter_id = $2 AND status = 'active'
+         )`,
       [poolId, recruiterId]
     );
   }
@@ -945,8 +1100,12 @@ export class DatabaseService {
   // ── Jobs CRUD ──────────────────────────────────────────────────────────────
   async createJob(recruiterId: number, data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<any> {
     const result = await pool.query(`
-      INSERT INTO jobs (recruiter_id, title, company, location, salary, type, description, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags)
+      SELECT $1, organization_id, $2, $3, $4, $5, $6, $7, $8
+      FROM organization_members
+      WHERE recruiter_id = $1 AND status = 'active'
+      ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+      LIMIT 1
       RETURNING *
     `, [recruiterId, data.title, data.company, data.location, data.salary || null, data.type || 'full-time', data.description || null, data.tags || []]);
     return result.rows[0];
@@ -984,7 +1143,7 @@ export class DatabaseService {
     if (data.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(data.tags); }
     if (data.status !== undefined) { fields.push(`status = $${idx++}`); values.push(data.status); }
     fields.push('updated_at = NOW()');
-    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND recruiter_id = $2 RETURNING *`, values);
+    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND recruiter_id = $2 AND organization_id IN (SELECT organization_id FROM organization_members WHERE recruiter_id = $2 AND status = 'active') RETURNING *`, values);
     return result.rows[0] || null;
   }
 
@@ -995,8 +1154,12 @@ export class DatabaseService {
   // ── Gigs CRUD ──────────────────────────────────────────────────────────────
   async createGig(recruiterId: number, data: { title: string; client: string; location: string; rate?: string; duration?: string; description?: string; tags?: string[] }): Promise<any> {
     const result = await pool.query(`
-      INSERT INTO gigs (recruiter_id, title, client, location, rate, duration, description, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO gigs (recruiter_id, organization_id, title, client, location, rate, duration, description, tags)
+      SELECT $1, organization_id, $2, $3, $4, $5, $6, $7, $8
+      FROM organization_members
+      WHERE recruiter_id = $1 AND status = 'active'
+      ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+      LIMIT 1
       RETURNING *
     `, [recruiterId, data.title, data.client, data.location, data.rate || null, data.duration || null, data.description || null, data.tags || []]);
     return result.rows[0];
