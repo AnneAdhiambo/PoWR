@@ -1314,7 +1314,22 @@ export class DatabaseService {
   }
 
   async getOrganizationApplications(organizationId: number): Promise<any[]> {
-    const result = await pool.query(`SELECT a.*, j.title AS job_title, j.company FROM job_applications a JOIN jobs j ON j.id = a.job_id WHERE j.organization_id = $1 ORDER BY a.created_at DESC`, [organizationId]);
+    const result = await pool.query(
+      `SELECT
+         a.*,
+         j.title AS job_title,
+         j.company,
+         COALESCE((p.profile_data->>'overallIndex')::int, 0) AS powr_score,
+         COALESCE(p.profile_data->'skills', '[]'::jsonb) AS skills,
+         COALESCE(p.profile_data->>'summary', '') AS profile_summary,
+         COALESCE(p.profile_data->>'availability', '') AS availability
+       FROM job_applications a
+       JOIN jobs j ON j.id = a.job_id
+       LEFT JOIN profiles p ON p.username = a.developer_username
+       WHERE j.organization_id = $1
+       ORDER BY a.created_at DESC`,
+      [organizationId],
+    );
     return result.rows;
   }
 
