@@ -369,6 +369,13 @@ async function initializeTables() {
 
       ALTER TABLE jobs
         ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+      ALTER TABLE jobs
+        ADD COLUMN IF NOT EXISTS public_slug TEXT,
+        ADD COLUMN IF NOT EXISTS department TEXT,
+        ADD COLUMN IF NOT EXISTS remote_policy TEXT,
+        ADD COLUMN IF NOT EXISTS seniority TEXT,
+        ADD COLUMN IF NOT EXISTS closing_date DATE,
+        ADD COLUMN IF NOT EXISTS screening_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
       ALTER TABLE gigs
         ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
       ALTER TABLE saved_pools
@@ -376,6 +383,11 @@ async function initializeTables() {
 
       CREATE INDEX IF NOT EXISTS idx_jobs_organization_status
         ON jobs(organization_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_organization_public_slug
+        ON jobs(organization_id, public_slug) WHERE public_slug IS NOT NULL;
+      UPDATE jobs
+        SET public_slug = trim(BOTH '-' FROM lower(regexp_replace(title, '[^a-zA-Z0-9]+', '-', 'g'))) || '-' || id::text
+        WHERE public_slug IS NULL;
       CREATE INDEX IF NOT EXISTS idx_gigs_organization_status
         ON gigs(organization_id, status);
       CREATE INDEX IF NOT EXISTS idx_saved_pools_organization
@@ -1308,24 +1320,28 @@ export class DatabaseService {
   }
 
   // ── Jobs CRUD ──────────────────────────────────────────────────────────────
-  async createJob(recruiterId: number, data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<any> {
+  async createJob(recruiterId: number, data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[]; department?: string; remote_policy?: string; seniority?: string; closing_date?: string; screening_questions?: string[]; status?: string }): Promise<any> {
     const result = await pool.query(`
-      INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags)
-      SELECT $1, organization_id, $2, $3, $4, $5, $6, $7, $8
+      INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags, department, remote_policy, seniority, closing_date, screening_questions, status)
+      SELECT $1, organization_id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::jsonb, $14
       FROM organization_members
       WHERE recruiter_id = $1 AND status = 'active'
       ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
       LIMIT 1
       RETURNING *
-    `, [recruiterId, data.title, data.company, data.location, data.salary || null, data.type || 'full-time', data.description || null, data.tags || []]);
-    return result.rows[0];
+    `, [recruiterId, data.title, data.company, data.location, data.salary || null, data.type || 'full-time', data.description || null, data.tags || [], data.department || null, data.remote_policy || null, data.seniority || null, data.closing_date || null, JSON.stringify(data.screening_questions || []), data.status || 'draft']);
+    const job = result.rows[0];
+    if (!job) return null;
+    const slugBase = data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";
+    const slugResult = await pool.query("UPDATE jobs SET public_slug = $2 WHERE id = $1 RETURNING *", [job.id, `${slugBase}-${job.id}`]);
+    return slugResult.rows[0];
   }
 
   async getJobs(params?: { status?: string; limit?: number; offset?: number }): Promise<{ jobs: any[]; total: number }> {
     const { status = 'active', limit = 20, offset = 0 } = params || {};
     const [dataResult, countResult] = await Promise.all([
-      pool.query('SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.status = $1 ORDER BY j.created_at DESC LIMIT $2 OFFSET $3', [status, limit, offset]),
-      pool.query('SELECT COUNT(*) FROM jobs WHERE status = $1', [status]),
+      pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.status = $1 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) ORDER BY j.created_at DESC LIMIT $2 OFFSET $3", [status, limit, offset]),
+      pool.query("SELECT COUNT(*) FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.status = $1 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [status]),
     ]);
     return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
   }
@@ -1333,29 +1349,29 @@ export class DatabaseService {
   async getOrganizationJobs(organizationId: number, params?: { status?: string; limit?: number; offset?: number }): Promise<{ jobs: any[]; total: number }> {
     const { status = "active", limit = 20, offset = 0 } = params || {};
     const [dataResult, countResult] = await Promise.all([
-      pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.organization_id = $1 AND j.status = $2 ORDER BY j.created_at DESC LIMIT $3 OFFSET $4", [organizationId, status, limit, offset]),
-      pool.query("SELECT COUNT(*) FROM jobs WHERE organization_id = $1 AND status = $2", [organizationId, status]),
+      pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND j.status = $2 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) ORDER BY j.created_at DESC LIMIT $3 OFFSET $4", [organizationId, status, limit, offset]),
+      pool.query("SELECT COUNT(*) FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND j.status = $2 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [organizationId, status]),
     ]);
     return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
   }
 
   async getJobsByRecruiter(recruiterId: number): Promise<any[]> {
-    const result = await pool.query('SELECT * FROM jobs WHERE recruiter_id = $1 ORDER BY created_at DESC', [recruiterId]);
+    const result = await pool.query("SELECT j.* FROM jobs j JOIN organization_members m ON m.organization_id = j.organization_id WHERE m.recruiter_id = $1 AND m.status = 'active' ORDER BY j.created_at DESC", [recruiterId]);
     return result.rows;
   }
 
-  async getJobById(id: number): Promise<any | null> {
-    const result = await pool.query('SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.id = $1', [id]);
+  async getJobByIdentifier(identifier: string): Promise<any | null> {
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE (j.id::text = $1 OR j.public_slug = $1) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [identifier]);
     return result.rows[0] || null;
   }
 
-  async getOrganizationJobById(organizationId: number, id: number): Promise<any | null> {
-    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.organization_id = $1 AND j.id = $2 AND j.status = 'active'", [organizationId, id]);
+  async getOrganizationJobByIdentifier(organizationId: number, identifier: string): Promise<any | null> {
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND (j.id::text = $2 OR j.public_slug = $2) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [organizationId, identifier]);
     return result.rows[0] || null;
   }
 
   async createJobApplication(jobId: number, username: string, email: string, coverNote: string | undefined, consentGiven: boolean): Promise<any> {
-    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given) VALUES ($1, $2, $3, $4, $5) RETURNING *`, [jobId, username, email, coverNote || null, consentGiven]);
+    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given) SELECT j.id, $2, $3, $4, $5 FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.id = $1 AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) RETURNING *`, [jobId, username, email, coverNote || null, consentGiven]);
     return result.rows[0];
   }
 
@@ -1450,7 +1466,7 @@ export class DatabaseService {
     return result.rows;
   }
 
-  async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<any> {
+  async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<any> {
     const fields: string[] = [];
     const values: any[] = [id, recruiterId];
     let idx = 3;
@@ -1461,10 +1477,30 @@ export class DatabaseService {
     if (data.type !== undefined) { fields.push(`type = $${idx++}`); values.push(data.type); }
     if (data.description !== undefined) { fields.push(`description = $${idx++}`); values.push(data.description); }
     if (data.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(data.tags); }
+    if (data.department !== undefined) { fields.push(`department = $${idx++}`); values.push(data.department || null); }
+    if (data.remote_policy !== undefined) { fields.push(`remote_policy = $${idx++}`); values.push(data.remote_policy || null); }
+    if (data.seniority !== undefined) { fields.push(`seniority = $${idx++}`); values.push(data.seniority || null); }
+    if (data.closing_date !== undefined) { fields.push(`closing_date = $${idx++}::date`); values.push(data.closing_date || null); }
+    if (data.screening_questions !== undefined) { fields.push(`screening_questions = $${idx++}::jsonb`); values.push(JSON.stringify(data.screening_questions)); }
     if (data.status !== undefined) { fields.push(`status = $${idx++}`); values.push(data.status); }
     fields.push('updated_at = NOW()');
-    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND recruiter_id = $2 AND organization_id IN (SELECT organization_id FROM organization_members WHERE recruiter_id = $2 AND status = 'active') RETURNING *`, values);
+    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND organization_id IN (SELECT organization_id FROM organization_members WHERE recruiter_id = $2 AND status = 'active') RETURNING *`, values);
     return result.rows[0] || null;
+  }
+
+  async duplicateJob(id: number, recruiterId: number): Promise<any | null> {
+    const result = await pool.query(`
+      INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags, status, department, remote_policy, seniority, closing_date, screening_questions)
+      SELECT $2, j.organization_id, j.title || ' (Copy)', j.company, j.location, j.salary, j.type, j.description, j.tags, 'draft', j.department, j.remote_policy, j.seniority, j.closing_date, j.screening_questions
+      FROM jobs j
+      WHERE j.id = $1 AND j.organization_id IN (SELECT organization_id FROM organization_members WHERE recruiter_id = $2 AND status = 'active')
+      RETURNING *
+    `, [id, recruiterId]);
+    const job = result.rows[0];
+    if (!job) return null;
+    const slugBase = job.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";
+    const slugResult = await pool.query("UPDATE jobs SET public_slug = $2 WHERE id = $1 RETURNING *", [job.id, `${slugBase}-${job.id}`]);
+    return slugResult.rows[0];
   }
 
   async deleteJob(id: number, recruiterId: number): Promise<void> {

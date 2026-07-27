@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, Plus, Pencil, Trash, X } from "phosphor-react";
+import { Briefcase, Plus, Pencil, Trash, X, Copy, ArrowSquareOut } from "phosphor-react";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 import toast from "react-hot-toast";
 
@@ -15,6 +15,12 @@ interface Job {
   description?: string;
   tags?: string[];
   status?: string;
+  public_slug?: string;
+  department?: string;
+  remote_policy?: string;
+  seniority?: string;
+  closing_date?: string;
+  screening_questions?: string[];
 }
 
 interface JobForm {
@@ -25,6 +31,11 @@ interface JobForm {
   type: string;
   description: string;
   tagsInput: string;
+  department: string;
+  remotePolicy: string;
+  seniority: string;
+  closingDate: string;
+  questionsInput: string;
 }
 
 const emptyForm: JobForm = {
@@ -35,6 +46,11 @@ const emptyForm: JobForm = {
   type: "full-time",
   description: "",
   tagsInput: "",
+  department: "",
+  remotePolicy: "hybrid",
+  seniority: "",
+  closingDate: "",
+  questionsInput: "",
 };
 
 export default function RecruiterJobsPage() {
@@ -82,6 +98,11 @@ export default function RecruiterJobsPage() {
       type: job.type || "full-time",
       description: job.description || "",
       tagsInput: (job.tags || []).join(", "),
+      department: job.department || "",
+      remotePolicy: job.remote_policy || "hybrid",
+      seniority: job.seniority || "",
+      closingDate: job.closing_date?.slice(0, 10) || "",
+      questionsInput: (job.screening_questions || []).join("\n"),
     });
     setShowForm(true);
   };
@@ -104,6 +125,11 @@ export default function RecruiterJobsPage() {
             .map((t) => t.trim())
             .filter(Boolean)
         : [],
+      department: form.department || undefined,
+      remote_policy: form.remotePolicy || undefined,
+      seniority: form.seniority || undefined,
+      closing_date: form.closingDate || undefined,
+      screening_questions: form.questionsInput.split("\n").map((question) => question.trim()).filter(Boolean),
     };
     try {
       setSaving(true);
@@ -143,6 +169,14 @@ export default function RecruiterJobsPage() {
       setJobs((prev) => prev.map((item) => String(item.id) === String(job.id) ? updated : item));
       toast.success(status === "active" ? "Job published" : `Job ${status}`);
     } catch { toast.error("Failed to update job status"); }
+  };
+
+  const duplicateJob = async (job: Job) => {
+    try {
+      const { job: duplicate } = await recruiterApiClient.duplicateJob(String(job.id));
+      setJobs((previous) => [duplicate, ...previous]);
+      toast.success("Draft copy created");
+    } catch { toast.error("Failed to duplicate job"); }
   };
 
   return (
@@ -215,6 +249,28 @@ export default function RecruiterJobsPage() {
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Department</label>
+                  <input value={form.department} onChange={(e) => setForm((form) => ({ ...form, department: e.target.value }))} placeholder="Engineering" className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm focus:outline-none focus:border-[#FF5500]" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Seniority</label>
+                  <input value={form.seniority} onChange={(e) => setForm((form) => ({ ...form, seniority: e.target.value }))} placeholder="Senior" className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm focus:outline-none focus:border-[#FF5500]" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Remote policy</label>
+                  <select value={form.remotePolicy} onChange={(e) => setForm((form) => ({ ...form, remotePolicy: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-[#191a1f] border border-[rgba(255,255,255,0.06)] text-white text-sm focus:outline-none focus:border-[#FF5500]">
+                    <option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Closing date</label>
+                  <input type="date" value={form.closingDate} onChange={(e) => setForm((form) => ({ ...form, closingDate: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm focus:outline-none focus:border-[#FF5500]" />
+                </div>
+              </div>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">Type</label>
                 <select
@@ -247,6 +303,10 @@ export default function RecruiterJobsPage() {
                   placeholder="e.g. React, Node.js, TypeScript"
                   className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF5500]"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Screening questions (one per line)</label>
+                <textarea value={form.questionsInput} onChange={(e) => setForm((form) => ({ ...form, questionsInput: e.target.value }))} rows={3} placeholder="How many years have you used TypeScript?" className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF5500] resize-none" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -307,6 +367,7 @@ export default function RecruiterJobsPage() {
                     {job.company} · {job.location}
                     {job.salary ? ` · ${job.salary}` : ""}
                   </p>
+                  {(job.department || job.seniority || job.remote_policy) && <p className="text-[11px] text-gray-500 mb-2">{[job.department, job.seniority, job.remote_policy].filter(Boolean).join(" · ")}</p>}
                   {job.description && (
                     <p className="text-xs text-gray-500 line-clamp-2 mb-2">
                       {job.description}
@@ -328,6 +389,10 @@ export default function RecruiterJobsPage() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="text-[10px] px-2 py-1 rounded-full bg-white/10 text-gray-300 capitalize">{job.status || "active"}</span>
                   {job.status === "active" ? <button onClick={() => setJobStatus(job, "paused")} className="text-xs text-gray-400 hover:text-white">Pause</button> : job.status !== "archived" ? <button onClick={() => setJobStatus(job, "active")} className="text-xs text-[#FF8a55] hover:text-white">Publish</button> : null}
+                  {job.status !== "closed" && job.status !== "archived" && <button onClick={() => setJobStatus(job, "closed")} className="text-xs text-gray-400 hover:text-white">Close</button>}
+                  {job.status !== "archived" && <button onClick={() => setJobStatus(job, "archived")} className="text-xs text-gray-400 hover:text-white">Archive</button>}
+                  {job.public_slug && <a href={`/jobs/${job.public_slug}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Preview"><ArrowSquareOut className="w-4 h-4" /></a>}
+                  <button onClick={() => duplicateJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Duplicate"><Copy className="w-4 h-4" /></button>
                   <button
                     onClick={() => openEdit(job)}
                     className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-white transition-colors"

@@ -39,7 +39,7 @@ router.get("/jobs/:id", async (req, res) => {
     const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
     const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
     const organization = await dbService.getOrganizationByHostname(hostname);
-    const job = organization ? await dbService.getOrganizationJobById(organization.id, Number(req.params.id)) : await dbService.getJobById(Number(req.params.id));
+    const job = organization ? await dbService.getOrganizationJobByIdentifier(organization.id, req.params.id) : await dbService.getJobByIdentifier(req.params.id);
     if (!job) return res.status(404).json({ error: "Not found" });
     res.json({ job });
   } catch (err: any) {
@@ -52,6 +52,7 @@ router.post("/jobs/:id/applications", async (req, res) => {
     const { developer_username, applicant_email, cover_note, consent_given } = req.body;
     if (!developer_username || !applicant_email || consent_given !== true) return res.status(400).json({ error: "Applicant identity, email, and consent are required" });
     const application = await dbService.createJobApplication(Number(req.params.id), developer_username, applicant_email, cover_note, consent_given);
+    if (!application) return res.status(404).json({ error: "Job is not accepting applications" });
     res.status(201).json({ application });
   } catch (err: any) {
     res.status(err.code === "23505" ? 409 : 500).json({ error: err.code === "23505" ? "You already applied to this job" : err.message });
@@ -62,11 +63,12 @@ router.post("/jobs/:id/applications", async (req, res) => {
 router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
-    const { title, company, location, salary, type, description, tags } = req.body;
+    const { title, company, location, salary, type, description, tags, department, remote_policy, seniority, closing_date, screening_questions, status } = req.body;
     if (!title || !company || !location) {
       return res.status(400).json({ error: "title, company, and location are required" });
     }
-    const job = await dbService.createJob(recruiterId, { title, company, location, salary, type, description, tags });
+    if (status !== undefined && !["draft", "active"].includes(status)) return res.status(400).json({ error: "New jobs must be drafts or published" });
+    const job = await dbService.createJob(recruiterId, { title, company, location, salary, type, description, tags, department, remote_policy, seniority, closing_date, screening_questions, status });
     const organization = (req as any).organization as { organizationId: number };
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.created", "job", String(job.id), { title });
     res.status(201).json({ job });
@@ -79,13 +81,26 @@ router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, re
 router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
-    const allowedStatuses = ["draft", "active", "paused", "archived"];
+    const allowedStatuses = ["draft", "active", "paused", "closed", "archived"];
     if (req.body.status !== undefined && !allowedStatuses.includes(req.body.status)) return res.status(400).json({ error: "Invalid job status" });
     const job = await dbService.updateJob(Number(req.params.id), recruiterId, req.body);
     if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
     const organization = (req as any).organization as { organizationId: number };
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.updated", "job", String(job.id), { fields: Object.keys(req.body) });
     res.json({ job });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/jobs/:id/duplicate", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const job = await dbService.duplicateJob(Number(req.params.id), recruiterId);
+    if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.duplicated", "job", String(job.id), { sourceJobId: Number(req.params.id) });
+    res.status(201).json({ job });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

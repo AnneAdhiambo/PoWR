@@ -73,6 +73,12 @@ export interface Job {
   description?: string;
   tags?: string[];
   status?: string;
+  public_slug?: string;
+  department?: string;
+  remote_policy?: string;
+  seniority?: string;
+  closing_date?: string;
+  screening_questions?: string[];
   created_at?: string;
   updated_at?: string;
 }

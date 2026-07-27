@@ -224,7 +224,7 @@ class RecruiterApiClient {
 
 
   // Jobs CRUD
-  async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<{ job: any }> {
+  async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[]; department?: string; remote_policy?: string; seniority?: string; closing_date?: string; screening_questions?: string[]; status?: string }): Promise<{ job: any }> {
     return this.request("/api/jobs", { method: "POST", body: JSON.stringify(data) });
   }
 
@@ -232,12 +232,16 @@ class RecruiterApiClient {
     return this.request("/api/jobs/my");
   }
 
-  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<{ job: any }> {
+  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<{ job: any }> {
     return this.request(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(data) });
   }
 
   async deleteJob(id: string): Promise<void> {
     await this.request(`/api/jobs/${id}`, { method: "DELETE" });
+  }
+
+  async duplicateJob(id: string): Promise<{ job: any }> {
+    return this.request(`/api/jobs/${id}/duplicate`, { method: "POST" });
   }
 
   // Gigs CRUD
