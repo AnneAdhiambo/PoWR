@@ -51,3 +51,13 @@ export async function requireOrganizationMember(req: Request, res: Response, nex
     res.status(500).json({ error: "Unable to resolve organization context" });
   }
 }
+
+export function requireOrganizationRole(...roles: OrganizationContext["role"][]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const organization = (req as any).organization as OrganizationContext | undefined;
+    if (!organization || !roles.includes(organization.role)) {
+      return res.status(403).json({ error: "Insufficient organization permissions" });
+    }
+    next();
+  };
+}

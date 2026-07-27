@@ -1,13 +1,47 @@
 import express from "express";
 import { recruiterService } from "../services/recruiterService";
 import { dbService } from "../services/database";
-import { requireRecruiter, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import { requireRecruiter, requireOrganizationMember, requireOrganizationRole, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import crypto from "crypto";
 import { paymentService } from "../services/paymentService";
 
 // Recruiter plan pricing (USD/month)
 const RECRUITER_PLAN_PRICES: Record<string, number> = { pro: 49, enterprise: 299 };
 
 const router = express.Router();
+
+router.get("/team/members", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ members: await dbService.getOrganizationMembers(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.post("/team/invitations", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const { email, role = "recruiter" } = req.body;
+    if (!email || !["admin", "recruiter", "hiring_manager", "interviewer"].includes(role)) return res.status(400).json({ error: "Valid email and role are required" });
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const invitation = await dbService.createOrganizationInvitation(organization.organizationId, recruiterId, email, role, tokenHash, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "team.invitation_created", "organization_invitation", String(invitation.id), { email, role });
+    res.status(201).json({ invitation, token: rawToken });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.post("/team/invitations/accept", requireRecruiter, async (req, res) => {
+  try {
+    const { recruiterId, email } = (req as any).recruiter as RecruiterJwtPayload;
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Invitation token is required" });
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const invitation = await dbService.acceptOrganizationInvitation(tokenHash, recruiterId, email);
+    if (!invitation) return res.status(400).json({ error: "Invalid, expired, or mismatched invitation" });
+    res.json({ accepted: true, organizationId: invitation.organization_id, role: invitation.role });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
 
 
 // POST /api/recruiter/auth/signup

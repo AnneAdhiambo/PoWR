@@ -913,6 +913,50 @@ export class DatabaseService {
     );
   }
 
+  async createOrganizationInvitation(organizationId: number, invitedBy: number, email: string, role: string, tokenHash: string, expiresAt: Date): Promise<any> {
+    const result = await pool.query(
+      `INSERT INTO organization_invitations (organization_id, email, role, token_hash, invited_by, expires_at)
+       VALUES ($1, lower($2), $3, $4, $5, $6) RETURNING id, organization_id, email, role, expires_at, created_at`,
+      [organizationId, email, role, tokenHash, invitedBy, expiresAt],
+    );
+    return result.rows[0];
+  }
+
+  async getOrganizationMembers(organizationId: number): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT m.id, m.recruiter_id, r.email, r.company_name, m.role, m.status, m.joined_at
+       FROM organization_members m JOIN recruiters r ON r.id = m.recruiter_id
+       WHERE m.organization_id = $1 ORDER BY m.joined_at ASC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  async acceptOrganizationInvitation(tokenHash: string, recruiterId: number, email: string): Promise<any | null> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const invitation = await client.query(
+        `SELECT * FROM organization_invitations
+         WHERE token_hash = $1 AND lower(email) = lower($2) AND accepted_at IS NULL AND expires_at > NOW()
+         FOR UPDATE`,
+        [tokenHash, email],
+      );
+      if (!invitation.rowCount) { await client.query("ROLLBACK"); return null; }
+      const row = invitation.rows[0];
+      await client.query(
+        `INSERT INTO organization_members (organization_id, recruiter_id, role, status, invited_by)
+         VALUES ($1, $2, $3, 'active', $4)
+         ON CONFLICT (organization_id, recruiter_id) DO UPDATE SET role = EXCLUDED.role, status = 'active'`,
+        [row.organization_id, recruiterId, row.role, row.invited_by],
+      );
+      await client.query("UPDATE organization_invitations SET accepted_at = NOW() WHERE id = $1", [row.id]);
+      await client.query("COMMIT");
+      return row;
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  }
+
   async createRecruiter(email: string, passwordHash: string, companyName: string, companySize?: string): Promise<any> {
     const result = await pool.query(`
       INSERT INTO recruiters (email, password_hash, company_name, company_size)
