@@ -192,6 +192,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const isTenantHost = typeof window !== "undefined" && (window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev"));
 
   useEffect(() => {
     const storedUsername = localStorage.getItem("github_username");
@@ -219,11 +220,11 @@ export default function JobDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        <Sidebar 
+        {!isTenantHost && <Sidebar 
           username={username} 
           email={userEmail || undefined}
           displayName={displayName}
-        />
+        />}
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
         </div>
@@ -234,12 +235,12 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        <Sidebar 
+        {!isTenantHost && <Sidebar 
           username={username} 
           email={userEmail || undefined}
           displayName={displayName}
-        />
-        <div className="flex-1 overflow-y-auto flex items-center justify-center ml-60">
+        />}
+        <div className={`flex-1 overflow-y-auto flex items-center justify-center ${isTenantHost ? "" : "ml-60"}`}>
           <div className="text-center">
             <XCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" weight="regular" />
             <p className="text-gray-400 mb-2">Job not found</p>
@@ -254,13 +255,13 @@ export default function JobDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex">
-      <Sidebar 
+      {!isTenantHost && <Sidebar 
         username={username} 
         email={userEmail || undefined}
         displayName={displayName}
-      />
+      />}
 
-      <div className="flex-1 overflow-y-auto ml-60">
+      <div className={`flex-1 overflow-y-auto ${isTenantHost ? "" : "ml-60"}`}>
         <div className="max-w-[1200px] mx-auto px-6 py-4">
           {/* Back Button */}
           <button
