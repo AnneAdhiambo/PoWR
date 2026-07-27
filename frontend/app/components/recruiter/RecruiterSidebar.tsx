@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   MagnifyingGlass, Users, Briefcase, Wrench, Bookmark,
-  ChatCircle, ChartBar, Gear, SignOut, Buildings, CaretUp,
+  ChatCircle, ChartBar, Gear, SignOut, Buildings, CaretUp, UserCircle,
   CreditCard, List, X
 } from "phosphor-react";
 import toast from "react-hot-toast";
@@ -44,6 +44,7 @@ export const RecruiterSidebar: React.FC = () => {
     { icon: ChartBar, label: "Analytics", href: "/recruiter/analytics" },
     { icon: CreditCard, label: "Billing", href: "/recruiter/billing" },
     { icon: Gear, label: "Account", href: "/recruiter/account" },
+    { icon: UserCircle, label: "Team", href: "/recruiter/team" },
   ];
 
   return (

@@ -58,6 +58,17 @@ class RecruiterApiClient {
     return this.request<{ recruiter: any }>("/api/recruiter/me");
   }
 
+  async getTeamMembers() {
+    return this.request<{ members: any[] }>("/api/recruiter/team/members");
+  }
+
+  async inviteTeamMember(email: string, role: string) {
+    return this.request<{ invitation: any; token: string }>("/api/recruiter/team/invitations", {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    });
+  }
+
   async searchDevelopers(params: {
     skills?: string[];
     minScore?: number;
