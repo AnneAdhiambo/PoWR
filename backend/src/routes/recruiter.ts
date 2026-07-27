@@ -88,8 +88,14 @@ router.post("/applications/:applicationId/convert-to-employee", requireRecruiter
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const organization = (req as any).organization as { organizationId: number };
-    const employee = await dbService.createEmployeeFromApplication(organization.organizationId, Number(req.params.applicationId), recruiterId, req.body.start_date);
-    if (!employee) return res.status(400).json({ error: "Only hired applications can become employee records" });
+    const employee = await dbService.createEmployeeFromApplication(organization.organizationId, Number(req.params.applicationId), recruiterId, {
+      startDate: req.body.start_date,
+      employmentType: req.body.employment_type,
+      department: req.body.department,
+      managerName: req.body.manager_name,
+      onboardingNotes: req.body.onboarding_notes,
+    });
+    if (!employee) return res.status(409).json({ error: "Application is not hired or already has an employee record" });
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "employee.created_from_application", "employee", String(employee.id), { applicationId: Number(req.params.applicationId) });
     res.status(201).json({ employee });
   } catch (error: any) { res.status(500).json({ error: error.message }); }
@@ -99,6 +105,26 @@ router.get("/employees", requireRecruiter, requireOrganizationMember, async (req
   try {
     const organization = (req as any).organization as { organizationId: number };
     res.json({ employees: await dbService.getOrganizationEmployees(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.patch("/employees/:employeeId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const allowedStatuses = ["onboarding", "ready", "active", "paused", "offboarded"];
+    if (req.body.employment_status && !allowedStatuses.includes(req.body.employment_status)) return res.status(400).json({ error: "Invalid employment status" });
+    const employee = await dbService.updateOrganizationEmployee(organization.organizationId, Number(req.params.employeeId), {
+      employmentStatus: req.body.employment_status,
+      startDate: req.body.start_date,
+      employmentType: req.body.employment_type,
+      department: req.body.department,
+      managerName: req.body.manager_name,
+      onboardingNotes: req.body.onboarding_notes,
+    });
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "employee.onboarding_updated", "employee", req.params.employeeId, { fields: Object.keys(req.body) });
+    res.json({ employee });
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 

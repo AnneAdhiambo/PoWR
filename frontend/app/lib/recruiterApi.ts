@@ -128,15 +128,19 @@ class RecruiterApiClient {
     });
   }
 
-  async convertApplicationToEmployee(applicationId: number, startDate?: string) {
+  async convertApplicationToEmployee(applicationId: number, data: { start_date?: string; employment_type?: string; department?: string; manager_name?: string; onboarding_notes?: string }) {
     return this.request<{ employee: any }>(`/api/recruiter/applications/${applicationId}/convert-to-employee`, {
       method: "POST",
-      body: JSON.stringify({ start_date: startDate || null }),
+      body: JSON.stringify(data),
     });
   }
 
   async getEmployees() {
     return this.request<{ employees: any[] }>("/api/recruiter/employees");
+  }
+
+  async updateEmployee(employeeId: number, data: { employment_status?: string; start_date?: string; employment_type?: string; department?: string; manager_name?: string; onboarding_notes?: string }) {
+    return this.request<{ employee: any }>(`/api/recruiter/employees/${employeeId}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 
   async searchDevelopers(params: {

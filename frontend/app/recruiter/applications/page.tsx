@@ -99,8 +99,12 @@ export default function RecruiterApplicationsPage() {
 
   async function createEmployee(applicationId: number) {
     const startDate = window.prompt("Optional start date (YYYY-MM-DD)") || undefined;
+    const employmentType = window.prompt("Employment type (full-time, part-time, contract)") || undefined;
+    const department = window.prompt("Department") || undefined;
+    const managerName = window.prompt("Hiring manager") || undefined;
+    const onboardingNotes = window.prompt("Onboarding handoff notes") || undefined;
     try {
-      await recruiterApiClient.convertApplicationToEmployee(applicationId, startDate);
+      await recruiterApiClient.convertApplicationToEmployee(applicationId, { start_date: startDate, employment_type: employmentType, department, manager_name: managerName, onboarding_notes: onboardingNotes });
       toast.success("Employee record created");
       router.push("/recruiter/employees");
     } catch (error: any) {

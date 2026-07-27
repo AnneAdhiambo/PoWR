@@ -303,6 +303,11 @@ async function initializeTables() {
         updated_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_employees_organization_status ON employees(organization_id, employment_status);
+      ALTER TABLE employees
+        ADD COLUMN IF NOT EXISTS employment_type TEXT,
+        ADD COLUMN IF NOT EXISTS department TEXT,
+        ADD COLUMN IF NOT EXISTS manager_name TEXT,
+        ADD COLUMN IF NOT EXISTS onboarding_notes TEXT;
 
       CREATE TABLE IF NOT EXISTS gigs (
         id SERIAL PRIMARY KEY,
@@ -1482,7 +1487,7 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
-  async createEmployeeFromApplication(organizationId: number, applicationId: number, recruiterId: number, startDate?: string): Promise<any | null> {
+  async createEmployeeFromApplication(organizationId: number, applicationId: number, recruiterId: number, data: { startDate?: string; employmentType?: string; department?: string; managerName?: string; onboardingNotes?: string }): Promise<any | null> {
     const result = await pool.query(
       `INSERT INTO employees (
          organization_id,
@@ -1491,6 +1496,10 @@ export class DatabaseService {
          work_email,
          job_title,
          start_date,
+         employment_type,
+         department,
+         manager_name,
+         onboarding_notes,
          created_by_recruiter_id
        )
        SELECT
@@ -1500,14 +1509,17 @@ export class DatabaseService {
          a.applicant_email,
          j.title,
          $4::date,
+         $5,
+         $6,
+         $7,
+         $8,
          $3
        FROM job_applications a
        JOIN jobs j ON j.id = a.job_id
        WHERE a.id = $1 AND j.organization_id = $2 AND a.stage = 'hired'
-       ON CONFLICT (source_application_id) DO UPDATE
-       SET start_date = COALESCE(EXCLUDED.start_date, employees.start_date), updated_at = NOW()
+       ON CONFLICT (source_application_id) DO NOTHING
        RETURNING *`,
-      [applicationId, organizationId, recruiterId, startDate || null],
+      [applicationId, organizationId, recruiterId, data.startDate || null, data.employmentType || null, data.department || null, data.managerName || null, data.onboardingNotes || null],
     );
     return result.rows[0] || null;
   }
@@ -1522,6 +1534,22 @@ export class DatabaseService {
       [organizationId],
     );
     return result.rows;
+  }
+
+  async updateOrganizationEmployee(organizationId: number, employeeId: number, data: { employmentStatus?: string; startDate?: string; employmentType?: string; department?: string; managerName?: string; onboardingNotes?: string }): Promise<any | null> {
+    const result = await pool.query(`
+      UPDATE employees SET
+        employment_status = COALESCE($3, employment_status),
+        start_date = COALESCE($4::date, start_date),
+        employment_type = COALESCE($5, employment_type),
+        department = COALESCE($6, department),
+        manager_name = COALESCE($7, manager_name),
+        onboarding_notes = COALESCE($8, onboarding_notes),
+        updated_at = NOW()
+      WHERE id = $1 AND organization_id = $2
+      RETURNING *
+    `, [employeeId, organizationId, data.employmentStatus || null, data.startDate || null, data.employmentType || null, data.department || null, data.managerName || null, data.onboardingNotes || null]);
+    return result.rows[0] || null;
   }
 
   async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<any> {
