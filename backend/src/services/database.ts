@@ -880,6 +880,18 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async getOrganizationForRecruiter(recruiterId: number): Promise<{ organization_id: number; role: string } | null> {
+    const result = await pool.query(
+      `SELECT organization_id, role
+       FROM organization_members
+       WHERE recruiter_id = $1 AND status = 'active'
+       ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [recruiterId],
+    );
+    return result.rows[0] || null;
+  }
+
   async createRecruiter(email: string, passwordHash: string, companyName: string, companySize?: string): Promise<any> {
     const result = await pool.query(`
       INSERT INTO recruiters (email, password_hash, company_name, company_size)

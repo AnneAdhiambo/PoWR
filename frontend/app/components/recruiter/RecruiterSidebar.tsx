@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   MagnifyingGlass, Users, Briefcase, Wrench, Bookmark,
   ChatCircle, ChartBar, Gear, SignOut, Buildings, CaretUp,
-  CreditCard, Lightning, ArrowRight
+  CreditCard, List, X
 } from "phosphor-react";
 import toast from "react-hot-toast";
 
@@ -16,6 +16,7 @@ export const RecruiterSidebar: React.FC = () => {
   const [company, setCompany] = useState("");
   const [plan, setPlan] = useState("free");
   const [showMenu, setShowMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setEmail(localStorage.getItem("recruiter_email") || "");
@@ -28,6 +29,10 @@ export const RecruiterSidebar: React.FC = () => {
     toast.success("Logged out");
     router.push("/recruiter/auth");
   };
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const navItems = [
     { icon: MagnifyingGlass, label: "Talent Search", href: "/recruiter/search" },
@@ -42,7 +47,24 @@ export const RecruiterSidebar: React.FC = () => {
   ];
 
   return (
-    <div className="w-60 h-screen bg-[#0b0c0f] border-r border-[rgba(255,255,255,0.04)] flex flex-col fixed left-0 top-0 z-40">
+    <>
+      <div className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-[rgba(255,255,255,0.06)] bg-[#0b0c0f]/95 px-4 backdrop-blur md:hidden">
+        <Link href="/recruiter/search" className="flex items-center gap-2">
+          <img src="/logo.png" alt="PoWR" className="h-8 w-auto" />
+          <span className="text-base font-semibold text-white">PoWR</span>
+        </Link>
+        <button
+          type="button"
+          aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((open) => !open)}
+          className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FF5500]"
+        >
+          {mobileOpen ? <X size={22} /> : <List size={22} />}
+        </button>
+      </div>
+      {mobileOpen && <button aria-label="Close navigation overlay" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-40 bg-black/60 md:hidden" />}
+      <div className={`w-60 h-screen bg-[#0b0c0f] border-r border-[rgba(255,255,255,0.04)] flex flex-col fixed left-0 top-0 z-40 transition-transform duration-200 md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
       {/* Logo */}
       <div className="p-6 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <Link href="/recruiter/search" className="flex items-center gap-2.5">
@@ -58,6 +80,7 @@ export const RecruiterSidebar: React.FC = () => {
           const active = pathname?.startsWith(href);
           return (
             <Link key={href} href={href}
+              onClick={() => setMobileOpen(false)}
               className={`relative flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
                 active
                   ? "bg-[#12141a] text-white"
@@ -74,8 +97,8 @@ export const RecruiterSidebar: React.FC = () => {
       </nav>
 
       {/* Upgrade nudge — free plan only */}
-      {plan === "free" && (
-        <div className="mx-4 mb-3 flex-shrink-0">
+      {false && plan === "free" && (
+        <div className="hidden">
           <Link
             href="/recruiter/billing"
             className="flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-[rgba(255,85,0,0.12)] to-[rgba(255,85,0,0.06)] border border-[#FF5500]/25 hover:border-[#FF5500]/50 transition-all group"
@@ -130,6 +153,7 @@ export const RecruiterSidebar: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };

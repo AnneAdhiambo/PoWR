@@ -7,7 +7,9 @@ const FREE_PLAN_VIEW_LIMIT = 10;
 const PRO_OUTREACH_LIMIT = 50;
 
 function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "dev_secret";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET is not configured");
+  return secret;
 }
 
 function startOfMonth(): Date {

@@ -1,6 +1,6 @@
 import express from "express";
 import { dbService } from "../services/database";
-import { requireRecruiter, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import { requireRecruiter, requireOrganizationMember, RecruiterJwtPayload } from "../middleware/requireRecruiter";
 
 const router = express.Router();
 
@@ -20,7 +20,7 @@ router.get("/jobs", async (req, res) => {
 });
 
 // GET /api/jobs/my — recruiter's own jobs
-router.get("/jobs/my", requireRecruiter, async (req, res) => {
+router.get("/jobs/my", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const jobs = await dbService.getJobsByRecruiter(recruiterId);
@@ -42,7 +42,7 @@ router.get("/jobs/:id", async (req, res) => {
 });
 
 // POST /api/jobs — requireRecruiter
-router.post("/jobs", requireRecruiter, async (req, res) => {
+router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const { title, company, location, salary, type, description, tags } = req.body;
@@ -57,7 +57,7 @@ router.post("/jobs", requireRecruiter, async (req, res) => {
 });
 
 // PUT /api/jobs/:id — requireRecruiter
-router.put("/jobs/:id", requireRecruiter, async (req, res) => {
+router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const job = await dbService.updateJob(Number(req.params.id), recruiterId, req.body);
@@ -69,7 +69,7 @@ router.put("/jobs/:id", requireRecruiter, async (req, res) => {
 });
 
 // DELETE /api/jobs/:id — requireRecruiter
-router.delete("/jobs/:id", requireRecruiter, async (req, res) => {
+router.delete("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     await dbService.deleteJob(Number(req.params.id), recruiterId);
@@ -95,7 +95,7 @@ router.get("/gigs", async (req, res) => {
 });
 
 // GET /api/gigs/my — recruiter's own gigs
-router.get("/gigs/my", requireRecruiter, async (req, res) => {
+router.get("/gigs/my", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const gigs = await dbService.getGigsByRecruiter(recruiterId);
@@ -117,7 +117,7 @@ router.get("/gigs/:id", async (req, res) => {
 });
 
 // POST /api/gigs — requireRecruiter
-router.post("/gigs", requireRecruiter, async (req, res) => {
+router.post("/gigs", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const { title, client, location, rate, duration, description, tags } = req.body;
@@ -132,7 +132,7 @@ router.post("/gigs", requireRecruiter, async (req, res) => {
 });
 
 // PUT /api/gigs/:id — requireRecruiter
-router.put("/gigs/:id", requireRecruiter, async (req, res) => {
+router.put("/gigs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const gig = await dbService.updateGig(Number(req.params.id), recruiterId, req.body);
@@ -144,7 +144,7 @@ router.put("/gigs/:id", requireRecruiter, async (req, res) => {
 });
 
 // DELETE /api/gigs/:id — requireRecruiter
-router.delete("/gigs/:id", requireRecruiter, async (req, res) => {
+router.delete("/gigs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     await dbService.deleteGig(Number(req.params.id), recruiterId);

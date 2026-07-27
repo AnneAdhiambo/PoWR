@@ -13,7 +13,7 @@ export default function RecruiterLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex">
       <RecruiterSidebar />
-      <div className="flex-1 ml-60 min-h-screen overflow-y-auto">
+      <div className="flex-1 ml-0 md:ml-60 min-h-screen overflow-y-auto pt-16 md:pt-0">
         {children}
       </div>
     </div>
