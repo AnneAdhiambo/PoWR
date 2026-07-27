@@ -61,6 +61,11 @@ backend/history.txt
 backend/test.js
 frontend/app/api/debug/
 
+# Keep repository documentation limited to README files; retain other Markdown locally.
+*.md
+!README.md
+!**/README.md
+
 # Clarinet network configs that contain mnemonics — never commit
 settings/Testnet.toml
 settings/Mainnet.toml
