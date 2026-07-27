@@ -36,6 +36,7 @@ export class RecruiterService {
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
     const row = await dbService.createRecruiter(email, passwordHash, companyName, companySize);
+    await dbService.ensureRecruiterOrganization(row.id, companyName);
 
     const token = jwt.sign(
       { role: "recruiter", recruiterId: row.id, email: row.email },

@@ -922,6 +922,39 @@ export class DatabaseService {
     return result.rows[0];
   }
 
+  async ensureRecruiterOrganization(recruiterId: number, companyName: string): Promise<any> {
+    const slugBase = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "company";
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const organization = await client.query(
+        `INSERT INTO organizations (slug, display_name, created_by_recruiter_id)
+         VALUES ($1 || '-' || $2::text, $3, $2)
+         ON CONFLICT (created_by_recruiter_id) DO UPDATE SET display_name = EXCLUDED.display_name
+         RETURNING *`,
+        [slugBase, recruiterId, companyName],
+      );
+      const row = organization.rows[0];
+      await client.query(
+        `INSERT INTO organization_domains (organization_id, hostname, is_primary, verified_at)
+         VALUES ($1, $2, true, NOW()) ON CONFLICT (hostname) DO NOTHING`,
+        [row.id, `${row.slug}.powr.dev`],
+      );
+      await client.query(
+        `INSERT INTO organization_members (organization_id, recruiter_id, role, status)
+         VALUES ($1, $2, 'owner', 'active') ON CONFLICT (organization_id, recruiter_id) DO NOTHING`,
+        [row.id, recruiterId],
+      );
+      await client.query("COMMIT");
+      return row;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async updateRecruiterLastLogin(id: number): Promise<void> {
     await pool.query(
       "UPDATE recruiters SET last_login = NOW() WHERE id = $1",
