@@ -436,7 +436,14 @@ export default function JobDetailPage() {
                   variant="primary" 
                   size="lg"
                   onClick={() => {
-                    toast.success("Application functionality coming soon!");
+                    const applicantUsername = username || window.prompt("Your PoWR username") || "";
+                    const applicantEmail = userEmail || window.prompt("Your email address") || "";
+                    if (!applicantUsername || !applicantEmail) return;
+                    const coverNote = window.prompt("Optional cover note") || "";
+                    if (!window.confirm("Allow this company to store and review your application and PoWR profile?")) return;
+                    apiClient.applyToJob(job.id, { developer_username: applicantUsername, applicant_email: applicantEmail, cover_note: coverNote, consent_given: true })
+                      .then(() => toast.success("Application submitted"))
+                      .catch((error) => toast.error(error.message || "Could not submit application"));
                   }}
                 >
                   Apply Now

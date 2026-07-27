@@ -47,6 +47,17 @@ router.get("/jobs/:id", async (req, res) => {
   }
 });
 
+router.post("/jobs/:id/applications", async (req, res) => {
+  try {
+    const { developer_username, applicant_email, cover_note, consent_given } = req.body;
+    if (!developer_username || !applicant_email || consent_given !== true) return res.status(400).json({ error: "Applicant identity, email, and consent are required" });
+    const application = await dbService.createJobApplication(Number(req.params.id), developer_username, applicant_email, cover_note, consent_given);
+    res.status(201).json({ application });
+  } catch (err: any) {
+    res.status(err.code === "23505" ? 409 : 500).json({ error: err.code === "23505" ? "You already applied to this job" : err.message });
+  }
+});
+
 // POST /api/jobs — requireRecruiter
 router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {

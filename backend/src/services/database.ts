@@ -236,6 +236,20 @@ async function initializeTables() {
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_recruiter ON jobs(recruiter_id);
 
+      CREATE TABLE IF NOT EXISTS job_applications (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        developer_username TEXT NOT NULL,
+        applicant_email TEXT NOT NULL,
+        cover_note TEXT,
+        consent_given BOOLEAN NOT NULL DEFAULT false,
+        stage TEXT NOT NULL DEFAULT 'applied',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(job_id, developer_username)
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id, stage);
+
       CREATE TABLE IF NOT EXISTS gigs (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE CASCADE,
@@ -1291,6 +1305,21 @@ export class DatabaseService {
 
   async getOrganizationJobById(organizationId: number, id: number): Promise<any | null> {
     const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.organization_id = $1 AND j.id = $2 AND j.status = 'active'", [organizationId, id]);
+    return result.rows[0] || null;
+  }
+
+  async createJobApplication(jobId: number, username: string, email: string, coverNote: string | undefined, consentGiven: boolean): Promise<any> {
+    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given) VALUES ($1, $2, $3, $4, $5) RETURNING *`, [jobId, username, email, coverNote || null, consentGiven]);
+    return result.rows[0];
+  }
+
+  async getOrganizationApplications(organizationId: number): Promise<any[]> {
+    const result = await pool.query(`SELECT a.*, j.title AS job_title, j.company FROM job_applications a JOIN jobs j ON j.id = a.job_id WHERE j.organization_id = $1 ORDER BY a.created_at DESC`, [organizationId]);
+    return result.rows;
+  }
+
+  async updateApplicationStage(organizationId: number, applicationId: number, stage: string): Promise<any | null> {
+    const result = await pool.query(`UPDATE job_applications a SET stage = $3, updated_at = NOW() FROM jobs j WHERE a.job_id = j.id AND a.id = $1 AND j.organization_id = $2 RETURNING a.*`, [applicationId, organizationId, stage]);
     return result.rows[0] || null;
   }
 

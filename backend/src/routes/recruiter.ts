@@ -10,6 +10,23 @@ const RECRUITER_PLAN_PRICES: Record<string, number> = { pro: 49, enterprise: 299
 
 const router = express.Router();
 
+router.get("/applications", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ applications: await dbService.getOrganizationApplications(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.patch("/applications/:applicationId", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    if (!["applied", "screening", "interview", "offer", "hired", "rejected"].includes(req.body.stage)) return res.status(400).json({ error: "Invalid application stage" });
+    const application = await dbService.updateApplicationStage(organization.organizationId, Number(req.params.applicationId), req.body.stage);
+    if (!application) return res.status(404).json({ error: "Application not found" });
+    res.json({ application });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
 router.get("/team/members", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const organization = (req as any).organization as { organizationId: number };
