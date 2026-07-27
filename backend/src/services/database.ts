@@ -932,6 +932,46 @@ export class DatabaseService {
     return result.rows;
   }
 
+  async updateOrganizationMember(organizationId: number, memberId: number, role: string): Promise<any | null> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await client.query(
+        `SELECT id, role, status FROM organization_members WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+        [memberId, organizationId],
+      );
+      if (!current.rowCount) { await client.query("ROLLBACK"); return null; }
+      if (current.rows[0].role === "owner" && role !== "owner") {
+        const owners = await client.query(
+          `SELECT COUNT(*)::int AS count FROM organization_members WHERE organization_id = $1 AND role = 'owner' AND status = 'active'`,
+          [organizationId],
+        );
+        if (owners.rows[0].count <= 1) throw new Error("The organization must retain an owner");
+      }
+      const updated = await client.query(
+        `UPDATE organization_members SET role = $3 WHERE id = $1 AND organization_id = $2 RETURNING id, recruiter_id, role, status, joined_at`,
+        [memberId, organizationId, role],
+      );
+      await client.query("COMMIT");
+      return updated.rows[0] || null;
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  }
+
+  async removeOrganizationMember(organizationId: number, memberId: number): Promise<any | null> {
+    const current = await pool.query(
+      `SELECT id, role FROM organization_members WHERE id = $1 AND organization_id = $2`,
+      [memberId, organizationId],
+    );
+    if (!current.rowCount) return null;
+    if (current.rows[0].role === "owner") throw new Error("The organization owner cannot be removed");
+    const removed = await pool.query(
+      `UPDATE organization_members SET status = 'removed' WHERE id = $1 AND organization_id = $2 RETURNING id, recruiter_id, role, status`,
+      [memberId, organizationId],
+    );
+    return removed.rows[0] || null;
+  }
+
   async acceptOrganizationInvitation(tokenHash: string, recruiterId: number, email: string): Promise<any | null> {
     const client = await pool.connect();
     try {

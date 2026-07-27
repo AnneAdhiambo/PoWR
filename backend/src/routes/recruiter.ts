@@ -17,6 +17,33 @@ router.get("/team/members", requireRecruiter, requireOrganizationMember, async (
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 
+router.patch("/team/members/:memberId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const memberId = parseInt(req.params.memberId, 10);
+    const { role } = req.body;
+    if (!Number.isInteger(memberId) || !["admin", "recruiter", "hiring_manager", "interviewer"].includes(role)) return res.status(400).json({ error: "Valid member and role are required" });
+    const member = await dbService.updateOrganizationMember(organization.organizationId, memberId, role);
+    if (!member) return res.status(404).json({ error: "Team member not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "team.member_role_updated", "organization_member", String(memberId), { role });
+    res.json({ member });
+  } catch (error: any) { res.status(400).json({ error: error.message }); }
+});
+
+router.delete("/team/members/:memberId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const memberId = parseInt(req.params.memberId, 10);
+    if (!Number.isInteger(memberId)) return res.status(400).json({ error: "Valid member is required" });
+    const member = await dbService.removeOrganizationMember(organization.organizationId, memberId);
+    if (!member) return res.status(404).json({ error: "Team member not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "team.member_removed", "organization_member", String(memberId));
+    res.json({ member });
+  } catch (error: any) { res.status(400).json({ error: error.message }); }
+});
+
 router.post("/team/invitations", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;

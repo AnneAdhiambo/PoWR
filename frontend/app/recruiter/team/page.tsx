@@ -36,6 +36,23 @@ export default function RecruiterTeamPage() {
     }
   }
 
+  async function changeRole(memberId: number, nextRole: string) {
+    try {
+      const result = await recruiterApiClient.updateTeamMember(memberId, nextRole);
+      setMembers((current) => current.map((member) => member.id === memberId ? { ...member, role: result.member.role } : member));
+      toast.success("Role updated");
+    } catch (error: any) { toast.error(error.message || "Could not update role"); }
+  }
+
+  async function removeMember(memberId: number) {
+    if (!window.confirm("Remove this teammate from the organization?")) return;
+    try {
+      await recruiterApiClient.removeTeamMember(memberId);
+      setMembers((current) => current.filter((member) => member.id !== memberId));
+      toast.success("Teammate removed");
+    } catch (error: any) { toast.error(error.message || "Could not remove teammate"); }
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-8">
@@ -51,7 +68,14 @@ export default function RecruiterTeamPage() {
               {members.map((member) => (
                 <div key={member.id} className="flex items-center justify-between gap-4 py-4">
                   <div className="min-w-0"><p className="truncate text-sm font-medium text-white">{member.email}</p><p className="mt-1 text-xs text-gray-500">{member.company_name}</p></div>
-                  <span className="rounded-full border border-[#FF5500]/25 bg-[#FF5500]/10 px-2.5 py-1 text-xs capitalize text-[#FF8a55]">{member.role.replace("_", " ")}</span>
+                  <div className="flex items-center gap-2">
+                    {member.role === "owner" ? <span className="rounded-full border border-[#FF5500]/25 bg-[#FF5500]/10 px-2.5 py-1 text-xs capitalize text-[#FF8a55]">Owner</span> : <>
+                      <select aria-label={`Role for ${member.email}`} value={member.role} onChange={(event) => changeRole(member.id, event.target.value)} className="rounded-[var(--radius-control)] border border-white/10 bg-[#12141a] px-2 py-1.5 text-xs capitalize text-white outline-none focus:border-[#FF5500]">
+                        {roles.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
+                      </select>
+                      <Button type="button" variant="ghost" onClick={() => removeMember(member.id)} className="px-2 text-xs text-red-300">Remove</Button>
+                    </>}
+                  </div>
                 </div>
               ))}
             </div>

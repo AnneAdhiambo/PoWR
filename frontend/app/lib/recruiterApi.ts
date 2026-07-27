@@ -69,6 +69,14 @@ class RecruiterApiClient {
     });
   }
 
+  async updateTeamMember(memberId: number, role: string) {
+    return this.request<{ member: any }>(`/api/recruiter/team/members/${memberId}`, { method: "PATCH", body: JSON.stringify({ role }) });
+  }
+
+  async removeTeamMember(memberId: number) {
+    return this.request<{ member: any }>(`/api/recruiter/team/members/${memberId}`, { method: "DELETE" });
+  }
+
   async searchDevelopers(params: {
     skills?: string[];
     minScore?: number;
