@@ -14,7 +14,7 @@ export default function RecruiterAccountPage() {
   const [recruiter, setRecruiter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const workspaceHost = recruiter?.companyName
-    ? `${recruiter.companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.powr.dev`
+    ? `${recruiter.companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${recruiter.id}.powr.dev`
     : "your-company.powr.dev";
 
   useEffect(() => {
