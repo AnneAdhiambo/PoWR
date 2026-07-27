@@ -7,6 +7,13 @@
   --foreground: #ffffff;
   --primary-orange: #FF5500;
   --border-color: rgba(255,255,255,0.04);
+  --text-muted: #8b909b;
+  --text-subtle: #656b78;
+  --brand-orange: #ff5500;
+  --brand-orange-hover: #e64d00;
+  --focus-ring: rgba(255, 85, 0, 0.7);
+  --radius-card: 14px;
+  --radius-control: 10px;
 }
 
 @theme inline {
@@ -16,6 +23,9 @@
   --color-soft-bg: var(--bg-soft);
   --color-primary-orange: var(--primary-orange);
   --color-border: var(--border-color);
+  --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
+  --color-brand-orange: var(--brand-orange);
   --font-sans: var(--font-manrope);
 }
 
@@ -23,6 +33,15 @@ body {
   background: var(--bg-main);
   color: var(--foreground);
   font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+button, a, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 /* Animations */
