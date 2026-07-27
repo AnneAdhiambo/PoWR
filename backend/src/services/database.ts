@@ -943,6 +943,28 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async getOrganizationById(organizationId: number): Promise<any | null> {
+    const result = await pool.query(
+      `SELECT o.*, d.hostname
+       FROM organizations o
+       LEFT JOIN organization_domains d ON d.organization_id = o.id AND d.is_primary = true
+       WHERE o.id = $1`,
+      [organizationId],
+    );
+    return result.rows[0] || null;
+  }
+
+  async updateOrganizationProfile(organizationId: number, displayName: string, profile: Record<string, unknown>): Promise<any> {
+    const result = await pool.query(
+      `UPDATE organizations
+       SET display_name = $2, profile = COALESCE(profile, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [organizationId, displayName, JSON.stringify(profile)],
+    );
+    return result.rows[0];
+  }
+
   async recordAuditEvent(organizationId: number, actorRecruiterId: number, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}): Promise<void> {
     await pool.query(
       `INSERT INTO audit_events (organization_id, actor_recruiter_id, action, entity_type, entity_id, metadata)

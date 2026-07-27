@@ -12,9 +12,12 @@ import toast from "react-hot-toast";
 export default function RecruiterAccountPage() {
   const router = useRouter();
   const [recruiter, setRecruiter] = useState<any>(null);
+  const [organization, setOrganization] = useState<any>(null);
+  const [profileForm, setProfileForm] = useState({ display_name: "", summary: "", website: "", location: "", logo_url: "", benefits: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
-  const workspaceHost = recruiter?.companyName
-    ? `${recruiter.companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${recruiter.id}.powr.dev`
+  const workspaceHost = organization?.hostname
+    ? organization.hostname
     : "your-company.powr.dev";
 
   useEffect(() => {
@@ -28,13 +31,39 @@ export default function RecruiterAccountPage() {
   const loadRecruiter = async () => {
     setLoading(true);
     try {
-      const { recruiter: data } = await recruiterApiClient.getMe();
+      const [{ recruiter: data }, { organization: organizationData }] = await Promise.all([recruiterApiClient.getMe(), recruiterApiClient.getOrganizationProfile()]);
       setRecruiter(data);
+      setOrganization(organizationData);
+      const profile = organizationData.profile || {};
+      setProfileForm({
+        display_name: organizationData.display_name || data.companyName || "",
+        summary: profile.summary || "",
+        website: profile.website || "",
+        location: profile.location || "",
+        logo_url: profile.logoUrl || "",
+        benefits: Array.isArray(profile.benefits) ? profile.benefits.join(", ") : "",
+      });
       localStorage.setItem("recruiter_plan", data.plan || "free");
     } catch (error: any) {
       toast.error("Failed to load account");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveOrganizationProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const { organization: updated } = await recruiterApiClient.updateOrganizationProfile({
+        ...profileForm,
+        benefits: profileForm.benefits.split(",").map((benefit) => benefit.trim()).filter(Boolean),
+      });
+      setOrganization((current: any) => ({ ...current, ...updated }));
+      toast.success("Organization profile updated");
+    } catch (error: any) {
+      toast.error(error.message || "Could not update organization profile");
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -91,6 +120,19 @@ export default function RecruiterAccountPage() {
               Copy link
             </Button>
           </div>
+        </Card>
+
+        <Card className="p-5 mb-8">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-4">Public company profile</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm text-gray-300">Company name<input value={profileForm.display_name} onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+            <label className="text-sm text-gray-300">Location<input value={profileForm.location} onChange={(event) => setProfileForm((current) => ({ ...current, location: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+            <label className="text-sm text-gray-300">Website<input type="url" value={profileForm.website} onChange={(event) => setProfileForm((current) => ({ ...current, website: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+            <label className="text-sm text-gray-300">Logo URL<input type="url" value={profileForm.logo_url} onChange={(event) => setProfileForm((current) => ({ ...current, logo_url: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+            <label className="text-sm text-gray-300 sm:col-span-2">Summary<textarea rows={3} value={profileForm.summary} onChange={(event) => setProfileForm((current) => ({ ...current, summary: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+            <label className="text-sm text-gray-300 sm:col-span-2">Benefits, comma separated<input value={profileForm.benefits} onChange={(event) => setProfileForm((current) => ({ ...current, benefits: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+          </div>
+          <Button type="button" onClick={saveOrganizationProfile} disabled={savingProfile} className="mt-5">{savingProfile ? "Saving..." : "Save company profile"}</Button>
         </Card>
 
         {/* Billing card */}

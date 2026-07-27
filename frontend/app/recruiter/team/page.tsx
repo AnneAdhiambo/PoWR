@@ -15,6 +15,7 @@ export default function RecruiterTeamPage() {
   const [role, setRole] = useState("recruiter");
   const [loading, setLoading] = useState(true);
   const [inviteToken, setInviteToken] = useState("");
+  const [acceptToken, setAcceptToken] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -53,6 +54,17 @@ export default function RecruiterTeamPage() {
     } catch (error: any) { toast.error(error.message || "Could not remove teammate"); }
   }
 
+  async function acceptInvitation(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await recruiterApiClient.acceptTeamInvitation(acceptToken);
+      setAcceptToken("");
+      toast.success("Invitation accepted");
+      const result = await recruiterApiClient.getTeamMembers();
+      setMembers(result.members);
+    } catch (error: any) { toast.error(error.message || "Could not accept invitation"); }
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-8">
@@ -89,6 +101,13 @@ export default function RecruiterTeamPage() {
             <Button type="submit" className="w-full">Create invitation</Button>
           </form>
           {inviteToken && <div className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3"><p className="text-xs font-medium text-emerald-300">Local invitation token</p><code className="mt-2 block break-all text-xs text-emerald-100">{inviteToken}</code></div>}
+          <div className="my-6 border-t border-white/[0.06]" />
+          <h2 className="text-base font-semibold text-white">Accept invitation</h2>
+          <p className="mt-1 text-xs text-gray-500">Use a token sent to your signed-in email.</p>
+          <form onSubmit={acceptInvitation} className="mt-4 space-y-3">
+            <input required value={acceptToken} onChange={(event) => setAcceptToken(event.target.value)} placeholder="Invitation token" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-600 focus:border-[#FF5500]" />
+            <Button type="submit" variant="secondary" className="w-full">Join organization</Button>
+          </form>
         </Card>
       </div>
     </main>

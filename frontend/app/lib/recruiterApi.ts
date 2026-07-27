@@ -58,6 +58,25 @@ class RecruiterApiClient {
     return this.request<{ recruiter: any }>("/api/recruiter/me");
   }
 
+  async getOrganizationProfile() {
+    return this.request<{ organization: any }>("/api/recruiter/organization/profile");
+  }
+
+  async updateOrganizationProfile(data: {
+    display_name: string;
+    summary?: string;
+    website?: string;
+    location?: string;
+    logo_url?: string;
+    benefits?: string[];
+    social_links?: Record<string, string>;
+  }) {
+    return this.request<{ organization: any }>("/api/recruiter/organization/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
   async getTeamMembers() {
     return this.request<{ members: any[] }>("/api/recruiter/team/members");
   }
@@ -66,6 +85,13 @@ class RecruiterApiClient {
     return this.request<{ invitation: any; token: string }>("/api/recruiter/team/invitations", {
       method: "POST",
       body: JSON.stringify({ email, role }),
+    });
+  }
+
+  async acceptTeamInvitation(token: string) {
+    return this.request<{ accepted: boolean; organizationId: number; role: string }>("/api/recruiter/team/invitations/accept", {
+      method: "POST",
+      body: JSON.stringify({ token }),
     });
   }
 

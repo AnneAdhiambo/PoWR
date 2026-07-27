@@ -10,6 +10,32 @@ const RECRUITER_PLAN_PRICES: Record<string, number> = { pro: 49, enterprise: 299
 
 const router = express.Router();
 
+router.get("/organization/profile", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ organization: await dbService.getOrganizationById(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.put("/organization/profile", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organizationContext = (req as any).organization as { organizationId: number };
+    const { display_name, summary, website, location, logo_url, benefits = [], social_links = {} } = req.body;
+    if (!String(display_name || "").trim()) return res.status(400).json({ error: "Organization name is required" });
+    const organization = await dbService.updateOrganizationProfile(organizationContext.organizationId, String(display_name).trim(), {
+      summary: String(summary || "").trim(),
+      website: String(website || "").trim(),
+      location: String(location || "").trim(),
+      logoUrl: String(logo_url || "").trim(),
+      benefits: Array.isArray(benefits) ? benefits.filter(Boolean) : [],
+      socialLinks: social_links,
+    });
+    await dbService.recordAuditEvent(organizationContext.organizationId, recruiterId, "organization.profile_updated", "organization", String(organizationContext.organizationId));
+    res.json({ organization });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
 router.get("/applications", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const organization = (req as any).organization as { organizationId: number };
