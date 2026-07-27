@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { recruiterApiClient } from "../../lib/recruiterApi";
+import { Button, Card } from "../../components/ui";
 import { Crown, Check, Buildings, EnvelopeSimple, CreditCard, Lightning, ArrowRight } from "phosphor-react";
 import toast from "react-hot-toast";
 
@@ -12,6 +13,9 @@ export default function RecruiterAccountPage() {
   const router = useRouter();
   const [recruiter, setRecruiter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const workspaceHost = recruiter?.companyName
+    ? `${recruiter.companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.powr.dev`
+    : "your-company.powr.dev";
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -48,7 +52,7 @@ export default function RecruiterAccountPage() {
 
         {/* Profile card */}
         {recruiter && (
-          <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5 mb-8">
+          <Card className="p-5 mb-8">
             <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-4">Profile</p>
             <div className="space-y-3">
               <div className="flex items-center gap-3">
@@ -72,13 +76,27 @@ export default function RecruiterAccountPage() {
                 )}
               </div>
             </div>
-          </div>
+          </Card>
         )}
+
+        <Card className="p-5 mb-8">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Organization workspace</p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white">{recruiter?.companyName || "Your company"}</h2>
+              <p className="mt-1 text-sm text-gray-400">Public careers site</p>
+              <p className="mt-2 break-all text-sm text-[#FF5500]">https://{workspaceHost}/jobs</p>
+            </div>
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigator.clipboard?.writeText(`https://${workspaceHost}/jobs`)}>
+              Copy link
+            </Button>
+          </div>
+        </Card>
 
         {/* Billing card */}
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-4">Billing</p>
-          <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
+          <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-[rgba(255,85,0,0.12)] flex items-center justify-center">
@@ -132,7 +150,7 @@ export default function RecruiterAccountPage() {
                 <>Manage Billing <ArrowRight className="w-3.5 h-3.5" weight="bold" /></>
               )}
             </Link>
-          </div>
+          </Card>
         </div>
     </div>
   );
