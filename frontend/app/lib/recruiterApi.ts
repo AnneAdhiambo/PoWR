@@ -14,12 +14,16 @@ class RecruiterApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const token = getRecruiterToken();
+    const browserHostname = typeof window !== "undefined" ? window.location.hostname : "";
+    const tenantHostname = browserHostname.endsWith(".powr.localhost")
+      ? browserHostname.replace(/\.powr\.localhost$/, ".powr.dev")
+      : browserHostname;
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        ...(typeof window !== "undefined" ? { "X-PoWR-Hostname": window.location.hostname } : {}),
+        ...(tenantHostname ? { "X-PoWR-Hostname": tenantHostname } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },

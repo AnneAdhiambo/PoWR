@@ -4,7 +4,7 @@ const reservedHosts = new Set(["www", "app", "api"]);
 
 export function middleware(request: NextRequest) {
   const hostname = request.headers.get("host")?.split(":")[0].toLowerCase() || "";
-  const suffix = ".powr.dev";
+  const suffix = hostname.endsWith(".powr.localhost") ? ".powr.localhost" : ".powr.dev";
   const isTenantHost = hostname.endsWith(suffix);
   const slug = isTenantHost ? hostname.slice(0, -suffix.length) : "";
 
