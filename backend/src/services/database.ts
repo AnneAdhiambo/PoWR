@@ -892,6 +892,19 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async getOrganizationByHostname(hostname: string): Promise<any | null> {
+    const result = await pool.query(
+      `SELECT o.id, o.slug, o.display_name, o.status, o.profile,
+              d.hostname, d.kind, d.is_primary
+       FROM organization_domains d
+       JOIN organizations o ON o.id = d.organization_id
+       WHERE lower(d.hostname) = lower($1) AND o.status = 'active'
+       LIMIT 1`,
+      [hostname],
+    );
+    return result.rows[0] || null;
+  }
+
   async recordAuditEvent(organizationId: number, actorRecruiterId: number, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}): Promise<void> {
     await pool.query(
       `INSERT INTO audit_events (organization_id, actor_recruiter_id, action, entity_type, entity_id, metadata)

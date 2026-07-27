@@ -85,6 +85,7 @@ import systemRoutes from "./routes/system";
 import recruiterRoutes from "./routes/recruiter";
 import badgeRoutes from "./routes/badges";
 import jobsRouter from "./routes/jobs";
+import tenantRoutes from "./routes/tenant";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -95,6 +96,7 @@ app.use("/api/system", systemRoutes);
 app.use("/api/recruiter", recruiterRoutes);
 app.use("/api/badges", badgeRoutes);
 app.use("/api", jobsRouter);
+app.use("/api/tenant", tenantRoutes);
 
 // Start scheduler service
 import { schedulerService } from "./services/schedulerService";

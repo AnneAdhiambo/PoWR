@@ -19,6 +19,7 @@ class RecruiterApiClient {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(typeof window !== "undefined" ? { "X-PoWR-Hostname": window.location.hostname } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
