@@ -15,6 +15,13 @@ export function middleware(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set("x-powr-tenant-hostname", hostname);
 
+  const isPublicCareersPath = request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/jobs" || request.nextUrl.pathname.startsWith("/jobs/");
+  if (!isPublicCareersPath) {
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/jobs";
+    return NextResponse.rewrite(destination, { request: { headers } });
+  }
+
   if (request.nextUrl.pathname === "/") {
     const destination = request.nextUrl.clone();
     destination.pathname = "/jobs";

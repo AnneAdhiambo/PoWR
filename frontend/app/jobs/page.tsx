@@ -47,10 +47,13 @@ function JobsPageContent() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
+  const [tenant, setTenant] = useState<{ display_name: string; profile?: { logoUrl?: string; primaryColor?: string } } | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = viewMode === "grid" ? 9 : 5;
 
   useEffect(() => {
+    const isTenant = window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev");
+    if (isTenant) apiClient.getTenantContext().then(({ organization }) => setTenant(organization)).catch(() => undefined);
     const storedUsername = localStorage.getItem("github_username");
     const storedEmail = localStorage.getItem("github_email");
     
@@ -278,18 +281,25 @@ function JobsPageContent() {
 
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex">
-      <Sidebar 
+      {!tenant && <Sidebar 
         username={username} 
         email={userEmail || undefined}
         displayName={displayName}
-      />
+      />}
 
-      <div className="flex-1 overflow-y-auto ml-60">
+      <div className={`flex-1 overflow-y-auto ${tenant ? "" : "ml-60"}`}>
         <div className="max-w-[1200px] mx-auto px-6 py-4">
+          {tenant && <header className="mb-10 flex items-center justify-between border-b border-white/[0.08] pb-5">
+            <div className="flex items-center gap-3">
+              {tenant.profile?.logoUrl ? <img src={tenant.profile.logoUrl} alt="" className="h-9 w-9 rounded-lg object-cover" /> : <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5500] text-sm font-bold text-white">{tenant.display_name.slice(0, 1).toUpperCase()}</div>}
+              <div><p className="text-sm font-semibold text-white">{tenant.display_name}</p><p className="text-xs text-gray-500">Careers at {tenant.display_name}</p></div>
+            </div>
+            <span className="text-xs text-gray-500">Powered by PoWR</span>
+          </header>}
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-white tracking-tight mb-1.5" style={{ fontWeight: 500 }}>
-              Jobs
+              {tenant ? `Open roles at ${tenant.display_name}` : "Jobs"}
             </h1>
             <p className="text-xs text-gray-400" style={{ opacity: 0.6 }}>
               Find opportunities that match your proof of work

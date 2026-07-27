@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   MagnifyingGlass, Users, Briefcase, Wrench, Bookmark,
   ChatCircle, ChartBar, Gear, SignOut, Buildings, CaretUp, UserCircle,
-  CreditCard, List, X
+  CreditCard, List, X, Lightning, ArrowRight
 } from "phosphor-react";
 import toast from "react-hot-toast";
 
