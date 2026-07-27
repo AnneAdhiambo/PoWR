@@ -95,6 +95,17 @@ class RecruiterApiClient {
     });
   }
 
+  async convertApplicationToEmployee(applicationId: number, startDate?: string) {
+    return this.request<{ employee: any }>(`/api/recruiter/applications/${applicationId}/convert-to-employee`, {
+      method: "POST",
+      body: JSON.stringify({ start_date: startDate || null }),
+    });
+  }
+
+  async getEmployees() {
+    return this.request<{ employees: any[] }>("/api/recruiter/employees");
+  }
+
   async searchDevelopers(params: {
     skills?: string[];
     minScore?: number;

@@ -259,6 +259,21 @@ async function initializeTables() {
       );
       CREATE INDEX IF NOT EXISTS idx_job_application_notes_application ON job_application_notes(application_id, created_at);
 
+      CREATE TABLE IF NOT EXISTS employees (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL,
+        source_application_id INTEGER UNIQUE REFERENCES job_applications(id) ON DELETE SET NULL,
+        developer_username TEXT NOT NULL,
+        work_email TEXT NOT NULL,
+        job_title TEXT NOT NULL,
+        employment_status TEXT NOT NULL DEFAULT 'onboarding',
+        start_date DATE,
+        created_by_recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_employees_organization_status ON employees(organization_id, employment_status);
+
       CREATE TABLE IF NOT EXISTS gigs (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE CASCADE,
@@ -1369,6 +1384,48 @@ export class DatabaseService {
       [applicationId, organizationId, recruiterId, note],
     );
     return result.rows[0] || null;
+  }
+
+  async createEmployeeFromApplication(organizationId: number, applicationId: number, recruiterId: number, startDate?: string): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO employees (
+         organization_id,
+         source_application_id,
+         developer_username,
+         work_email,
+         job_title,
+         start_date,
+         created_by_recruiter_id
+       )
+       SELECT
+         j.organization_id,
+         a.id,
+         a.developer_username,
+         a.applicant_email,
+         j.title,
+         $4::date,
+         $3
+       FROM job_applications a
+       JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1 AND j.organization_id = $2 AND a.stage = 'hired'
+       ON CONFLICT (source_application_id) DO UPDATE
+       SET start_date = COALESCE(EXCLUDED.start_date, employees.start_date), updated_at = NOW()
+       RETURNING *`,
+      [applicationId, organizationId, recruiterId, startDate || null],
+    );
+    return result.rows[0] || null;
+  }
+
+  async getOrganizationEmployees(organizationId: number): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT e.*, COALESCE((p.profile_data->>'overallIndex')::int, 0) AS powr_score
+       FROM employees e
+       LEFT JOIN profiles p ON p.username = e.developer_username
+       WHERE e.organization_id = $1
+       ORDER BY e.created_at DESC`,
+      [organizationId],
+    );
+    return result.rows;
   }
 
   async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<any> {

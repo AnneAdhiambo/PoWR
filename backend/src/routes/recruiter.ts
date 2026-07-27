@@ -42,6 +42,24 @@ router.post("/applications/:applicationId/notes", requireRecruiter, requireOrgan
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 
+router.post("/applications/:applicationId/convert-to-employee", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const employee = await dbService.createEmployeeFromApplication(organization.organizationId, Number(req.params.applicationId), recruiterId, req.body.start_date);
+    if (!employee) return res.status(400).json({ error: "Only hired applications can become employee records" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "employee.created_from_application", "employee", String(employee.id), { applicationId: Number(req.params.applicationId) });
+    res.status(201).json({ employee });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.get("/employees", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ employees: await dbService.getOrganizationEmployees(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
 router.get("/team/members", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const organization = (req as any).organization as { organizationId: number };

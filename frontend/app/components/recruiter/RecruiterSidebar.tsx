@@ -38,6 +38,7 @@ export const RecruiterSidebar: React.FC = () => {
     { icon: MagnifyingGlass, label: "Talent Search", href: "/recruiter/search" },
     { icon: Users, label: "Candidates", href: "/recruiter/candidates" },
     { icon: Buildings, label: "Applications", href: "/recruiter/applications" },
+    { icon: UserCircle, label: "Employees", href: "/recruiter/employees" },
     { icon: Briefcase, label: "Jobs", href: "/recruiter/jobs" },
     { icon: Wrench, label: "Gigs", href: "/recruiter/gigs" },
     { icon: Bookmark, label: "Saved", href: "/recruiter/saved" },

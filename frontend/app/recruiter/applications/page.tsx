@@ -94,6 +94,17 @@ export default function RecruiterApplicationsPage() {
     }
   }
 
+  async function createEmployee(applicationId: number) {
+    const startDate = window.prompt("Optional start date (YYYY-MM-DD)") || undefined;
+    try {
+      await recruiterApiClient.convertApplicationToEmployee(applicationId, startDate);
+      toast.success("Employee record created");
+      router.push("/recruiter/employees");
+    } catch (error: any) {
+      toast.error(error.message || "Could not create employee record");
+    }
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -173,6 +184,7 @@ export default function RecruiterApplicationsPage() {
                   <select disabled={updatingId === application.id} value={application.stage} onChange={(event) => moveApplication(application.id, event.target.value)} className="rounded-[var(--radius-control)] border border-white/10 bg-[#12141a] px-3 py-2 text-sm capitalize text-white outline-none focus:border-[#FF5500] disabled:opacity-50">
                     {stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
                   </select>
+                  {application.stage === "hired" && <Button type="button" size="sm" onClick={() => createEmployee(application.id)}>Create employee</Button>}
                 </div>
               </div>
             </Card>
