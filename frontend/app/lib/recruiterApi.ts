@@ -77,6 +77,17 @@ class RecruiterApiClient {
     return this.request<{ member: any }>(`/api/recruiter/team/members/${memberId}`, { method: "DELETE" });
   }
 
+  async getApplications() {
+    return this.request<{ applications: any[] }>("/api/recruiter/applications");
+  }
+
+  async updateApplicationStage(applicationId: number, stage: string) {
+    return this.request<{ application: any }>(`/api/recruiter/applications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ stage }),
+    });
+  }
+
   async searchDevelopers(params: {
     skills?: string[];
     minScore?: number;
