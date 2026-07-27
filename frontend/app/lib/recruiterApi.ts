@@ -88,6 +88,13 @@ class RecruiterApiClient {
     });
   }
 
+  async addApplicationNote(applicationId: number, note: string) {
+    return this.request<{ note: any }>(`/api/recruiter/applications/${applicationId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    });
+  }
+
   async searchDevelopers(params: {
     skills?: string[];
     minScore?: number;

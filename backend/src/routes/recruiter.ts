@@ -19,11 +19,26 @@ router.get("/applications", requireRecruiter, requireOrganizationMember, async (
 
 router.patch("/applications/:applicationId", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const organization = (req as any).organization as { organizationId: number };
     if (!["applied", "screening", "interview", "offer", "hired", "rejected"].includes(req.body.stage)) return res.status(400).json({ error: "Invalid application stage" });
     const application = await dbService.updateApplicationStage(organization.organizationId, Number(req.params.applicationId), req.body.stage);
     if (!application) return res.status(404).json({ error: "Application not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.stage_updated", "job_application", req.params.applicationId, { stage: req.body.stage });
     res.json({ application });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.post("/applications/:applicationId/notes", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const noteText = String(req.body.note || "").trim();
+    if (!noteText) return res.status(400).json({ error: "Note is required" });
+    const note = await dbService.addApplicationNote(organization.organizationId, Number(req.params.applicationId), recruiterId, noteText);
+    if (!note) return res.status(404).json({ error: "Application not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.note_added", "job_application", req.params.applicationId);
+    res.status(201).json({ note });
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 

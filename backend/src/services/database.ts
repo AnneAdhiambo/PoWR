@@ -250,6 +250,15 @@ async function initializeTables() {
       );
       CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id, stage);
 
+      CREATE TABLE IF NOT EXISTS job_application_notes (
+        id SERIAL PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id) ON DELETE CASCADE,
+        note TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_application_notes_application ON job_application_notes(application_id, created_at);
+
       CREATE TABLE IF NOT EXISTS gigs (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE CASCADE,
@@ -1322,7 +1331,18 @@ export class DatabaseService {
          COALESCE((p.profile_data->>'overallIndex')::int, 0) AS powr_score,
          COALESCE(p.profile_data->'skills', '[]'::jsonb) AS skills,
          COALESCE(p.profile_data->>'summary', '') AS profile_summary,
-         COALESCE(p.profile_data->>'availability', '') AS availability
+         COALESCE(p.profile_data->>'availability', '') AS availability,
+         COALESCE((
+           SELECT jsonb_agg(jsonb_build_object(
+             'id', n.id,
+             'note', n.note,
+             'created_at', n.created_at,
+             'recruiter_email', r.email
+           ) ORDER BY n.created_at DESC)
+           FROM job_application_notes n
+           JOIN recruiters r ON r.id = n.recruiter_id
+           WHERE n.application_id = a.id
+         ), '[]'::jsonb) AS notes
        FROM job_applications a
        JOIN jobs j ON j.id = a.job_id
        LEFT JOIN profiles p ON p.username = a.developer_username
@@ -1335,6 +1355,19 @@ export class DatabaseService {
 
   async updateApplicationStage(organizationId: number, applicationId: number, stage: string): Promise<any | null> {
     const result = await pool.query(`UPDATE job_applications a SET stage = $3, updated_at = NOW() FROM jobs j WHERE a.job_id = j.id AND a.id = $1 AND j.organization_id = $2 RETURNING a.*`, [applicationId, organizationId, stage]);
+    return result.rows[0] || null;
+  }
+
+  async addApplicationNote(organizationId: number, applicationId: number, recruiterId: number, note: string): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO job_application_notes (application_id, recruiter_id, note)
+       SELECT a.id, $3, $4
+       FROM job_applications a
+       JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1 AND j.organization_id = $2
+       RETURNING *`,
+      [applicationId, organizationId, recruiterId, note],
+    );
     return result.rows[0] || null;
   }
 

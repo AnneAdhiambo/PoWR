@@ -22,6 +22,7 @@ interface Application {
   skills: Array<{ skill: string; score: number }>;
   profile_summary?: string;
   availability?: string;
+  notes: Array<{ id: number; note: string; recruiter_email: string; created_at: string }>;
 }
 
 export default function RecruiterApplicationsPage() {
@@ -33,6 +34,7 @@ export default function RecruiterApplicationsPage() {
   const [query, setQuery] = useState("");
   const [minimumScore, setMinimumScore] = useState(0);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -74,6 +76,21 @@ export default function RecruiterApplicationsPage() {
       toast.error(error.message || "Could not update application");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  async function addNote(applicationId: number) {
+    const noteText = (noteDrafts[applicationId] || "").trim();
+    if (!noteText) return;
+    try {
+      const { note } = await recruiterApiClient.addApplicationNote(applicationId, noteText);
+      setApplications((current) => current.map((application) => application.id === applicationId
+        ? { ...application, notes: [{ ...note, recruiter_email: localStorage.getItem("recruiter_email") || "Recruiter" }, ...(application.notes || [])] }
+        : application));
+      setNoteDrafts((current) => ({ ...current, [applicationId]: "" }));
+      toast.success("Note added");
+    } catch (error: any) {
+      toast.error(error.message || "Could not add note");
     }
   }
 
@@ -137,6 +154,18 @@ export default function RecruiterApplicationsPage() {
                   </div>
                   {application.profile_summary && <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-500">{application.profile_summary}</p>}
                   {application.cover_note && <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">{application.cover_note}</p>}
+                  <div className="mt-4 max-w-3xl border-t border-white/[0.06] pt-4">
+                    <div className="flex gap-2">
+                      <input value={noteDrafts[application.id] || ""} onChange={(event) => setNoteDrafts((current) => ({ ...current, [application.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") addNote(application.id); }} placeholder="Add an internal hiring note" className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-gray-600 focus:border-[#FF5500]" />
+                      <Button type="button" variant="secondary" size="sm" onClick={() => addNote(application.id)}>Add note</Button>
+                    </div>
+                    {(application.notes || []).slice(0, 2).map((note) => (
+                      <div key={note.id} className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2">
+                        <p className="text-sm text-gray-300">{note.note}</p>
+                        <p className="mt-1 text-[11px] text-gray-600">{note.recruiter_email} · {new Date(note.created_at).toLocaleDateString()}</p>
+                      </div>
+                    ))}
+                  </div>
                   <p className="mt-3 text-xs text-gray-600">Applied {new Date(application.created_at).toLocaleDateString()} · Consent recorded</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
