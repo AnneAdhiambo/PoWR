@@ -892,6 +892,14 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async recordAuditEvent(organizationId: number, actorRecruiterId: number, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}): Promise<void> {
+    await pool.query(
+      `INSERT INTO audit_events (organization_id, actor_recruiter_id, action, entity_type, entity_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [organizationId, actorRecruiterId, action, entityType, entityId || null, JSON.stringify(metadata)],
+    );
+  }
+
   async createRecruiter(email: string, passwordHash: string, companyName: string, companySize?: string): Promise<any> {
     const result = await pool.query(`
       INSERT INTO recruiters (email, password_hash, company_name, company_size)

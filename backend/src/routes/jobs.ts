@@ -50,6 +50,8 @@ router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, re
       return res.status(400).json({ error: "title, company, and location are required" });
     }
     const job = await dbService.createJob(recruiterId, { title, company, location, salary, type, description, tags });
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.created", "job", String(job.id), { title });
     res.status(201).json({ job });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -62,6 +64,8 @@ router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req,
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const job = await dbService.updateJob(Number(req.params.id), recruiterId, req.body);
     if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.updated", "job", String(job.id), { fields: Object.keys(req.body) });
     res.json({ job });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -73,6 +77,8 @@ router.delete("/jobs/:id", requireRecruiter, requireOrganizationMember, async (r
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     await dbService.deleteJob(Number(req.params.id), recruiterId);
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.deleted", "job", req.params.id);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -125,6 +131,8 @@ router.post("/gigs", requireRecruiter, requireOrganizationMember, async (req, re
       return res.status(400).json({ error: "title, client, and location are required" });
     }
     const gig = await dbService.createGig(recruiterId, { title, client, location, rate, duration, description, tags });
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "gig.created", "gig", String(gig.id), { title });
     res.status(201).json({ gig });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -137,6 +145,8 @@ router.put("/gigs/:id", requireRecruiter, requireOrganizationMember, async (req,
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const gig = await dbService.updateGig(Number(req.params.id), recruiterId, req.body);
     if (!gig) return res.status(404).json({ error: "Not found or unauthorized" });
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "gig.updated", "gig", String(gig.id), { fields: Object.keys(req.body) });
     res.json({ gig });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -148,6 +158,8 @@ router.delete("/gigs/:id", requireRecruiter, requireOrganizationMember, async (r
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     await dbService.deleteGig(Number(req.params.id), recruiterId);
+    const organization = (req as any).organization as { organizationId: number };
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "gig.deleted", "gig", req.params.id);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
