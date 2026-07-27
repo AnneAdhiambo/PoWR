@@ -12,7 +12,10 @@ router.get("/jobs", async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const offset = (page - 1) * limit;
-    const result = await dbService.getJobs({ limit, offset });
+    const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
+    const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
+    const organization = await dbService.getOrganizationByHostname(hostname);
+    const result = organization ? await dbService.getOrganizationJobs(organization.id, { limit, offset }) : await dbService.getJobs({ limit, offset });
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

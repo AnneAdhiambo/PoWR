@@ -108,6 +108,7 @@ class ApiClient {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(typeof window !== "undefined" && window.location.hostname ? { "X-PoWR-Hostname": window.location.hostname.replace(/\.powr\.localhost$/, ".powr.dev") } : {}),
         ...options.headers,
       },
     });

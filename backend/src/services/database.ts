@@ -1270,6 +1270,15 @@ export class DatabaseService {
     return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
   }
 
+  async getOrganizationJobs(organizationId: number, params?: { status?: string; limit?: number; offset?: number }): Promise<{ jobs: any[]; total: number }> {
+    const { status = "active", limit = 20, offset = 0 } = params || {};
+    const [dataResult, countResult] = await Promise.all([
+      pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.organization_id = $1 AND j.status = $2 ORDER BY j.created_at DESC LIMIT $3 OFFSET $4", [organizationId, status, limit, offset]),
+      pool.query("SELECT COUNT(*) FROM jobs WHERE organization_id = $1 AND status = $2", [organizationId, status]),
+    ]);
+    return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
+  }
+
   async getJobsByRecruiter(recruiterId: number): Promise<any[]> {
     const result = await pool.query('SELECT * FROM jobs WHERE recruiter_id = $1 ORDER BY created_at DESC', [recruiterId]);
     return result.rows;
