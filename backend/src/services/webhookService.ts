@@ -36,7 +36,7 @@ export class WebhookService {
     return secret;
   }
 
-  verifyWebhookSignature(payload: string, signature: string): boolean {
+  verifyWebhookSignature(payload: string | Buffer, signature: string): boolean {
     try {
       const secret = this.getWebhookSecret();
       const hmac = crypto.createHmac("sha256", secret);

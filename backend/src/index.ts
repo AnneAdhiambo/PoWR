@@ -31,7 +31,11 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buffer) => {
+    (req as any).rawBody = Buffer.from(buffer);
+  },
+}));
 
 // Health check
 app.get("/health", (req, res) => {
