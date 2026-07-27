@@ -270,6 +270,10 @@ class ApiClient {
     return this.request("/api/tenant/context");
   }
 
+  async getJob(id: string): Promise<{ job: Job }> {
+    return this.request(`/api/jobs/${id}`);
+  }
+
   async getGigs(params?: { page?: number; limit?: number }): Promise<{ gigs: Gig[]; total: number }> {
     const q = new URLSearchParams();
     if (params?.page) q.set("page", String(params.page));

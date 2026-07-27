@@ -1289,6 +1289,11 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async getOrganizationJobById(organizationId: number, id: number): Promise<any | null> {
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.organization_id = $1 AND j.id = $2 AND j.status = 'active'", [organizationId, id]);
+    return result.rows[0] || null;
+  }
+
   async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<any> {
     const fields: string[] = [];
     const values: any[] = [id, recruiterId];

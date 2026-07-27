@@ -6,6 +6,7 @@ import { Sidebar } from "../../components/layout/Sidebar";
 import { Card, Button } from "../../components/ui";
 import { Briefcase, MapPin, CurrencyDollar, Clock, Star, ArrowLeft, CheckCircle, XCircle, Buildings } from "phosphor-react";
 import { savedItems } from "../../lib/savedItems";
+import { apiClient } from "../../lib/api";
 import toast from "react-hot-toast";
 
 interface Job {
@@ -206,15 +207,21 @@ export default function JobDetailPage() {
       setUserEmail(storedEmail);
     }
 
-    // Load job details
-    setTimeout(() => {
+    const isTenant = window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev");
+    if (isTenant) {
+      apiClient.getJob(jobId).then(({ job: remoteJob }) => {
+        const foundJob = { ...remoteJob, id: String(remoteJob.id), type: remoteJob.type || "full-time", salary: remoteJob.salary || "", description: remoteJob.description || "", tags: remoteJob.tags || [], posted: "Recently" } as Job;
+        setJob(foundJob);
+        setSaved(savedItems.isJobSaved(foundJob.id));
+      }).catch(() => setJob(null)).finally(() => setLoading(false));
+    } else {
       const foundJob = mockJobs.find(j => j.id === jobId);
       if (foundJob) {
         setJob(foundJob);
         setSaved(savedItems.isJobSaved(foundJob.id));
       }
       setLoading(false);
-    }, 500);
+    }
   }, [jobId]);
 
   if (loading) {

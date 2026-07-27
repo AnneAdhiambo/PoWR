@@ -36,7 +36,10 @@ router.get("/jobs/my", requireRecruiter, requireOrganizationMember, async (req, 
 // GET /api/jobs/:id — public
 router.get("/jobs/:id", async (req, res) => {
   try {
-    const job = await dbService.getJobById(Number(req.params.id));
+    const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
+    const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
+    const organization = await dbService.getOrganizationByHostname(hostname);
+    const job = organization ? await dbService.getOrganizationJobById(organization.id, Number(req.params.id)) : await dbService.getJobById(Number(req.params.id));
     if (!job) return res.status(404).json({ error: "Not found" });
     res.json({ job });
   } catch (err: any) {
