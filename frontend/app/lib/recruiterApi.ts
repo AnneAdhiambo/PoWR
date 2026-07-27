@@ -177,7 +177,7 @@ class RecruiterApiClient {
     return this.request("/api/jobs/my");
   }
 
-  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[] }>): Promise<{ job: any }> {
+  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<{ job: any }> {
     return this.request(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(data) });
   }
 

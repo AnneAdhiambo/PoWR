@@ -62,6 +62,8 @@ router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, re
 router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const allowedStatuses = ["draft", "active", "paused", "archived"];
+    if (req.body.status !== undefined && !allowedStatuses.includes(req.body.status)) return res.status(400).json({ error: "Invalid job status" });
     const job = await dbService.updateJob(Number(req.params.id), recruiterId, req.body);
     if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
     const organization = (req as any).organization as { organizationId: number };

@@ -14,6 +14,7 @@ interface Job {
   type: string;
   description?: string;
   tags?: string[];
+  status?: string;
 }
 
 interface JobForm {
@@ -134,6 +135,14 @@ export default function RecruiterJobsPage() {
     } catch {
       toast.error("Failed to delete job");
     }
+  };
+
+  const setJobStatus = async (job: Job, status: string) => {
+    try {
+      const { job: updated } = await recruiterApiClient.updateJob(String(job.id), { status });
+      setJobs((prev) => prev.map((item) => String(item.id) === String(job.id) ? updated : item));
+      toast.success(status === "active" ? "Job published" : `Job ${status}`);
+    } catch { toast.error("Failed to update job status"); }
   };
 
   return (
@@ -317,6 +326,8 @@ export default function RecruiterJobsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-white/10 text-gray-300 capitalize">{job.status || "active"}</span>
+                  {job.status === "active" ? <button onClick={() => setJobStatus(job, "paused")} className="text-xs text-gray-400 hover:text-white">Pause</button> : job.status !== "archived" ? <button onClick={() => setJobStatus(job, "active")} className="text-xs text-[#FF8a55] hover:text-white">Publish</button> : null}
                   <button
                     onClick={() => openEdit(job)}
                     className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-white transition-colors"
