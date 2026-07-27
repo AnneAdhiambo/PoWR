@@ -16,6 +16,16 @@ const allowedOrigins = [
   process.env.FRONTEND_URL?.replace(/\/$/, ""),
 ].filter(Boolean);
 
+function isAllowedTenantOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      (url.hostname.endsWith(".powr.localhost") || url.hostname.endsWith(".powr.dev"));
+  } catch {
+    return false;
+  }
+}
+
 console.log("Allowed origins at startup:", allowedOrigins); 
 
 app.use(cors({
@@ -24,7 +34,7 @@ app.use(cors({
     if (!origin) return callback(null, true);
     // Check if origin is allowed (strip trailing slash for comparison)
     const normalizedOrigin = origin.replace(/\/$/, "");
-    if (allowedOrigins.some(allowed => allowed === normalizedOrigin)) {
+    if (allowedOrigins.some(allowed => allowed === normalizedOrigin) || isAllowedTenantOrigin(normalizedOrigin)) {
       return callback(null, origin);
     }
     callback(new Error("Not allowed by CORS"));
