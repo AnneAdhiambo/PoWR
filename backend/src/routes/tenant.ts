@@ -5,7 +5,10 @@ const router = express.Router();
 
 router.get("/context", async (req, res) => {
   try {
-    const hostname = String(req.headers["x-powr-hostname"] || req.hostname || "")
+    const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true"
+      ? req.headers["x-powr-hostname"]
+      : undefined;
+    const hostname = String(developmentHostname || req.hostname || "")
       .toLowerCase()
       .split(":")[0];
     const organization = await dbService.getOrganizationByHostname(hostname);
