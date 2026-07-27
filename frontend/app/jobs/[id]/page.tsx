@@ -23,6 +23,7 @@ interface Job {
   requirements?: string[];
   responsibilities?: string[];
   benefits?: string[];
+  screening_questions?: string[];
 }
 
 const mockJobs: Job[] = [
@@ -441,8 +442,12 @@ export default function JobDetailPage() {
                     if (!applicantUsername || !applicantEmail) return;
                     const coverNote = window.prompt("Optional cover note") || "";
                     if (!window.confirm("Allow this company to store and review your application and PoWR profile?")) return;
-                    apiClient.applyToJob(job.id, { developer_username: applicantUsername, applicant_email: applicantEmail, cover_note: coverNote, consent_given: true })
-                      .then(() => toast.success("Application submitted"))
+                    const screeningAnswers = Object.fromEntries((job.screening_questions || []).map((question) => [question, window.prompt(question) || ""]));
+                    apiClient.applyToJob(job.id, { developer_username: applicantUsername, applicant_email: applicantEmail, cover_note: coverNote, consent_given: true, screening_answers: screeningAnswers, shared_evidence: ["powr_profile"] })
+                      .then(({ application }) => {
+                        localStorage.setItem(`powr_application_${application.id}`, application.access_token);
+                        toast.success("Application submitted");
+                      })
                       .catch((error) => toast.error(error.message || "Could not submit application"));
                   }}
                 >

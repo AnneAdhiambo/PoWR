@@ -280,7 +280,7 @@ class ApiClient {
     return this.request(`/api/jobs/${id}`);
   }
 
-  async applyToJob(id: string, data: { developer_username: string; applicant_email: string; cover_note?: string; consent_given: boolean }) {
+  async applyToJob(id: string, data: { developer_username: string; applicant_email: string; cover_note?: string; consent_given: boolean; screening_answers?: Record<string, string>; shared_evidence?: string[] }) {
     return this.request<{ application: any }>(`/api/jobs/${id}/applications`, { method: "POST", body: JSON.stringify(data) });
   }
 

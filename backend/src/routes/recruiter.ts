@@ -47,11 +47,27 @@ router.patch("/applications/:applicationId", requireRecruiter, requireOrganizati
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const organization = (req as any).organization as { organizationId: number };
-    if (!["applied", "screening", "interview", "offer", "hired", "rejected"].includes(req.body.stage)) return res.status(400).json({ error: "Invalid application stage" });
+    if (!["applied", "screening", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"].includes(req.body.stage)) return res.status(400).json({ error: "Invalid application stage" });
     const application = await dbService.updateApplicationStage(organization.organizationId, Number(req.params.applicationId), req.body.stage);
     if (!application) return res.status(404).json({ error: "Application not found" });
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.stage_updated", "job_application", req.params.applicationId, { stage: req.body.stage });
+    await dbService.addApplicationEvent(Number(req.params.applicationId), String(recruiterId), "application.stage_updated", { stage: req.body.stage });
     res.json({ application });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+  });
+
+router.put("/applications/:applicationId/scorecard", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const score = Number(req.body.score);
+    const recommendation = String(req.body.recommendation || "").trim();
+    if (!Number.isInteger(score) || score < 1 || score > 5 || !recommendation) return res.status(400).json({ error: "Score from 1 to 5 and recommendation are required" });
+    const scorecard = await dbService.upsertApplicationScorecard(organization.organizationId, Number(req.params.applicationId), recruiterId, score, recommendation, req.body.feedback);
+    if (!scorecard) return res.status(404).json({ error: "Application not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.scorecard_updated", "job_application", req.params.applicationId, { score, recommendation });
+    await dbService.addApplicationEvent(Number(req.params.applicationId), String(recruiterId), "application.scorecard_updated", { score, recommendation });
+    res.json({ scorecard });
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 

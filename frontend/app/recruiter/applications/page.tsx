@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { Button, Card } from "../../components/ui";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 
-const stages = ["applied", "screening", "interview", "offer", "hired", "rejected"];
+const stages = ["applied", "screening", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"];
 
 interface Application {
   id: number;
@@ -23,6 +23,9 @@ interface Application {
   profile_summary?: string;
   availability?: string;
   notes: Array<{ id: number; note: string; recruiter_email: string; created_at: string }>;
+  screening_answers?: Record<string, string>;
+  shared_evidence?: string[];
+  scorecards?: Array<{ id: number; score: number; recommendation: string; feedback?: string }>;
 }
 
 export default function RecruiterApplicationsPage() {
@@ -105,6 +108,19 @@ export default function RecruiterApplicationsPage() {
     }
   }
 
+  async function addScorecard(applicationId: number) {
+    const score = Number(window.prompt("Score this candidate from 1 to 5"));
+    if (!Number.isInteger(score) || score < 1 || score > 5) return;
+    const recommendation = window.prompt("Recommendation (strong yes, yes, no, strong no)") || "";
+    if (!recommendation) return;
+    const feedback = window.prompt("Private scorecard feedback") || undefined;
+    try {
+      const { scorecard } = await recruiterApiClient.saveApplicationScorecard(applicationId, score, recommendation, feedback);
+      setApplications((current) => current.map((application) => application.id === applicationId ? { ...application, scorecards: [scorecard, ...(application.scorecards || []).filter((item) => item.id !== scorecard.id)] } : application));
+      toast.success("Scorecard saved");
+    } catch (error: any) { toast.error(error.message || "Could not save scorecard"); }
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -165,6 +181,7 @@ export default function RecruiterApplicationsPage() {
                   </div>
                   {application.profile_summary && <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-500">{application.profile_summary}</p>}
                   {application.cover_note && <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">{application.cover_note}</p>}
+                  {application.screening_answers && Object.keys(application.screening_answers).length > 0 && <div className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">{Object.entries(application.screening_answers).map(([question, answer]) => <div key={question} className="mb-2 last:mb-0"><p className="text-xs text-gray-500">{question}</p><p className="text-sm text-gray-300">{answer}</p></div>)}</div>}
                   <div className="mt-4 max-w-3xl border-t border-white/[0.06] pt-4">
                     <div className="flex gap-2">
                       <input value={noteDrafts[application.id] || ""} onChange={(event) => setNoteDrafts((current) => ({ ...current, [application.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") addNote(application.id); }} placeholder="Add an internal hiring note" className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-gray-600 focus:border-[#FF5500]" />
@@ -181,6 +198,7 @@ export default function RecruiterApplicationsPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => router.push(`/recruiter/developer/${application.developer_username}`)}>View PoWR profile</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => addScorecard(application.id)}>Scorecard</Button>
                   <select disabled={updatingId === application.id} value={application.stage} onChange={(event) => moveApplication(application.id, event.target.value)} className="rounded-[var(--radius-control)] border border-white/10 bg-[#12141a] px-3 py-2 text-sm capitalize text-white outline-none focus:border-[#FF5500] disabled:opacity-50">
                     {stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
                   </select>

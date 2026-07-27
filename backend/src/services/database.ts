@@ -249,6 +249,36 @@ async function initializeTables() {
         UNIQUE(job_id, developer_username)
       );
       CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id, stage);
+      ALTER TABLE job_applications
+        ADD COLUMN IF NOT EXISTS access_token UUID,
+        ADD COLUMN IF NOT EXISTS screening_answers JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ADD COLUMN IF NOT EXISTS shared_evidence JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS consent_revoked_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS withdrawn_at TIMESTAMP;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_job_applications_access_token ON job_applications(access_token) WHERE access_token IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS job_application_events (
+        id BIGSERIAL PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        event_type TEXT NOT NULL,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_application_events_application ON job_application_events(application_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS job_application_scorecards (
+        id SERIAL PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id) ON DELETE CASCADE,
+        score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+        recommendation TEXT NOT NULL,
+        feedback TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(application_id, recruiter_id)
+      );
 
       CREATE TABLE IF NOT EXISTS job_application_notes (
         id SERIAL PRIMARY KEY,
@@ -1370,9 +1400,20 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
-  async createJobApplication(jobId: number, username: string, email: string, coverNote: string | undefined, consentGiven: boolean): Promise<any> {
-    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given) SELECT j.id, $2, $3, $4, $5 FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.id = $1 AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) RETURNING *`, [jobId, username, email, coverNote || null, consentGiven]);
-    return result.rows[0];
+  async createJobApplication(jobId: number, username: string, email: string, coverNote: string | undefined, consentGiven: boolean, accessToken: string, screeningAnswers: Record<string, string>, sharedEvidence: string[]): Promise<any> {
+    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given, access_token, screening_answers, shared_evidence) SELECT j.id, $2, $3, $4, $5, $6::uuid, $7::jsonb, $8::jsonb FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.id = $1 AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) RETURNING *`, [jobId, username, email, coverNote || null, consentGiven, accessToken, JSON.stringify(screeningAnswers || {}), JSON.stringify(sharedEvidence || [])]);
+    const application = result.rows[0];
+    if (application) await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, 'application.created')", [application.id, username]);
+    return application;
+  }
+
+  async updateDeveloperApplication(accessToken: string, action: "withdraw" | "revoke_consent"): Promise<any | null> {
+    const result = action === "withdraw"
+      ? await pool.query("UPDATE job_applications SET stage = 'withdrawn', withdrawn_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid AND stage NOT IN ('hired', 'rejected', 'withdrawn') RETURNING *", [accessToken])
+      : await pool.query("UPDATE job_applications SET consent_given = false, shared_evidence = '[]'::jsonb, consent_revoked_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid RETURNING *", [accessToken]);
+    const application = result.rows[0];
+    if (application) await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, $3)", [application.id, application.developer_username, action === "withdraw" ? "application.withdrawn" : "application.consent_revoked"]);
+    return application || null;
   }
 
   async getOrganizationApplications(organizationId: number): Promise<any[]> {
@@ -1395,7 +1436,9 @@ export class DatabaseService {
            FROM job_application_notes n
            JOIN recruiters r ON r.id = n.recruiter_id
            WHERE n.application_id = a.id
-         ), '[]'::jsonb) AS notes
+         ), '[]'::jsonb) AS notes,
+         COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.updated_at DESC) FROM job_application_scorecards s WHERE s.application_id = a.id), '[]'::jsonb) AS scorecards,
+         COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.created_at DESC) FROM job_application_events e WHERE e.application_id = a.id), '[]'::jsonb) AS events
        FROM job_applications a
        JOIN jobs j ON j.id = a.job_id
        LEFT JOIN profiles p ON p.username = a.developer_username
@@ -1408,6 +1451,21 @@ export class DatabaseService {
 
   async updateApplicationStage(organizationId: number, applicationId: number, stage: string): Promise<any | null> {
     const result = await pool.query(`UPDATE job_applications a SET stage = $3, updated_at = NOW() FROM jobs j WHERE a.job_id = j.id AND a.id = $1 AND j.organization_id = $2 RETURNING a.*`, [applicationId, organizationId, stage]);
+    return result.rows[0] || null;
+  }
+
+  async addApplicationEvent(applicationId: number, actorId: string, eventType: string, metadata: Record<string, unknown> = {}): Promise<void> {
+    await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type, metadata) VALUES ($1, 'recruiter', $2, $3, $4::jsonb)", [applicationId, actorId, eventType, JSON.stringify(metadata)]);
+  }
+
+  async upsertApplicationScorecard(organizationId: number, applicationId: number, recruiterId: number, score: number, recommendation: string, feedback?: string): Promise<any | null> {
+    const result = await pool.query(`
+      INSERT INTO job_application_scorecards (application_id, recruiter_id, score, recommendation, feedback)
+      SELECT a.id, $3, $4, $5, $6 FROM job_applications a JOIN jobs j ON j.id = a.job_id
+      WHERE a.id = $1 AND j.organization_id = $2
+      ON CONFLICT (application_id, recruiter_id) DO UPDATE SET score = EXCLUDED.score, recommendation = EXCLUDED.recommendation, feedback = EXCLUDED.feedback, updated_at = NOW()
+      RETURNING *
+    `, [applicationId, organizationId, recruiterId, score, recommendation, feedback || null]);
     return result.rows[0] || null;
   }
 

@@ -1,4 +1,5 @@
 import express from "express";
+import { randomUUID } from "crypto";
 import { dbService } from "../services/database";
 import { requireRecruiter, requireOrganizationMember, RecruiterJwtPayload } from "../middleware/requireRecruiter";
 
@@ -49,13 +50,25 @@ router.get("/jobs/:id", async (req, res) => {
 
 router.post("/jobs/:id/applications", async (req, res) => {
   try {
-    const { developer_username, applicant_email, cover_note, consent_given } = req.body;
+    const { developer_username, applicant_email, cover_note, consent_given, screening_answers, shared_evidence } = req.body;
     if (!developer_username || !applicant_email || consent_given !== true) return res.status(400).json({ error: "Applicant identity, email, and consent are required" });
-    const application = await dbService.createJobApplication(Number(req.params.id), developer_username, applicant_email, cover_note, consent_given);
+    const application = await dbService.createJobApplication(Number(req.params.id), developer_username, applicant_email, cover_note, consent_given, randomUUID(), screening_answers || {}, shared_evidence || []);
     if (!application) return res.status(404).json({ error: "Job is not accepting applications" });
     res.status(201).json({ application });
   } catch (err: any) {
     res.status(err.code === "23505" ? 409 : 500).json({ error: err.code === "23505" ? "You already applied to this job" : err.message });
+  }
+});
+
+router.patch("/applications/self", async (req, res) => {
+  try {
+    const accessToken = String(req.headers["x-application-token"] || req.body.access_token || "");
+    if (!accessToken || !["withdraw", "revoke_consent"].includes(req.body.action)) return res.status(400).json({ error: "Application token and valid action are required" });
+    const application = await dbService.updateDeveloperApplication(accessToken, req.body.action);
+    if (!application) return res.status(404).json({ error: "Application not found or action unavailable" });
+    res.json({ application });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

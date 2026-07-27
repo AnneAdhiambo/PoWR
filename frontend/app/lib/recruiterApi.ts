@@ -121,6 +121,13 @@ class RecruiterApiClient {
     });
   }
 
+  async saveApplicationScorecard(applicationId: number, score: number, recommendation: string, feedback?: string) {
+    return this.request<{ scorecard: any }>(`/api/recruiter/applications/${applicationId}/scorecard`, {
+      method: "PUT",
+      body: JSON.stringify({ score, recommendation, feedback }),
+    });
+  }
+
   async convertApplicationToEmployee(applicationId: number, startDate?: string) {
     return this.request<{ employee: any }>(`/api/recruiter/applications/${applicationId}/convert-to-employee`, {
       method: "POST",
