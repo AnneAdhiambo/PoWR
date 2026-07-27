@@ -109,6 +109,32 @@ async function seedLocalData() {
       );
     }
 
+    const contosoJob = await client.query<{ id: number }>(
+      `SELECT j.id
+       FROM jobs j
+       JOIN organizations o ON o.id = j.organization_id
+       WHERE o.slug = 'contoso-labs-1001' AND j.title = 'Senior Full-Stack Engineer'
+       LIMIT 1`,
+    );
+
+    if (contosoJob.rowCount) {
+      const applicationFixtures = [
+        { username: "ada-lovelace", email: "ada@example.test", stage: "screening", note: "I build polished TypeScript products and enjoy partnering closely with design and platform teams." },
+        { username: "alan-turing", email: "alan@example.test", stage: "interview", note: "My backend and ML systems experience aligns well with the reliability challenges described in this role." },
+        { username: "grace-hopper", email: "grace@example.test", stage: "offer", note: "I have led distributed systems teams and would love to help Contoso scale its engineering platform." },
+      ];
+
+      for (const application of applicationFixtures) {
+        await client.query(
+          `INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given, stage)
+           VALUES ($1, $2, $3, $4, true, $5)
+           ON CONFLICT (job_id, developer_username)
+           DO UPDATE SET applicant_email = EXCLUDED.applicant_email, cover_note = EXCLUDED.cover_note, consent_given = true, stage = EXCLUDED.stage, updated_at = NOW()`,
+          [contosoJob.rows[0].id, application.username, application.email, application.note, application.stage],
+        );
+      }
+    }
+
     await client.query("COMMIT");
     console.log("Local seed complete. Recruiter password: Password123!");
   } catch (error) {
