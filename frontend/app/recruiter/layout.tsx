@@ -11,11 +11,14 @@ export default function RecruiterLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0c0f] flex">
+    <div className="flex min-h-screen bg-[var(--bg-main)]">
+      <a href="#recruiter-main" className="fixed left-4 top-3 z-[70] -translate-y-20 rounded-[var(--radius-control)] bg-[var(--brand-orange)] px-4 py-2 text-sm font-semibold text-white focus:translate-y-0">
+        Skip to main content
+      </a>
       <RecruiterSidebar />
-      <div className="flex-1 ml-0 md:ml-60 min-h-screen overflow-y-auto pt-16 md:pt-0">
+      <main id="recruiter-main" tabIndex={-1} className="ml-0 min-h-screen min-w-0 flex-1 overflow-y-auto pt-16 md:ml-60 md:pt-0">
         {children}
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
-import { Warning, X, XCircle } from "phosphor-react";
+import { Warning, XCircle } from "phosphor-react";
+import { Button } from "./Button";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "./Dialog";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -24,44 +26,26 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelText = "Cancel",
   variant = "warning",
 }) => {
-  if (!isOpen) return null;
-
   const variantStyles = {
     danger: {
       icon: "text-red-500",
-      button: "bg-red-600 hover:bg-red-700 text-white",
+      button: "danger" as const,
     },
     warning: {
       icon: "text-yellow-500",
-      button: "bg-yellow-600 hover:bg-yellow-700 text-white",
+      button: "primary" as const,
     },
     info: {
       icon: "text-[#FF5500]",
-      button: "bg-[#FF5500] hover:bg-[#2d5fd6] text-white",
+      button: "primary" as const,
     },
   };
 
   const styles = variantStyles[variant];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Dialog */}
-      <div className="relative bg-[#12141a] rounded-[16px] border border-[rgba(255,255,255,0.08)] shadow-2xl max-w-md w-full mx-4 p-6">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-        >
-          <X className="w-5 h-5" weight="regular" />
-        </button>
-
-        {/* Icon and Title */}
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md" onEscapeKeyDown={onClose}>
         <div className="flex items-start gap-4 mb-4">
           <div className={`flex-shrink-0 ${styles.icon}`}>
             {variant === "danger" ? (
@@ -71,31 +55,28 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             )}
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-            <p className="text-sm text-gray-400 leading-relaxed">{message}</p>
+            <DialogTitle className="mb-2 text-lg font-semibold text-white">{title}</DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed text-gray-400">{message}</DialogDescription>
           </div>
         </div>
-
-        {/* Actions */}
         <div className="flex items-center justify-end gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-gray-300 hover:text-white text-sm font-medium transition-colors"
-          >
-            {cancelText}
-          </button>
-          <button
+          <DialogClose asChild>
+            <Button type="button" variant="secondary" size="sm">{cancelText}</Button>
+          </DialogClose>
+          <Button
+            type="button"
+            variant={styles.button}
+            size="sm"
             onClick={() => {
               onConfirm();
               onClose();
             }}
-            className={`px-4 py-2 rounded-lg ${styles.button} text-sm font-medium transition-colors`}
           >
             {confirmText}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Button, Card } from "../../components/ui";
+import { Button, Card, EmptyState, Field, LoadingState, PageHeader, RecruiterPage, StatusBadge, controlClassName } from "../../components/ui";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 
 const roles = ["admin", "recruiter", "hiring_manager", "interviewer"];
@@ -66,23 +66,21 @@ export default function RecruiterTeamPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <div className="mb-8">
-        <p className="text-sm font-medium text-[#FF5500]">Organization workspace</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Team</h1>
-        <p className="mt-2 text-sm text-gray-400">Coordinate recruiting work with the right access for every teammate.</p>
-      </div>
+    <RecruiterPage className="max-w-5xl">
+      <PageHeader eyebrow="Organization workspace" title="Team" description="Coordinate recruiting work with the right access for every teammate." />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="p-5">
           <h2 className="text-base font-semibold text-white">Members</h2>
-          {loading ? <p className="mt-6 text-sm text-gray-500">Loading team...</p> : (
+          {loading ? <div className="mt-4"><LoadingState label="Loading team" /></div> : members.length === 0 ? (
+            <div className="mt-4"><EmptyState title="No teammates yet" description="Invite a teammate to collaborate on jobs and hiring decisions." /></div>
+          ) : (
             <div className="mt-4 divide-y divide-white/[0.06]">
               {members.map((member) => (
                 <div key={member.id} className="flex items-center justify-between gap-4 py-4">
                   <div className="min-w-0"><p className="truncate text-sm font-medium text-white">{member.email}</p><p className="mt-1 text-xs text-gray-500">{member.company_name}</p></div>
                   <div className="flex items-center gap-2">
-                    {member.role === "owner" ? <span className="rounded-full border border-[#FF5500]/25 bg-[#FF5500]/10 px-2.5 py-1 text-xs capitalize text-[#FF8a55]">Owner</span> : <>
-                      <select aria-label={`Role for ${member.email}`} value={member.role} onChange={(event) => changeRole(member.id, event.target.value)} className="rounded-[var(--radius-control)] border border-white/10 bg-[#12141a] px-2 py-1.5 text-xs capitalize text-white outline-none focus:border-[#FF5500]">
+                    {member.role === "owner" ? <StatusBadge tone="brand">Owner</StatusBadge> : <>
+                      <select aria-label={`Role for ${member.email}`} value={member.role} onChange={(event) => changeRole(member.id, event.target.value)} className={`${controlClassName} w-auto py-1.5 text-xs capitalize`}>
                         {roles.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
                       </select>
                       <Button type="button" variant="ghost" onClick={() => removeMember(member.id)} className="px-2 text-xs text-red-300">Remove</Button>
@@ -96,8 +94,8 @@ export default function RecruiterTeamPage() {
         <Card className="p-5">
           <h2 className="text-base font-semibold text-white">Invite teammate</h2>
           <form onSubmit={invite} className="mt-4 space-y-4">
-            <label className="block text-sm text-gray-300">Email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" placeholder="teammate@company.com" /></label>
-            <label className="block text-sm text-gray-300">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-[#12141a] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]">{roles.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}</select></label>
+            <Field label="Email" required><input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={controlClassName} placeholder="teammate@company.com" /></Field>
+            <Field label="Role"><select value={role} onChange={(event) => setRole(event.target.value)} className={controlClassName}>{roles.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}</select></Field>
             <Button type="submit" className="w-full">Create invitation</Button>
           </form>
           {inviteToken && <div className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3"><p className="text-xs font-medium text-emerald-300">Local invitation token</p><code className="mt-2 block break-all text-xs text-emerald-100">{inviteToken}</code></div>}
@@ -105,11 +103,11 @@ export default function RecruiterTeamPage() {
           <h2 className="text-base font-semibold text-white">Accept invitation</h2>
           <p className="mt-1 text-xs text-gray-500">Use a token sent to your signed-in email.</p>
           <form onSubmit={acceptInvitation} className="mt-4 space-y-3">
-            <input required value={acceptToken} onChange={(event) => setAcceptToken(event.target.value)} placeholder="Invitation token" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-600 focus:border-[#FF5500]" />
+            <Field label="Invitation token"><input required value={acceptToken} onChange={(event) => setAcceptToken(event.target.value)} placeholder="Paste token" className={controlClassName} /></Field>
             <Button type="submit" variant="secondary" className="w-full">Join organization</Button>
           </form>
         </Card>
       </div>
-    </main>
+    </RecruiterPage>
   );
 }

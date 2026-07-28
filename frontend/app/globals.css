@@ -4,16 +4,25 @@
   --bg-main: #0b0c0f;
   --bg-card: #12141a;
   --bg-soft: #161922;
+  --bg-elevated: #1b1e27;
+  --bg-hover: rgba(255, 255, 255, 0.06);
   --foreground: #ffffff;
   --primary-orange: #FF5500;
   --border-color: rgba(255,255,255,0.04);
+  --border-strong: rgba(255, 255, 255, 0.1);
   --text-muted: #8b909b;
   --text-subtle: #656b78;
+  --status-success: #34d399;
+  --status-warning: #fbbf24;
+  --status-danger: #f87171;
+  --status-info: #60a5fa;
   --brand-orange: #ff5500;
   --brand-orange-hover: #e64d00;
   --focus-ring: rgba(255, 85, 0, 0.7);
   --radius-card: 14px;
   --radius-control: 10px;
+  --shadow-elevated: 0 24px 80px rgba(0, 0, 0, 0.42);
+  --content-recruiter: 1152px;
 }
 
 @theme inline {
@@ -33,6 +42,11 @@ body {
   background: var(--bg-main);
   color: var(--foreground);
   font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+::selection {
+  background: rgba(255, 85, 0, 0.28);
+  color: #ffffff;
 }
 
 button, a, input, textarea, select {
@@ -112,4 +126,15 @@ button, a, input, textarea, select {
 /* Smooth transitions */
 * {
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
