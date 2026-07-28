@@ -39,7 +39,7 @@ export class RecruiterService {
     await dbService.ensureRecruiterOrganization(row.id, companyName);
 
     const token = jwt.sign(
-      { role: "recruiter", recruiterId: row.id, email: row.email },
+      { role: "recruiter", recruiterId: row.id, email: row.email, sessionVersion: Number(row.session_version || 0) },
       getJwtSecret(),
       { expiresIn: "30d" }
     );
@@ -70,9 +70,10 @@ export class RecruiterService {
     }
 
     await dbService.updateRecruiterLastLogin(row.id);
+    const sessionVersion = await dbService.rotateRecruiterSession(row.id);
 
     const token = jwt.sign(
-      { role: "recruiter", recruiterId: row.id, email: row.email },
+      { role: "recruiter", recruiterId: row.id, email: row.email, sessionVersion },
       getJwtSecret(),
       { expiresIn: "30d" }
     );

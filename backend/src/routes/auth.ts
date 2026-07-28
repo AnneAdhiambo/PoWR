@@ -3,6 +3,7 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import { dbService } from "../services/database";
 import { rateLimit } from "../middleware/rateLimit";
+import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeveloper";
 
 const router = express.Router();
 const oauthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: "developer-oauth" });
@@ -76,10 +77,11 @@ router.get("/github/callback", oauthRateLimit, async (req, res) => {
     
     // Store user and token in database
     await dbService.upsertUser(user.login, user.id, access_token);
+    const sessionVersion = await dbService.rotateDeveloperSession(user.login);
     
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) return res.status(500).json({ error: "JWT_SECRET is not configured" });
-    const session = jwt.sign({ role: "developer", username: user.login }, jwtSecret, { expiresIn: "7d" });
+    const session = jwt.sign({ role: "developer", username: user.login, sessionVersion }, jwtSecret, { expiresIn: "7d" });
     res.cookie("powr_developer_session", session, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -108,8 +110,10 @@ router.get("/validate", async (req, res) => {
     const session = cookies.find((cookie) => cookie.trim().startsWith("powr_developer_session="))?.trim().split("=")[1];
     if (!session) return res.status(401).json({ valid: false, error: "Session required" });
     try {
-      const payload = jwt.verify(decodeURIComponent(session), process.env.JWT_SECRET || "") as { role: string; username: string };
+      const payload = jwt.verify(decodeURIComponent(session), process.env.JWT_SECRET || "") as DeveloperJwtPayload;
       if (payload.role !== "developer") return res.status(403).json({ valid: false, error: "Developer session required" });
+      const currentVersion = await dbService.getDeveloperSessionVersion(payload.username);
+      if (currentVersion === null || currentVersion !== payload.sessionVersion) return res.status(401).json({ valid: false, error: "Session revoked" });
       res.json({ valid: true, user: payload.username });
     } catch {
       res.status(401).json({ valid: false, error: "Session expired or invalid" });
@@ -120,7 +124,9 @@ router.get("/validate", async (req, res) => {
   }
 });
 
-router.post("/logout", (_req, res) => {
+router.post("/logout", requireDeveloper, async (req, res) => {
+  const { username } = (req as any).developer as DeveloperJwtPayload;
+  await dbService.rotateDeveloperSession(username);
   res.clearCookie("powr_developer_session", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
   res.json({ success: true });
 });

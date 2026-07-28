@@ -166,6 +166,9 @@ async function initializeTables() {
         last_login TIMESTAMP
       );
 
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+
       CREATE TABLE IF NOT EXISTS recruiter_payment_intents (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER NOT NULL REFERENCES recruiters(id),
@@ -920,6 +923,16 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async rotateDeveloperSession(username: string): Promise<number> {
+    const result = await pool.query("UPDATE users SET session_version = session_version + 1 WHERE username = $1 RETURNING session_version", [username]);
+    return Number(result.rows[0]?.session_version || 0);
+  }
+
+  async getDeveloperSessionVersion(username: string): Promise<number | null> {
+    const result = await pool.query("SELECT session_version FROM users WHERE username = $1", [username]);
+    return result.rowCount ? Number(result.rows[0].session_version) : null;
+  }
+
   async confirmRecruiterPaymentIntent(paymentHash: string): Promise<any | null> {
     const result = await pool.query(
       `UPDATE recruiter_payment_intents
@@ -1012,6 +1025,16 @@ export class DatabaseService {
       [recruiterId],
     );
     return result.rows[0] || null;
+  }
+
+  async rotateRecruiterSession(id: number): Promise<number> {
+    const result = await pool.query("UPDATE recruiters SET session_version = session_version + 1 WHERE id = $1 RETURNING session_version", [id]);
+    return Number(result.rows[0]?.session_version || 0);
+  }
+
+  async getRecruiterSessionVersion(id: number): Promise<number | null> {
+    const result = await pool.query("SELECT session_version FROM recruiters WHERE id = $1", [id]);
+    return result.rowCount ? Number(result.rows[0].session_version) : null;
   }
 
   async getOrganizationByHostname(hostname: string): Promise<any | null> {
@@ -1145,7 +1168,7 @@ export class DatabaseService {
     const result = await pool.query(`
       INSERT INTO recruiters (email, password_hash, company_name, company_size)
       VALUES ($1, $2, $3, $4)
-      RETURNING id, email, company_name, company_size, plan, created_at
+      RETURNING id, email, company_name, company_size, plan, created_at, session_version
     `, [email, passwordHash, companyName, companySize || null]);
     return result.rows[0];
   }

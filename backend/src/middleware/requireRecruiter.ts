@@ -6,6 +6,7 @@ export interface RecruiterJwtPayload {
   role: "recruiter";
   recruiterId: number;
   email: string;
+  sessionVersion: number;
 }
 
 export interface OrganizationContext {
@@ -21,7 +22,7 @@ function readCookie(req: Request, name: string): string | null {
   return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null;
 }
 
-export function requireRecruiter(req: Request, res: Response, next: NextFunction) {
+export async function requireRecruiter(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
   const token = auth?.startsWith("Bearer ")
     ? auth.slice(7)
@@ -37,6 +38,10 @@ export function requireRecruiter(req: Request, res: Response, next: NextFunction
     const payload = jwt.verify(token, secret) as RecruiterJwtPayload;
     if (payload.role !== "recruiter") {
       return res.status(403).json({ error: "Forbidden: recruiter access required" });
+    }
+    const currentVersion = await dbService.getRecruiterSessionVersion(payload.recruiterId);
+    if (currentVersion === null || currentVersion !== payload.sessionVersion) {
+      return res.status(401).json({ error: "Session revoked" });
     }
     (req as any).recruiter = payload;
     next();

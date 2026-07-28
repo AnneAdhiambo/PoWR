@@ -234,7 +234,9 @@ router.post("/auth/login", recruiterAuthRateLimit, async (req, res) => {
   }
 });
 
-router.post("/auth/logout", (_req, res) => {
+router.post("/auth/logout", requireRecruiter, async (req, res) => {
+  const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+  await dbService.rotateRecruiterSession(recruiterId);
   res.clearCookie("powr_recruiter_session", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
