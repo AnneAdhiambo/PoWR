@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sidebar } from "../components/layout/Sidebar";
 import { Card, Pagination } from "../components/ui";
 import { Briefcase, MapPin, CurrencyDollar, Clock, Star, ArrowRight, GridFour, List } from "phosphor-react";
 import { savedItems } from "../lib/savedItems";
@@ -22,6 +21,7 @@ function formatPosted(dateStr?: string): string {
 
 interface Job {
   id: string;
+  publicSlug?: string;
   title: string;
   company: string;
   location: string;
@@ -73,7 +73,8 @@ function JobsPageContent() {
     apiClient.getJobs({ limit: 100 })
       .then(({ jobs: apiJobs }) => {
         setJobs(apiJobs.map(j => ({
-          id: String(j.id),
+          id: j.public_slug || String(j.id),
+          publicSlug: j.public_slug,
           title: j.title,
           company: j.company,
           location: j.location,
@@ -280,22 +281,16 @@ function JobsPageContent() {
   }, [highlightId, jobs, itemsPerPage, router]);
 
   return (
-    <div className="min-h-screen bg-[#0b0c0f] flex">
-      {!tenant && <Sidebar 
-        username={username} 
-        email={userEmail || undefined}
-        displayName={displayName}
-      />}
-
-      <div className={`flex-1 overflow-y-auto ${tenant ? "" : "ml-60"}`}>
+    <div className="min-h-screen bg-[#0b0c0f]">
+      <div className="overflow-y-auto">
         <div className="max-w-[1200px] mx-auto px-6 py-4">
-          {tenant && <header className="mb-10 flex items-center justify-between border-b border-white/[0.08] pb-5">
+          <header className="mb-10 flex items-center justify-between border-b border-white/[0.08] pb-5">
             <div className="flex items-center gap-3">
-              {tenant.profile?.logoUrl ? <img src={tenant.profile.logoUrl} alt="" className="h-9 w-9 rounded-lg object-cover" /> : <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5500] text-sm font-bold text-white">{tenant.display_name.slice(0, 1).toUpperCase()}</div>}
-              <div><p className="text-sm font-semibold text-white">{tenant.display_name}</p><p className="text-xs text-gray-500">Careers at {tenant.display_name}</p></div>
+              {tenant?.profile?.logoUrl ? <img src={tenant.profile.logoUrl} alt="" className="h-9 w-9 rounded-lg object-cover" /> : <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5500] text-sm font-bold text-white">{tenant?.display_name?.slice(0, 1).toUpperCase() || "P"}</div>}
+              <div><p className="text-sm font-semibold text-white">{tenant?.display_name || "PoWR Jobs"}</p><p className="text-xs text-gray-500">{tenant ? `Careers at ${tenant.display_name}` : "Verified opportunities for proven developers"}</p></div>
             </div>
             <span className="text-xs text-gray-500">Powered by PoWR</span>
-          </header>}
+          </header>
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-white tracking-tight mb-1.5" style={{ fontWeight: 500 }}>

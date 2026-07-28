@@ -61,6 +61,7 @@ export default function RecruiterJobsPage() {
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [formStep, setFormStep] = useState(1);
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -85,11 +86,13 @@ export default function RecruiterJobsPage() {
   const openCreate = () => {
     setEditingJob(null);
     setForm(emptyForm);
+    setFormStep(1);
     setShowForm(true);
   };
 
   const openEdit = (job: Job) => {
     setEditingJob(job);
+    setFormStep(1);
     setForm({
       title: job.title,
       company: job.company,
@@ -107,7 +110,7 @@ export default function RecruiterJobsPage() {
     setShowForm(true);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (status: "draft" | "active" = "active") => {
     if (!form.title || !form.company || !form.location) {
       toast.error("Title, company, and location are required");
       return;
@@ -130,6 +133,7 @@ export default function RecruiterJobsPage() {
       seniority: form.seniority || undefined,
       closing_date: form.closingDate || undefined,
       screening_questions: form.questionsInput.split("\n").map((question) => question.trim()).filter(Boolean),
+      status: editingJob ? undefined : status,
     };
     try {
       setSaving(true);
@@ -198,10 +202,10 @@ export default function RecruiterJobsPage() {
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#141519] rounded-2xl border border-[rgba(255,255,255,0.08)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#141519] rounded-2xl border border-[rgba(255,255,255,0.08)] w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-white">
-                {editingJob ? "Edit Job" : "Post a Job"}
+                {editingJob ? "Edit job" : "Create a job"}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
@@ -210,7 +214,26 @@ export default function RecruiterJobsPage() {
                 <X className="w-4 h-4" weight="bold" />
               </button>
             </div>
+            <div className="grid grid-cols-3 gap-2 mb-7">
+              {[
+                ["1", "Job details", "Define the role"],
+                ["2", "Description", "Sell the opportunity"],
+                ["3", "Application", "Screen and publish"],
+              ].map(([step, title, subtitle]) => (
+                <button
+                  key={step}
+                  type="button"
+                  onClick={() => setFormStep(Number(step))}
+                  className={`rounded-xl border p-3 text-left transition-colors ${formStep === Number(step) ? "border-[#FF5500] bg-[#FF5500]/10" : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"}`}
+                >
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Step {step}</span>
+                  <span className="mt-1 block text-sm font-medium text-white">{title}</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">{subtitle}</span>
+                </button>
+              ))}
+            </div>
             <div className="space-y-4">
+              {formStep === 1 && <>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">Job Title *</label>
                 <input
@@ -283,13 +306,19 @@ export default function RecruiterJobsPage() {
                   <option value="contract">Contract</option>
                 </select>
               </div>
+              </>}
+              {formStep === 2 && <>
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                <p className="text-sm font-medium text-white">Make the role worth applying for</p>
+                <p className="mt-1 text-xs text-gray-500">Explain the mission, impact, responsibilities, and what success looks like.</p>
+              </div>
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Description</label>
+                <label className="text-xs text-gray-400 mb-1 block">Job description</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="Describe the role..."
-                  rows={3}
+                  placeholder={"About the role\n\nWhat you will own\n\nWhat success looks like in the first 90 days"}
+                  rows={12}
                   className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF5500] resize-none"
                 />
               </div>
@@ -304,25 +333,46 @@ export default function RecruiterJobsPage() {
                   className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF5500]"
                 />
               </div>
+              </>}
+              {formStep === 3 && <>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">Screening questions (one per line)</label>
                 <textarea value={form.questionsInput} onChange={(e) => setForm((form) => ({ ...form, questionsInput: e.target.value }))} rows={3} placeholder="How many years have you used TypeScript?" className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF5500] resize-none" />
               </div>
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                <p className="text-sm font-medium text-white">Ready to publish?</p>
+                <p className="mt-1 text-xs text-gray-500">{form.title || "Untitled role"} will appear on your public careers page. Save a draft if the hiring team still needs to review it.</p>
+              </div>
+              </>}
             </div>
-            <div className="flex gap-3 mt-6">
+            <div className="flex items-center justify-between gap-3 mt-6 border-t border-white/[0.06] pt-5">
               <button
-                onClick={handleSubmit}
-                disabled={saving}
-                className="flex-1 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors disabled:opacity-60"
-              >
-                {saving ? "Saving..." : editingJob ? "Save Changes" : "Post Job"}
-              </button>
-              <button
-                onClick={() => setShowForm(false)}
+                onClick={() => formStep === 1 ? setShowForm(false) : setFormStep((step) => step - 1)}
                 className="px-5 py-2.5 rounded-lg bg-[rgba(255,255,255,0.05)] text-gray-400 text-sm hover:bg-[rgba(255,255,255,0.08)] transition-colors"
               >
-                Cancel
+                {formStep === 1 ? "Cancel" : "Back"}
               </button>
+              {formStep < 3 ? (
+                <button
+                  onClick={() => {
+                    if (formStep === 1 && (!form.title || !form.company || !form.location)) {
+                      toast.error("Add the title, company, and location first");
+                      return;
+                    }
+                    setFormStep((step) => step + 1);
+                  }}
+                  className="px-6 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors"
+                >
+                  Continue
+                </button>
+              ) : (
+                <div className="flex gap-3">
+                  {!editingJob && <button onClick={() => handleSubmit("draft")} disabled={saving} className="px-5 py-2.5 rounded-lg border border-white/[0.1] text-gray-300 text-sm hover:bg-white/[0.05] disabled:opacity-60">Save draft</button>}
+                  <button onClick={() => handleSubmit("active")} disabled={saving} className="px-6 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors disabled:opacity-60">
+                    {saving ? "Saving..." : editingJob ? "Save changes" : "Publish job"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

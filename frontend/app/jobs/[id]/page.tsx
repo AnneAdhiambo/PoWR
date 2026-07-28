@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Sidebar } from "../../components/layout/Sidebar";
 import { Card, Button } from "../../components/ui";
 import { Briefcase, MapPin, CurrencyDollar, Clock, Star, ArrowLeft, CheckCircle, XCircle, Buildings } from "phosphor-react";
 import { savedItems } from "../../lib/savedItems";
@@ -208,31 +207,16 @@ export default function JobDetailPage() {
       setUserEmail(storedEmail);
     }
 
-    const isTenant = window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev");
-    if (isTenant) {
-      apiClient.getJob(jobId).then(({ job: remoteJob }) => {
-        const foundJob = { ...remoteJob, id: String(remoteJob.id), type: remoteJob.type || "full-time", salary: remoteJob.salary || "", description: remoteJob.description || "", tags: remoteJob.tags || [], posted: "Recently" } as Job;
-        setJob(foundJob);
-        setSaved(savedItems.isJobSaved(foundJob.id));
-      }).catch(() => setJob(null)).finally(() => setLoading(false));
-    } else {
-      const foundJob = mockJobs.find(j => j.id === jobId);
-      if (foundJob) {
-        setJob(foundJob);
-        setSaved(savedItems.isJobSaved(foundJob.id));
-      }
-      setLoading(false);
-    }
+    apiClient.getJob(jobId).then(({ job: remoteJob }) => {
+      const foundJob = { ...remoteJob, id: String(remoteJob.id), type: remoteJob.type || "full-time", salary: remoteJob.salary || "", description: remoteJob.description || "", tags: remoteJob.tags || [], posted: "Recently" } as Job;
+      setJob(foundJob);
+      setSaved(savedItems.isJobSaved(foundJob.id));
+    }).catch(() => setJob(null)).finally(() => setLoading(false));
   }, [jobId]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        {!isTenantHost && <Sidebar 
-          username={username} 
-          email={userEmail || undefined}
-          displayName={displayName}
-        />}
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
         </div>
@@ -243,12 +227,7 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        {!isTenantHost && <Sidebar 
-          username={username} 
-          email={userEmail || undefined}
-          displayName={displayName}
-        />}
-        <div className={`flex-1 overflow-y-auto flex items-center justify-center ${isTenantHost ? "" : "ml-60"}`}>
+        <div className="flex-1 overflow-y-auto flex items-center justify-center">
           <div className="text-center">
             <XCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" weight="regular" />
             <p className="text-gray-400 mb-2">Job not found</p>
@@ -263,13 +242,7 @@ export default function JobDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex">
-      {!isTenantHost && <Sidebar 
-        username={username} 
-        email={userEmail || undefined}
-        displayName={displayName}
-      />}
-
-      <div className={`flex-1 overflow-y-auto ${isTenantHost ? "" : "ml-60"}`}>
+      <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1200px] mx-auto px-6 py-4">
           {/* Back Button */}
           <button
