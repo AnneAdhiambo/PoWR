@@ -74,6 +74,7 @@ export interface Job {
   tags?: string[];
   status?: string;
   public_slug?: string;
+  organization_slug?: string;
   department?: string;
   remote_policy?: string;
   seniority?: string;

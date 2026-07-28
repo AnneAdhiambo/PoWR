@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, Plus, Pencil, Trash, X, Copy, ArrowSquareOut } from "phosphor-react";
+import { Briefcase, Plus, Pencil, Trash, X, Copy, ArrowSquareOut, Eye } from "phosphor-react";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 import toast from "react-hot-toast";
 
@@ -62,6 +62,8 @@ export default function RecruiterJobsPage() {
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formStep, setFormStep] = useState(1);
+  const [previewJob, setPreviewJob] = useState<Job | null>(null);
+  const [organizationSlug, setOrganizationSlug] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -74,8 +76,12 @@ export default function RecruiterJobsPage() {
   const loadJobs = async () => {
     try {
       setLoading(true);
-      const { jobs } = await recruiterApiClient.getMyJobs();
+      const [{ jobs }, { organization }] = await Promise.all([
+        recruiterApiClient.getMyJobs(),
+        recruiterApiClient.getOrganizationProfile(),
+      ]);
       setJobs(jobs);
+      setOrganizationSlug(organization.slug || "");
     } catch {
       toast.error("Failed to load jobs");
     } finally {
@@ -181,6 +187,14 @@ export default function RecruiterJobsPage() {
       setJobs((previous) => [duplicate, ...previous]);
       toast.success("Draft copy created");
     } catch { toast.error("Failed to duplicate job"); }
+  };
+
+  const getPublicJobUrl = (job: Job) => {
+    if (!organizationSlug || !job.public_slug) return "";
+    const isLocal = typeof window !== "undefined" && window.location.hostname.endsWith("localhost");
+    return isLocal
+      ? `http://${organizationSlug}.powr.localhost:${window.location.port || "3000"}/jobs/${job.public_slug}`
+      : `https://${organizationSlug}.powr.dev/jobs/${job.public_slug}`;
   };
 
   return (
@@ -378,6 +392,37 @@ export default function RecruiterJobsPage() {
         </div>
       )}
 
+      {previewJob && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141519] rounded-2xl border border-white/[0.08] w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-white/[0.06] p-6">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Recruiter preview</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">{previewJob.title}</h2>
+                <p className="mt-2 text-sm text-gray-400">{previewJob.company} · {previewJob.location}</p>
+              </div>
+              <button onClick={() => setPreviewJob(null)} className="p-2 rounded-lg hover:bg-white/[0.05] text-gray-400"><X className="w-4 h-4" weight="bold" /></button>
+            </div>
+            <div className="space-y-6 p-6">
+              <div className="flex flex-wrap gap-2">
+                {[previewJob.department, previewJob.seniority, previewJob.remote_policy, previewJob.type, previewJob.salary].filter(Boolean).map((value) => (
+                  <span key={value} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs text-gray-300">{value}</span>
+                ))}
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-white">About the role</h3>
+                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-gray-400">{previewJob.description || "No description added yet."}</p>
+              </div>
+              {(previewJob.tags || []).length > 0 && <div className="flex flex-wrap gap-2">{previewJob.tags?.map((tag) => <span key={tag} className="rounded-lg bg-[#FF5500]/10 px-2.5 py-1 text-xs text-[#FF8a55]">{tag}</span>)}</div>}
+              <div className="flex items-center justify-between border-t border-white/[0.06] pt-5">
+                <p className="text-xs text-gray-500">{previewJob.status === "active" ? "This job is live on your careers site." : `This ${previewJob.status || "draft"} job is visible only to your hiring team.`}</p>
+                {previewJob.status === "active" && getPublicJobUrl(previewJob) && <a href={getPublicJobUrl(previewJob)} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg bg-[#FF5500] px-4 py-2 text-sm font-medium text-white hover:bg-[#e04d00]">Open public page <ArrowSquareOut className="h-4 w-4" /></a>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Jobs List */}
       {loading ? (
         <div className="flex items-center justify-center py-32">
@@ -441,7 +486,7 @@ export default function RecruiterJobsPage() {
                   {job.status === "active" ? <button onClick={() => setJobStatus(job, "paused")} className="text-xs text-gray-400 hover:text-white">Pause</button> : job.status !== "archived" ? <button onClick={() => setJobStatus(job, "active")} className="text-xs text-[#FF8a55] hover:text-white">Publish</button> : null}
                   {job.status !== "closed" && job.status !== "archived" && <button onClick={() => setJobStatus(job, "closed")} className="text-xs text-gray-400 hover:text-white">Close</button>}
                   {job.status !== "archived" && <button onClick={() => setJobStatus(job, "archived")} className="text-xs text-gray-400 hover:text-white">Archive</button>}
-                  {job.public_slug && <a href={`/jobs/${job.public_slug}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Preview"><ArrowSquareOut className="w-4 h-4" /></a>}
+                  <button onClick={() => setPreviewJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Preview"><Eye className="w-4 h-4" /></button>
                   <button onClick={() => duplicateJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Duplicate"><Copy className="w-4 h-4" /></button>
                   <button
                     onClick={() => openEdit(job)}

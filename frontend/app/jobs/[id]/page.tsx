@@ -208,6 +208,15 @@ export default function JobDetailPage() {
     }
 
     apiClient.getJob(jobId).then(({ job: remoteJob }) => {
+      const hostname = window.location.hostname;
+      const isTenantHostname = hostname.endsWith(".powr.localhost") || hostname.endsWith(".powr.dev");
+      if (!isTenantHostname && remoteJob.organization_slug) {
+        const canonicalHost = hostname.endsWith("localhost")
+          ? `${remoteJob.organization_slug}.powr.localhost:${window.location.port || "3000"}`
+          : `${remoteJob.organization_slug}.powr.dev`;
+        window.location.replace(`${window.location.protocol}//${canonicalHost}/jobs/${remoteJob.public_slug || remoteJob.id}`);
+        return;
+      }
       const foundJob = { ...remoteJob, id: String(remoteJob.id), type: remoteJob.type || "full-time", salary: remoteJob.salary || "", description: remoteJob.description || "", tags: remoteJob.tags || [], posted: "Recently" } as Job;
       setJob(foundJob);
       setSaved(savedItems.isJobSaved(foundJob.id));
@@ -230,7 +239,8 @@ export default function JobDetailPage() {
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
           <div className="text-center">
             <XCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" weight="regular" />
-            <p className="text-gray-400 mb-2">Job not found</p>
+            <p className="text-gray-300 mb-2">This job is not currently available</p>
+            <p className="text-sm text-gray-500 mb-5">It may be paused, closed, expired, or no longer published.</p>
             <Button onClick={() => router.push("/jobs")} variant="outline" size="sm">
               Back to Jobs
             </Button>

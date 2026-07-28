@@ -1396,12 +1396,12 @@ export class DatabaseService {
   }
 
   async getJobByIdentifier(identifier: string): Promise<any | null> {
-    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE (j.id::text = $1 OR j.public_slug = $1) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [identifier]);
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company, o.slug AS organization_slug FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE (j.id::text = $1 OR j.public_slug = $1) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [identifier]);
     return result.rows[0] || null;
   }
 
   async getOrganizationJobByIdentifier(organizationId: number, identifier: string): Promise<any | null> {
-    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND (j.id::text = $2 OR j.public_slug = $2) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [organizationId, identifier]);
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company, o.slug AS organization_slug FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND (j.id::text = $2 OR j.public_slug = $2) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [organizationId, identifier]);
     return result.rows[0] || null;
   }
 

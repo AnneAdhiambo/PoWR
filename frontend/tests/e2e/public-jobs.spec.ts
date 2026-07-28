@@ -11,6 +11,7 @@ const job = {
   description: "Lead the platform foundation for a high-trust engineering team.",
   tags: ["Kubernetes", "TypeScript"],
   status: "active",
+  organization_slug: "contoso-labs-1001",
   created_at: new Date().toISOString(),
 };
 
@@ -29,9 +30,9 @@ test("public job list and details never render the developer dashboard shell", a
 
   await page.getByRole("button", { name: "View Details" }).click();
 
-  await expect(page).toHaveURL(/\/jobs\/staff-platform-engineer-42$/);
+  await expect(page).toHaveURL("http://contoso-labs-1001.powr.localhost:3000/jobs/staff-platform-engineer-42");
   await expect(page.getByRole("heading", { name: "Staff Platform Engineer" })).toBeVisible();
-  await expect(page.getByText("Job not found")).toHaveCount(0);
+  await expect(page.getByText("This job is not currently available")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Back to Jobs" }).click();
