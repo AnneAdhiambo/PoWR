@@ -8,6 +8,10 @@ import { rateLimit } from "../middleware/rateLimit";
 const router = express.Router();
 const applicationRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "job-application" });
 
+function isTenantHostname(hostname: string): boolean {
+  return hostname.endsWith(".powr.localhost") || hostname.endsWith(".powr.dev");
+}
+
 // ── Jobs ─────────────────────────────────────────────────────────────────────
 
 // GET /api/jobs — public
@@ -19,6 +23,7 @@ router.get("/jobs", async (req, res) => {
     const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
     const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
     const organization = await dbService.getOrganizationByHostname(hostname);
+    if (isTenantHostname(hostname) && !organization) return res.status(404).json({ error: "Tenant not found" });
     const result = organization ? await dbService.getOrganizationJobs(organization.id, { limit, offset }) : await dbService.getJobs({ limit, offset });
     res.json(result);
   } catch (err: any) {
@@ -43,6 +48,7 @@ router.get("/jobs/:id", async (req, res) => {
     const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
     const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
     const organization = await dbService.getOrganizationByHostname(hostname);
+    if (isTenantHostname(hostname) && !organization) return res.status(404).json({ error: "Tenant not found" });
     const job = organization ? await dbService.getOrganizationJobByIdentifier(organization.id, req.params.id) : await dbService.getJobByIdentifier(req.params.id);
     if (!job) return res.status(404).json({ error: "Not found" });
     res.json({ job });

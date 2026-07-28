@@ -48,12 +48,13 @@ function JobsPageContent() {
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
   const [tenant, setTenant] = useState<{ display_name: string; profile?: { logoUrl?: string; primaryColor?: string } } | null>(null);
+  const [tenantUnavailable, setTenantUnavailable] = useState(false);
   const highlightRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = viewMode === "grid" ? 9 : 5;
 
   useEffect(() => {
     const isTenant = window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev");
-    if (isTenant) apiClient.getTenantContext().then(({ organization }) => setTenant(organization)).catch(() => undefined);
+    if (isTenant) apiClient.getTenantContext().then(({ organization }) => setTenant(organization)).catch(() => setTenantUnavailable(true));
     const storedUsername = localStorage.getItem("github_username");
     const storedEmail = localStorage.getItem("github_email");
     
@@ -279,6 +280,19 @@ function JobsPageContent() {
       }
     }
   }, [highlightId, jobs, itemsPerPage, router]);
+
+  if (tenantUnavailable) {
+    return (
+      <main className="min-h-screen bg-[#0b0c0f] flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5500]/10 text-[#FF6B2B]"><Briefcase className="h-6 w-6" /></div>
+          <h1 className="text-2xl font-semibold text-white">Careers site unavailable</h1>
+          <p className="mt-3 text-sm leading-6 text-gray-500">This organization careers site does not exist or is not currently active.</p>
+          <button onClick={() => router.replace("/")} className="mt-6 rounded-lg border border-white/[0.1] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.05]">Return to PoWR</button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0b0c0f]">
