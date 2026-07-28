@@ -268,7 +268,7 @@ class ApiClient {
     return this.request<{ jobs: Job[]; total: number }>(`/api/jobs?${q}`);
   }
 
-  async getTenantContext(): Promise<{ organization: { id: number; slug: string; display_name: string; profile?: { logoUrl?: string; primaryColor?: string } } }> {
+  async getTenantContext(): Promise<{ organization: { id: number; slug: string; display_name: string; profile?: { logoUrl?: string; primaryColor?: string; summary?: string; location?: string; website?: string; benefits?: string[] } } }> {
     return this.request("/api/tenant/context");
   }
 

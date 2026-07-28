@@ -4,12 +4,14 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { recruiterApiClient } from "../../lib/recruiterApi";
-import { Button, Card } from "../../components/ui";
+import { Button, Card, LoadingState, PageHeader, RecruiterPage, controlClassName } from "../../components/ui";
+import { useRecruiterContext } from "../../components/recruiter/RecruiterContext";
 import { Crown, Check, Buildings, EnvelopeSimple, CreditCard, Lightning, ArrowRight } from "phosphor-react";
 import toast from "react-hot-toast";
 
 
 export default function RecruiterAccountPage() {
+  const { canManageOrganization, refresh } = useRecruiterContext();
   const router = useRouter();
   const [recruiter, setRecruiter] = useState<any>(null);
   const [organization, setOrganization] = useState<any>(null);
@@ -26,7 +28,7 @@ export default function RecruiterAccountPage() {
       return;
     }
     loadRecruiter();
-  }, []);
+  }, [router]);
 
   const loadRecruiter = async () => {
     setLoading(true);
@@ -44,7 +46,7 @@ export default function RecruiterAccountPage() {
         benefits: Array.isArray(profile.benefits) ? profile.benefits.join(", ") : "",
       });
       localStorage.setItem("recruiter_plan", data.plan || "free");
-    } catch (error: any) {
+    } catch {
       toast.error("Failed to load account");
     } finally {
       setLoading(false);
@@ -59,6 +61,7 @@ export default function RecruiterAccountPage() {
         benefits: profileForm.benefits.split(",").map((benefit) => benefit.trim()).filter(Boolean),
       });
       setOrganization((current: any) => ({ ...current, ...updated }));
+      await refresh();
       toast.success("Organization profile updated");
     } catch (error: any) {
       toast.error(error.message || "Could not update organization profile");
@@ -69,15 +72,13 @@ export default function RecruiterAccountPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
-      </div>
+      <RecruiterPage><LoadingState label="Loading organization workspace" /></RecruiterPage>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-white mb-6">Account</h1>
+    <RecruiterPage className="max-w-4xl">
+        <PageHeader eyebrow="Organization" title="Careers & account" description="Manage the identity candidates see and the workspace your hiring team uses." />
 
         {/* Profile card */}
         {recruiter && (
@@ -125,14 +126,14 @@ export default function RecruiterAccountPage() {
         <Card className="p-5 mb-8">
           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-4">Public company profile</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm text-gray-300">Company name<input value={profileForm.display_name} onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
-            <label className="text-sm text-gray-300">Location<input value={profileForm.location} onChange={(event) => setProfileForm((current) => ({ ...current, location: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
-            <label className="text-sm text-gray-300">Website<input type="url" value={profileForm.website} onChange={(event) => setProfileForm((current) => ({ ...current, website: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
-            <label className="text-sm text-gray-300">Logo URL<input type="url" value={profileForm.logo_url} onChange={(event) => setProfileForm((current) => ({ ...current, logo_url: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
-            <label className="text-sm text-gray-300 sm:col-span-2">Summary<textarea rows={3} value={profileForm.summary} onChange={(event) => setProfileForm((current) => ({ ...current, summary: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
-            <label className="text-sm text-gray-300 sm:col-span-2">Benefits, comma separated<input value={profileForm.benefits} onChange={(event) => setProfileForm((current) => ({ ...current, benefits: event.target.value }))} className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-white outline-none focus:border-[#FF5500]" /></label>
+            <label className="text-sm text-gray-300">Company name<input disabled={!canManageOrganization} value={profileForm.display_name} onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300">Location<input disabled={!canManageOrganization} value={profileForm.location} onChange={(event) => setProfileForm((current) => ({ ...current, location: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300">Website<input disabled={!canManageOrganization} type="url" value={profileForm.website} onChange={(event) => setProfileForm((current) => ({ ...current, website: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300">Logo URL<input disabled={!canManageOrganization} type="url" value={profileForm.logo_url} onChange={(event) => setProfileForm((current) => ({ ...current, logo_url: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300 sm:col-span-2">Summary<textarea disabled={!canManageOrganization} rows={3} value={profileForm.summary} onChange={(event) => setProfileForm((current) => ({ ...current, summary: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300 sm:col-span-2">Benefits, comma separated<input disabled={!canManageOrganization} value={profileForm.benefits} onChange={(event) => setProfileForm((current) => ({ ...current, benefits: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
           </div>
-          <Button type="button" onClick={saveOrganizationProfile} disabled={savingProfile} className="mt-5">{savingProfile ? "Saving..." : "Save company profile"}</Button>
+          {canManageOrganization ? <Button type="button" onClick={saveOrganizationProfile} loading={savingProfile} className="mt-5">Save company profile</Button> : <p className="mt-5 text-sm text-gray-500">Only organization owners and admins can edit public branding.</p>}
         </Card>
 
         {/* Billing card */}
@@ -194,6 +195,6 @@ export default function RecruiterAccountPage() {
             </Link>
           </Card>
         </div>
-    </div>
+    </RecruiterPage>
   );
 }

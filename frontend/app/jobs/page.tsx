@@ -22,6 +22,7 @@ function formatPosted(dateStr?: string): string {
 interface Job {
   id: string;
   publicSlug?: string;
+  organizationSlug?: string;
   title: string;
   company: string;
   location: string;
@@ -47,10 +48,21 @@ function JobsPageContent() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
-  const [tenant, setTenant] = useState<{ display_name: string; profile?: { logoUrl?: string; primaryColor?: string } } | null>(null);
+  const [tenant, setTenant] = useState<{ display_name: string; profile?: { logoUrl?: string; primaryColor?: string; summary?: string; location?: string; website?: string; benefits?: string[] } } | null>(null);
   const [tenantUnavailable, setTenantUnavailable] = useState(false);
   const highlightRef = useRef<HTMLDivElement>(null);
   const itemsPerPage = viewMode === "grid" ? 9 : 5;
+
+  function openJob(job: Job) {
+    const identifier = job.publicSlug || job.id;
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname.endsWith(".powr.localhost");
+    if (job.organizationSlug && !window.location.hostname.startsWith(`${job.organizationSlug}.`)) {
+      const hostname = `${job.organizationSlug}.${isLocal ? "powr.localhost:3000" : "powr.dev"}`;
+      window.location.assign(`${window.location.protocol}//${hostname}/jobs/${identifier}`);
+      return;
+    }
+    router.push(`/jobs/${identifier}`);
+  }
 
   useEffect(() => {
     const isTenant = window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev");
@@ -76,6 +88,7 @@ function JobsPageContent() {
         setJobs(apiJobs.map(j => ({
           id: j.public_slug || String(j.id),
           publicSlug: j.public_slug,
+          organizationSlug: j.organization_slug,
           title: j.title,
           company: j.company,
           location: j.location,
@@ -305,14 +318,37 @@ function JobsPageContent() {
             </div>
             <span className="text-xs text-gray-500">Powered by PoWR</span>
           </header>
-          {/* Header */}
+          {tenant ? (
+            <section className="relative mb-10 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-[linear-gradient(135deg,rgba(255,85,0,0.14),rgba(18,20,26,0.92)_48%)] px-6 py-10 sm:px-10 sm:py-14">
+              <div className="pointer-events-none absolute -bottom-24 -left-16 size-72 rounded-full bg-orange-500/15 blur-3xl" />
+              <div className="relative max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.17em] text-orange-400">Join {tenant.display_name}</p>
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-5xl">Build meaningful work with {tenant.display_name}.</h1>
+                <p className="mt-5 max-w-2xl text-sm leading-7 text-gray-300 sm:text-base">
+                  {tenant.profile?.summary || `Join ${tenant.display_name} and help solve ambitious problems with a team that values evidence, ownership, and thoughtful delivery.`}
+                </p>
+                <div className="mt-7 flex flex-wrap gap-3 text-xs text-gray-300">
+                  {tenant.profile?.location && <span className="rounded-full border border-white/10 bg-black/20 px-3 py-2">{tenant.profile.location}</span>}
+                  <span className="rounded-full border border-white/10 bg-black/20 px-3 py-2">{jobs.length} open {jobs.length === 1 ? "role" : "roles"}</span>
+                  <span className="rounded-full border border-white/10 bg-black/20 px-3 py-2">Evidence-aware hiring</span>
+                </div>
+              </div>
+              {tenant.profile?.benefits && tenant.profile.benefits.length > 0 && (
+                <div className="relative mt-9 grid gap-3 border-t border-white/10 pt-7 sm:grid-cols-3">
+                  {tenant.profile.benefits.slice(0, 3).map((benefit) => <div key={benefit} className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-gray-300">{benefit}</div>)}
+                </div>
+              )}
+            </section>
+          ) : (
+            <div className="mb-8">
+              <h1 className="text-2xl font-semibold tracking-tight text-white">Find work that values what you can prove.</h1>
+              <p className="mt-2 text-sm text-gray-400">Explore opportunities from companies hiring through verified work evidence.</p>
+            </div>
+          )}
+
           <div className="mb-6">
-            <h1 className="text-xl font-semibold text-white tracking-tight mb-1.5" style={{ fontWeight: 500 }}>
-              {tenant ? `Open roles at ${tenant.display_name}` : "Jobs"}
-            </h1>
-            <p className="text-xs text-gray-400" style={{ opacity: 0.6 }}>
-              Find opportunities that match your proof of work
-            </p>
+            <h2 className="text-xl font-semibold tracking-tight text-white">{tenant ? `Open roles at ${tenant.display_name}` : "Open jobs"}</h2>
+            <p className="mt-1.5 text-xs text-gray-500">Search roles and inspect the work evidence each company values.</p>
           </div>
 
           {/* Filters and View Toggle */}
@@ -376,7 +412,7 @@ function JobsPageContent() {
                             ? "ring-2 ring-emerald-500/50 bg-emerald-500/5 animate-pulse" 
                             : ""
                         }`}
-                        onClick={() => router.push(`/jobs/${job.id}`)}
+                        onClick={() => openJob(job)}
                       >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
@@ -466,7 +502,7 @@ function JobsPageContent() {
                               className="flex items-center gap-1 text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                router.push(`/jobs/${job.id}`);
+                                openJob(job);
                               }}
                             >
                               View Details
@@ -485,7 +521,7 @@ function JobsPageContent() {
                     <Card
                       key={job.id}
                       className="p-5 hover:bg-[rgba(255,255,255,0.04)] transition-colors cursor-pointer group flex flex-col"
-                      onClick={() => router.push(`/jobs/${job.id}`)}
+                      onClick={() => openJob(job)}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1 min-w-0">
@@ -578,7 +614,7 @@ function JobsPageContent() {
                         className="flex items-center justify-center gap-1 text-xs text-[#FF5500] hover:text-[#4d85f0] transition-colors mt-auto"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/jobs/${job.id}`);
+                          openJob(job);
                         }}
                       >
                         View Details

@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { Briefcase, Plus, Pencil, Trash, X, Copy, ArrowSquareOut, Eye } from "phosphor-react";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 import toast from "react-hot-toast";
+import { ConfirmDialog, RecruiterPage } from "../../components/ui";
+import { useRecruiterContext } from "../../components/recruiter/RecruiterContext";
 
 interface Job {
   id: string | number;
@@ -64,6 +66,8 @@ export default function RecruiterJobsPage() {
   const [formStep, setFormStep] = useState(1);
   const [previewJob, setPreviewJob] = useState<Job | null>(null);
   const [organizationSlug, setOrganizationSlug] = useState("");
+  const [jobPendingDelete, setJobPendingDelete] = useState<Job | null>(null);
+  const { canManageJobs } = useRecruiterContext();
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -71,7 +75,7 @@ export default function RecruiterJobsPage() {
       return;
     }
     loadJobs();
-  }, []);
+  }, [router]);
 
   const loadJobs = async () => {
     try {
@@ -162,11 +166,11 @@ export default function RecruiterJobsPage() {
     }
   };
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm("Delete this job listing?")) return;
+  const handleDelete = async () => {
+    if (!jobPendingDelete) return;
     try {
-      await recruiterApiClient.deleteJob(String(id));
-      setJobs((prev) => prev.filter((j) => String(j.id) !== String(id)));
+      await recruiterApiClient.deleteJob(String(jobPendingDelete.id));
+      setJobs((prev) => prev.filter((j) => String(j.id) !== String(jobPendingDelete.id)));
       toast.success("Job deleted");
     } catch {
       toast.error("Failed to delete job");
@@ -198,19 +202,19 @@ export default function RecruiterJobsPage() {
   };
 
   return (
-    <div className="p-8">
+    <RecruiterPage>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1">Post and manage job listings</p>
         </div>
-        <button
+        {canManageJobs && <button
           onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" weight="bold" />
           Post a Job
-        </button>
+        </button>}
       </div>
 
       {/* Form Modal */}
@@ -488,26 +492,27 @@ export default function RecruiterJobsPage() {
                   {job.status !== "archived" && <button onClick={() => setJobStatus(job, "archived")} className="text-xs text-gray-400 hover:text-white">Archive</button>}
                   <button onClick={() => setPreviewJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Preview"><Eye className="w-4 h-4" /></button>
                   <button onClick={() => duplicateJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Duplicate"><Copy className="w-4 h-4" /></button>
-                  <button
+                  {canManageJobs && <button
                     onClick={() => openEdit(job)}
                     className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-white transition-colors"
                     title="Edit"
                   >
                     <Pencil className="w-4 h-4" weight="regular" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(job.id)}
+                  </button>}
+                  {canManageJobs && <button
+                    onClick={() => setJobPendingDelete(job)}
                     className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
                     title="Delete"
                   >
                     <Trash className="w-4 h-4" weight="regular" />
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+      <ConfirmDialog isOpen={Boolean(jobPendingDelete)} onClose={() => setJobPendingDelete(null)} onConfirm={handleDelete} title="Delete job?" message={`This permanently removes “${jobPendingDelete?.title || "this job"}” and its public listing.`} confirmText="Delete job" variant="danger" />
+    </RecruiterPage>
   );
 }

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Button, Card, EmptyState, LoadingState, PageHeader, RecruiterPage, StatusBadge, controlClassName } from "../../components/ui";
+import { Button, Card, Dialog, DialogContent, DialogDescription, DialogTitle, EmptyState, LoadingState, PageHeader, RecruiterPage, StatusBadge, controlClassName } from "../../components/ui";
+import { useRecruiterContext } from "../../components/recruiter/RecruiterContext";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 
 const stages = ["applied", "screening", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"];
@@ -38,6 +39,12 @@ export default function RecruiterApplicationsPage() {
   const [minimumScore, setMinimumScore] = useState(0);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [scorecardApplication, setScorecardApplication] = useState<Application | null>(null);
+  const [handoffApplication, setHandoffApplication] = useState<Application | null>(null);
+  const [scorecard, setScorecard] = useState({ score: "3", recommendation: "yes", feedback: "" });
+  const [handoff, setHandoff] = useState({ start_date: "", employment_type: "full-time", department: "", manager_name: "", onboarding_notes: "" });
+  const [submittingDialog, setSubmittingDialog] = useState(false);
+  const { canMoveCandidates } = useRecruiterContext();
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -97,32 +104,35 @@ export default function RecruiterApplicationsPage() {
     }
   }
 
-  async function createEmployee(applicationId: number) {
-    const startDate = window.prompt("Optional start date (YYYY-MM-DD)") || undefined;
-    const employmentType = window.prompt("Employment type (full-time, part-time, contract)") || undefined;
-    const department = window.prompt("Department") || undefined;
-    const managerName = window.prompt("Hiring manager") || undefined;
-    const onboardingNotes = window.prompt("Onboarding handoff notes") || undefined;
+  async function createEmployee() {
+    if (!handoffApplication) return;
+    setSubmittingDialog(true);
     try {
-      await recruiterApiClient.convertApplicationToEmployee(applicationId, { start_date: startDate, employment_type: employmentType, department, manager_name: managerName, onboarding_notes: onboardingNotes });
+      await recruiterApiClient.convertApplicationToEmployee(handoffApplication.id, {
+        start_date: handoff.start_date || undefined,
+        employment_type: handoff.employment_type || undefined,
+        department: handoff.department || undefined,
+        manager_name: handoff.manager_name || undefined,
+        onboarding_notes: handoff.onboarding_notes || undefined,
+      });
       toast.success("Employee record created");
+      setHandoffApplication(null);
       router.push("/recruiter/employees");
     } catch (error: any) {
       toast.error(error.message || "Could not create employee record");
-    }
+    } finally { setSubmittingDialog(false); }
   }
 
-  async function addScorecard(applicationId: number) {
-    const score = Number(window.prompt("Score this candidate from 1 to 5"));
-    if (!Number.isInteger(score) || score < 1 || score > 5) return;
-    const recommendation = window.prompt("Recommendation (strong yes, yes, no, strong no)") || "";
-    if (!recommendation) return;
-    const feedback = window.prompt("Private scorecard feedback") || undefined;
+  async function addScorecard() {
+    if (!scorecardApplication) return;
+    setSubmittingDialog(true);
     try {
-      const { scorecard } = await recruiterApiClient.saveApplicationScorecard(applicationId, score, recommendation, feedback);
-      setApplications((current) => current.map((application) => application.id === applicationId ? { ...application, scorecards: [scorecard, ...(application.scorecards || []).filter((item) => item.id !== scorecard.id)] } : application));
+      const { scorecard: saved } = await recruiterApiClient.saveApplicationScorecard(scorecardApplication.id, Number(scorecard.score), scorecard.recommendation, scorecard.feedback || undefined);
+      setApplications((current) => current.map((application) => application.id === scorecardApplication.id ? { ...application, scorecards: [saved, ...(application.scorecards || []).filter((item) => item.id !== saved.id)] } : application));
       toast.success("Scorecard saved");
+      setScorecardApplication(null);
     } catch (error: any) { toast.error(error.message || "Could not save scorecard"); }
+    finally { setSubmittingDialog(false); }
   }
 
   return (
@@ -193,17 +203,55 @@ export default function RecruiterApplicationsPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => router.push(`/recruiter/developer/${application.developer_username}`)}>View PoWR profile</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => addScorecard(application.id)}>Scorecard</Button>
-                  <select aria-label={`Stage for ${application.developer_username}`} disabled={updatingId === application.id} value={application.stage} onChange={(event) => moveApplication(application.id, event.target.value)} className={`${controlClassName} w-auto py-2 capitalize`}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setScorecardApplication(application)}>Scorecard</Button>
+                  <select aria-label={`Stage for ${application.developer_username}`} disabled={!canMoveCandidates || updatingId === application.id} value={application.stage} onChange={(event) => moveApplication(application.id, event.target.value)} className={`${controlClassName} w-auto py-2 capitalize`}>
                     {stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
                   </select>
-                  {application.stage === "hired" && <Button type="button" size="sm" onClick={() => createEmployee(application.id)}>Create employee</Button>}
+                  {application.stage === "hired" && canMoveCandidates && <Button type="button" size="sm" onClick={() => setHandoffApplication(application)}>Create employee</Button>}
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={Boolean(scorecardApplication)} onOpenChange={(open) => !open && setScorecardApplication(null)}>
+        <DialogContent>
+          <DialogTitle>Candidate scorecard</DialogTitle>
+          <DialogDescription>Record a structured, private hiring recommendation for @{scorecardApplication?.developer_username}.</DialogDescription>
+          <div className="mt-5 space-y-4">
+            <label className="block text-sm text-gray-300">Score
+              <select value={scorecard.score} onChange={(event) => setScorecard((current) => ({ ...current, score: event.target.value }))} className={`mt-2 ${controlClassName}`}>
+                {[1, 2, 3, 4, 5].map((score) => <option key={score} value={score}>{score} / 5</option>)}
+              </select>
+            </label>
+            <label className="block text-sm text-gray-300">Recommendation
+              <select value={scorecard.recommendation} onChange={(event) => setScorecard((current) => ({ ...current, recommendation: event.target.value }))} className={`mt-2 ${controlClassName}`}>
+                {["strong yes", "yes", "no", "strong no"].map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm text-gray-300">Private feedback
+              <textarea rows={4} value={scorecard.feedback} onChange={(event) => setScorecard((current) => ({ ...current, feedback: event.target.value }))} className={`mt-2 ${controlClassName}`} />
+            </label>
+            <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setScorecardApplication(null)}>Cancel</Button><Button loading={submittingDialog} onClick={addScorecard}>Save scorecard</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(handoffApplication)} onOpenChange={(open) => !open && setHandoffApplication(null)}>
+        <DialogContent>
+          <DialogTitle>Create employee handoff</DialogTitle>
+          <DialogDescription>Carry the hiring decision into onboarding without losing context.</DialogDescription>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm text-gray-300">Start date<input type="date" value={handoff.start_date} onChange={(event) => setHandoff((current) => ({ ...current, start_date: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300">Employment type<select value={handoff.employment_type} onChange={(event) => setHandoff((current) => ({ ...current, employment_type: event.target.value }))} className={`mt-2 ${controlClassName}`}><option value="full-time">Full-time</option><option value="part-time">Part-time</option><option value="contract">Contract</option></select></label>
+            <label className="text-sm text-gray-300">Department<input value={handoff.department} onChange={(event) => setHandoff((current) => ({ ...current, department: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300">Hiring manager<input value={handoff.manager_name} onChange={(event) => setHandoff((current) => ({ ...current, manager_name: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <label className="text-sm text-gray-300 sm:col-span-2">Onboarding notes<textarea rows={4} value={handoff.onboarding_notes} onChange={(event) => setHandoff((current) => ({ ...current, onboarding_notes: event.target.value }))} className={`mt-2 ${controlClassName}`} /></label>
+            <div className="flex justify-end gap-2 sm:col-span-2"><Button variant="ghost" onClick={() => setHandoffApplication(null)}>Cancel</Button><Button loading={submittingDialog} onClick={createEmployee}>Create employee</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </RecruiterPage>
   );
 }

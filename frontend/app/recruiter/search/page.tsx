@@ -112,14 +112,14 @@ export default function RecruiterSearchPage() {
   const totalPages = Math.ceil(total / 20);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Filter sidebar */}
-      <div className="w-64 flex-shrink-0 border-r border-[rgba(255,255,255,0.04)] p-6 overflow-y-auto">
+      <div className="w-full flex-shrink-0 border-b border-[rgba(255,255,255,0.04)] p-4 sm:p-6 lg:w-64 lg:border-b-0 lg:border-r">
         <SearchFilters onApply={handleApply} loading={loading} />
       </div>
 
       {/* Main content */}
-      <div className="flex-1 p-8 min-w-0 overflow-y-auto">
+      <div className="min-w-0 flex-1 p-4 sm:p-8">
         {/* Page header */}
         <div className="flex items-start justify-between mb-6">
           <div>

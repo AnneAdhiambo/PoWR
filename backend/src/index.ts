@@ -96,6 +96,7 @@ import recruiterRoutes from "./routes/recruiter";
 import badgeRoutes from "./routes/badges";
 import jobsRouter from "./routes/jobs";
 import tenantRoutes from "./routes/tenant";
+import referralRoutes from "./routes/referrals";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -107,6 +108,7 @@ app.use("/api/recruiter", recruiterRoutes);
 app.use("/api/badges", badgeRoutes);
 app.use("/api", jobsRouter);
 app.use("/api/tenant", tenantRoutes);
+app.use("/api", referralRoutes);
 
 // Start scheduler service
 import { schedulerService } from "./services/schedulerService";

@@ -21,6 +21,8 @@ Every part of the platform is designed around evidence, transparency, and useful
 
 ## Our Goal
 
-Our goal is to become the trust layer for technical work and hiring.
+Our goal is to become the trust for technical work and hiring.
 
-We want developers to be recognized for what they can prove, companies to hire with confidence, and professional reputation to grow from meaningful work rather than polished claims.
+> We want developers to be recognized for what they can prove, companies to hire with greater confidence, and professional reputation to be built on meaningful work rather than polished claims, generic AI language, or carefully written resumes.
+>
+> Anyone can create a strong resume or pay someone to write one. Real work is different. It leaves evidence, shows capability, and is much harder to fake.

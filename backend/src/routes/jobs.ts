@@ -133,8 +133,9 @@ router.post("/jobs/:id/duplicate", requireRecruiter, requireOrganizationMember, 
 router.delete("/jobs/:id", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
-    await dbService.deleteJob(Number(req.params.id), recruiterId);
     const organization = (req as any).organization as { organizationId: number };
+    const deleted = await dbService.deleteJob(Number(req.params.id), organization.organizationId);
+    if (!deleted) return res.status(404).json({ error: "Job not found" });
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.deleted", "job", req.params.id);
     res.json({ success: true });
   } catch (err: any) {

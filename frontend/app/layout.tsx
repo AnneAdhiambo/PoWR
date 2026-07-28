@@ -11,8 +11,17 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "PoWR - Proof of Work Reputation",
-  description: "Verifiable, artifact-backed evidence of real work",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  title: {
+    default: "PoWR — Hire developers through proof of work",
+    template: "%s | PoWR",
+  },
+  description: "PoWR helps companies attract, evaluate, and hire developers using verified work evidence, transparent reputation, and one organized recruiting workflow.",
+  openGraph: {
+    title: "PoWR — Hire developers through proof of work",
+    description: "Real work. Clear contribution. Explainable role fit.",
+    type: "website",
+  },
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",

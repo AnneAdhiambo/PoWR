@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Card } from "../../components/ui";
+import { Card, EmptyState, ErrorState, LoadingState, PageHeader, RecruiterPage, controlClassName } from "../../components/ui";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 
 interface Employee {
@@ -22,20 +21,16 @@ interface Employee {
 }
 
 export default function RecruiterEmployeesPage() {
-  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/auth");
-      return;
-    }
     recruiterApiClient.getEmployees()
       .then(({ employees: rows }) => setEmployees(rows))
-      .catch((error) => toast.error(error.message || "Could not load employees"))
+      .catch((loadError) => setError(loadError.message || "Could not load employees"))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, []);
 
   async function updateStatus(employee: Employee, employmentStatus: string) {
     try {
@@ -46,18 +41,11 @@ export default function RecruiterEmployeesPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-8">
-        <p className="text-sm font-medium text-[#FF5500]">People operations</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Employees</h1>
-        <p className="mt-2 text-sm text-gray-400">Continue onboarding after a successful hiring decision.</p>
-      </div>
+    <RecruiterPage>
+      <PageHeader eyebrow="People operations" title="Employees" description="Carry successful candidates into a structured onboarding handoff." />
 
-      {loading ? <Card className="p-8 text-sm text-gray-400">Loading employees...</Card> : employees.length === 0 ? (
-        <Card className="p-10 text-center">
-          <p className="text-base font-medium text-white">No employee records yet</p>
-          <p className="mt-2 text-sm text-gray-500">Move an application to Hired, then create its employee record.</p>
-        </Card>
+      {error ? <ErrorState description={error} /> : loading ? <LoadingState label="Loading employee handoffs" /> : employees.length === 0 ? (
+        <EmptyState title="No employee records yet" description="Move an application to Hired, then create its employee onboarding record." />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {employees.map((employee) => (
@@ -68,7 +56,7 @@ export default function RecruiterEmployeesPage() {
                   <p className="mt-1 text-sm text-gray-400">{employee.job_title}</p>
                   <p className="mt-1 text-xs text-gray-600">{employee.work_email}</p>
                 </div>
-                <select value={employee.employment_status} onChange={(event) => updateStatus(employee, event.target.value)} className="rounded-lg border border-emerald-500/20 bg-[#12141a] px-2.5 py-1 text-xs capitalize text-emerald-300 outline-none">
+                <select aria-label={`Onboarding status for ${employee.developer_username}`} value={employee.employment_status} onChange={(event) => updateStatus(employee, event.target.value)} className={`${controlClassName} w-auto py-1.5 text-xs capitalize text-emerald-300`}>
                   {["onboarding", "ready", "active", "paused", "offboarded"].map((status) => <option key={status} value={status}>{status}</option>)}
                 </select>
               </div>
@@ -87,6 +75,6 @@ export default function RecruiterEmployeesPage() {
           ))}
         </div>
       )}
-    </main>
+    </RecruiterPage>
   );
 }

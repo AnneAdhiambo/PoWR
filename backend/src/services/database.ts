@@ -22,6 +22,34 @@ export interface GithubBadge {
   earnedAt: Date;
 }
 
+export function calculateJobMatch(
+  developerSkills: string[],
+  powrScore: number,
+  requirements: { requiredSkills: string[]; preferredSkills: string[]; minimumPowrScore?: number | null }
+) {
+  const normalizedSkills = developerSkills.map((skill) => skill.toLowerCase());
+  const requiredSkills = requirements.requiredSkills.map((skill) => skill.toLowerCase());
+  const preferredSkills = requirements.preferredSkills.map((skill) => skill.toLowerCase());
+  const matchedRequiredSkills = requiredSkills.filter((skill) => normalizedSkills.includes(skill));
+  const matchedPreferredSkills = preferredSkills.filter((skill) => normalizedSkills.includes(skill));
+  const missingRequiredSkills = requiredSkills.filter((skill) => !normalizedSkills.includes(skill));
+  const requiredFit = requiredSkills.length ? matchedRequiredSkills.length / requiredSkills.length : 1;
+  const preferredFit = preferredSkills.length ? matchedPreferredSkills.length / preferredSkills.length : 1;
+  const scoreFit = requirements.minimumPowrScore
+    ? Math.min(1, powrScore / requirements.minimumPowrScore)
+    : powrScore / 100;
+
+  return {
+    jobMatchScore: Math.round((requiredFit * 0.6 + preferredFit * 0.2 + scoreFit * 0.2) * 100),
+    explanation: {
+      matchedRequiredSkills,
+      missingRequiredSkills,
+      matchedPreferredSkills,
+      requiredSkillCoverage: Math.round(requiredFit * 100),
+    },
+  };
+}
+
 // Initialize PostgreSQL connection pool via Neon serverless WebSocket driver
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -1235,64 +1263,87 @@ export class DatabaseService {
     );
   }
 
-  async getSavedPools(recruiterId: number): Promise<any[]> {
+  async getTalentLists(organizationId: number): Promise<any[]> {
     const result = await pool.query(`
-      SELECT sp.*, COUNT(pm.id) AS member_count
-      FROM saved_pools sp
-      LEFT JOIN pool_members pm ON pm.pool_id = sp.id
-      WHERE sp.recruiter_id = $1
-      GROUP BY sp.id
-      ORDER BY sp.created_at DESC
-    `, [recruiterId]);
+      SELECT tl.*, COUNT(tlm.developer_username)::INTEGER AS member_count
+      FROM organization_talent_lists tl
+      LEFT JOIN organization_talent_list_members tlm ON tlm.talent_list_id = tl.id
+      WHERE tl.organization_id = $1
+      GROUP BY tl.id
+      ORDER BY tl.created_at DESC
+    `, [organizationId]);
     return result.rows;
   }
 
-  async createSavedPool(recruiterId: number, name: string): Promise<any> {
+  async createTalentList(organizationId: number, recruiterId: number, name: string): Promise<any> {
     const result = await pool.query(
-      `INSERT INTO saved_pools (recruiter_id, organization_id, name)
-       SELECT $1, organization_id, $2
-       FROM organization_members
-       WHERE recruiter_id = $1 AND status = 'active'
-       ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
-       LIMIT 1
+      `INSERT INTO organization_talent_lists (organization_id, name, created_by_recruiter_id)
+       VALUES ($1, $2, $3)
        RETURNING *`,
-      [recruiterId, name]
+      [organizationId, name, recruiterId]
     );
     return result.rows[0];
   }
 
-  async getPoolMembers(poolId: number): Promise<string[]> {
+  async getTalentListMembers(organizationId: number, listId: number): Promise<any[] | null> {
     const result = await pool.query(
-      "SELECT developer_username FROM pool_members WHERE pool_id = $1 ORDER BY added_at DESC",
-      [poolId]
+      `SELECT tlm.developer_username, tlm.added_at, tlm.source, tlm.match_snapshot_id
+       FROM organization_talent_list_members tlm
+       JOIN organization_talent_lists tl ON tl.id = tlm.talent_list_id
+       WHERE tlm.talent_list_id = $1 AND tl.organization_id = $2
+       ORDER BY tlm.added_at DESC`,
+      [listId, organizationId]
     );
-    return result.rows.map((r: any) => r.developer_username);
+    const exists = await pool.query(
+      "SELECT 1 FROM organization_talent_lists WHERE id = $1 AND organization_id = $2",
+      [listId, organizationId]
+    );
+    return exists.rowCount ? result.rows : null;
   }
 
-  async addToPool(poolId: number, username: string): Promise<void> {
-    await pool.query(
-      "INSERT INTO pool_members (pool_id, developer_username) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [poolId, username]
+  async addTalentListMember(organizationId: number, listId: number, username: string, recruiterId: number): Promise<boolean> {
+    const result = await pool.query(
+      `INSERT INTO organization_talent_list_members
+         (talent_list_id, developer_username, added_by_recruiter_id)
+       SELECT tl.id, $3, $4
+       FROM organization_talent_lists tl
+       JOIN developer_recruiting_preferences pref ON pref.developer_username = $3
+       WHERE tl.id = $1 AND tl.organization_id = $2 AND pref.discoverable = TRUE
+       ON CONFLICT DO NOTHING
+       RETURNING developer_username`,
+      [listId, organizationId, username, recruiterId]
     );
+    return Boolean(result.rowCount);
   }
 
-  async removeFromPool(poolId: number, username: string): Promise<void> {
-    await pool.query(
-      "DELETE FROM pool_members WHERE pool_id = $1 AND developer_username = $2",
-      [poolId, username]
+  async removeTalentListMember(organizationId: number, listId: number, username: string): Promise<boolean> {
+    const result = await pool.query(
+      `DELETE FROM organization_talent_list_members tlm
+       USING organization_talent_lists tl
+       WHERE tlm.talent_list_id = tl.id
+         AND tl.id = $1 AND tl.organization_id = $2
+         AND tlm.developer_username = $3`,
+      [listId, organizationId, username]
     );
+    return Boolean(result.rowCount);
   }
 
-  async deleteSavedPool(poolId: number, recruiterId: number): Promise<void> {
-    await pool.query(
-      `DELETE FROM saved_pools
-       WHERE id = $1 AND recruiter_id = $2
-         AND organization_id IN (
-           SELECT organization_id FROM organization_members
-           WHERE recruiter_id = $2 AND status = 'active'
-         )`,
-      [poolId, recruiterId]
+  async deleteTalentList(organizationId: number, listId: number): Promise<boolean> {
+    const result = await pool.query(
+      "DELETE FROM organization_talent_lists WHERE id = $1 AND organization_id = $2",
+      [listId, organizationId]
     );
+    return Boolean(result.rowCount);
+  }
+
+  async canDiscoverDeveloper(username: string, requireContact = false): Promise<boolean> {
+    const result = await pool.query(
+      `SELECT 1 FROM developer_recruiting_preferences
+       WHERE developer_username = $1 AND discoverable = TRUE
+         AND ($2::BOOLEAN = FALSE OR contactable = TRUE)`,
+      [username, requireContact]
+    );
+    return Boolean(result.rowCount);
   }
 
   async createOutreach(recruiterId: number, developerUsername: string, message: string): Promise<any> {
@@ -1314,6 +1365,9 @@ export class DatabaseService {
 
   // Talent search for recruiters
   async searchDevelopers(params: {
+    organizationId: number;
+    recruiterId: number;
+    jobId?: number;
     skills?: string[];
     minScore?: number;
     maxScore?: number;
@@ -1322,11 +1376,24 @@ export class DatabaseService {
     page?: number;
     limit?: number;
   }): Promise<{ developers: any[]; total: number }> {
-    const { skills, minScore, maxScore, activeWithinDays, hasOnChainProof, page = 1, limit = 20 } = params;
-    const offset = (page - 1) * limit;
+    const { organizationId, recruiterId, jobId, skills, minScore, maxScore, activeWithinDays, hasOnChainProof, page = 1, limit = 20 } = params;
     const conditions: string[] = [];
     const values: any[] = [];
-    let idx = 1;
+    let requirements: any = null;
+
+    if (jobId) {
+      const requirementsResult = await pool.query(
+        `SELECT j.id, COALESCE(r.required_skills, j.tags, '{}') AS required_skills,
+                COALESCE(r.preferred_skills, '{}') AS preferred_skills,
+                r.minimum_powr_score
+         FROM jobs j
+         LEFT JOIN job_sourcing_requirements r ON r.job_id = j.id
+         WHERE j.id = $1 AND j.organization_id = $2`,
+        [jobId, organizationId]
+      );
+      requirements = requirementsResult.rows[0];
+      if (!requirements) return { developers: [], total: 0 };
+    }
 
     // Base: must have a profile
     let query = `
@@ -1339,6 +1406,8 @@ export class DatabaseService {
         s.plan_type
       FROM users u
       JOIN profiles p ON p.username = u.username
+      JOIN developer_recruiting_preferences pref
+        ON pref.developer_username = u.username AND pref.discoverable = TRUE
       LEFT JOIN subscriptions s ON s.username = u.username
     `;
 
@@ -1356,15 +1425,8 @@ export class DatabaseService {
 
     query += ` ORDER BY p.last_analyzed DESC NULLS LAST`;
 
-    const countQuery = `SELECT COUNT(*) FROM (${query}) sub`;
-    const [dataResult, countResult] = await Promise.all([
-      pool.query(query + ` LIMIT $${idx} OFFSET $${idx + 1}`, [...values, limit, offset]),
-      pool.query(countQuery, values),
-    ]);
-
-    const total = parseInt(countResult.rows[0].count, 10);
-
-    const developers = dataResult.rows
+    const dataResult = await pool.query(query, values);
+    const matchedDevelopers: any[] = dataResult.rows
       .map((row: any) => {
         const profile = row.profile_data;
         if (!profile) return null;
@@ -1384,19 +1446,99 @@ export class DatabaseService {
           if (!hasAllSkills) return null;
         }
 
+        const powrScore = Math.max(0, Math.min(100, Math.round(profile.overallIndex || 0)));
+        const match = calculateJobMatch(
+          (profile.skills || []).map((item: any) => String(item.skill)),
+          powrScore,
+          {
+            requiredSkills: requirements?.required_skills || [],
+            preferredSkills: requirements?.preferred_skills || [],
+            minimumPowrScore: requirements?.minimum_powr_score,
+          }
+        );
+
         return {
           username: row.username,
           topSkills,
-          overallIndex: profile.overallIndex || 0,
+          overallIndex: powrScore,
+          powrScore,
+          ...(jobId ? { jobMatchScore: match.jobMatchScore, matchExplanation: match.explanation } : {}),
           lastActive: row.last_analyzed,
           hasOnChainProof: row.has_on_chain_proof,
           proofCount: 0,
           artifactSummary: profile.artifactSummary || {},
         };
       })
-      .filter(Boolean);
+      .filter(Boolean) as any[];
+
+    const total = matchedDevelopers.length;
+    const offset = (page - 1) * limit;
+    const developers = matchedDevelopers.slice(offset, offset + limit);
+
+    if (jobId) {
+      for (const developer of developers) {
+        const snapshot = await pool.query(
+          `INSERT INTO sourcing_match_snapshots
+             (organization_id, job_id, developer_username, powr_score, job_match_score, explanation, created_by_recruiter_id)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+           RETURNING id`,
+          [organizationId, jobId, developer.username, developer.powrScore, developer.jobMatchScore, JSON.stringify(developer.matchExplanation), recruiterId]
+        );
+        developer.matchSnapshotId = snapshot.rows[0].id;
+      }
+    }
 
     return { developers, total };
+  }
+
+  async upsertJobSourcingRequirements(
+    organizationId: number,
+    jobId: number,
+    recruiterId: number,
+    data: { requiredSkills?: string[]; preferredSkills?: string[]; minimumPowrScore?: number | null }
+  ): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO job_sourcing_requirements
+         (job_id, organization_id, required_skills, preferred_skills, minimum_powr_score, updated_by_recruiter_id)
+       SELECT j.id, j.organization_id, $3, $4, $5, $6
+       FROM jobs j WHERE j.id = $1 AND j.organization_id = $2
+       ON CONFLICT (job_id) DO UPDATE SET
+         required_skills = EXCLUDED.required_skills,
+         preferred_skills = EXCLUDED.preferred_skills,
+         minimum_powr_score = EXCLUDED.minimum_powr_score,
+         updated_by_recruiter_id = EXCLUDED.updated_by_recruiter_id,
+         updated_at = NOW()
+       RETURNING *`,
+      [jobId, organizationId, data.requiredSkills || [], data.preferredSkills || [], data.minimumPowrScore ?? null, recruiterId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async addSourcedCandidateToJob(
+    organizationId: number,
+    jobId: number,
+    username: string,
+    matchSnapshotId: number,
+    recruiterId: number
+  ): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO job_sourced_candidates
+         (organization_id, job_id, developer_username, match_snapshot_id, sourced_by_recruiter_id)
+       SELECT $1, j.id, s.developer_username, s.id, $5
+       FROM jobs j
+       JOIN sourcing_match_snapshots s ON s.id = $4
+       JOIN developer_recruiting_preferences pref ON pref.developer_username = s.developer_username
+       WHERE j.id = $2 AND j.organization_id = $1
+         AND s.organization_id = $1 AND s.job_id = j.id
+         AND s.developer_username = $3 AND pref.discoverable = TRUE
+       ON CONFLICT (job_id, developer_username) DO UPDATE SET
+         match_snapshot_id = EXCLUDED.match_snapshot_id,
+         sourced_by_recruiter_id = EXCLUDED.sourced_by_recruiter_id,
+         updated_at = NOW()
+       RETURNING *`,
+      [organizationId, jobId, username, matchSnapshotId, recruiterId]
+    );
+    return result.rows[0] || null;
   }
 
   // Cleanup
@@ -1649,8 +1791,12 @@ export class DatabaseService {
     return slugResult.rows[0];
   }
 
-  async deleteJob(id: number, recruiterId: number): Promise<void> {
-    await pool.query('DELETE FROM jobs WHERE id = $1 AND recruiter_id = $2', [id, recruiterId]);
+  async deleteJob(id: number, organizationId: number): Promise<boolean> {
+    const result = await pool.query(
+      "DELETE FROM jobs WHERE id = $1 AND organization_id = $2",
+      [id, organizationId]
+    );
+    return Boolean(result.rowCount);
   }
 
   // ── Gigs CRUD ──────────────────────────────────────────────────────────────

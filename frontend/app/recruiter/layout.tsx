@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { RecruiterSidebar } from "../components/recruiter/RecruiterSidebar";
+import { RecruiterContextProvider } from "../components/recruiter/RecruiterContext";
 
 export default function RecruiterLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -11,6 +12,7 @@ export default function RecruiterLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <RecruiterContextProvider>
     <div className="flex min-h-screen bg-[var(--bg-main)]">
       <a href="#recruiter-main" className="fixed left-4 top-3 z-[70] -translate-y-20 rounded-[var(--radius-control)] bg-[var(--brand-orange)] px-4 py-2 text-sm font-semibold text-white focus:translate-y-0">
         Skip to main content
@@ -20,5 +22,6 @@ export default function RecruiterLayout({ children }: { children: React.ReactNod
         {children}
       </main>
     </div>
+    </RecruiterContextProvider>
   );
 }
