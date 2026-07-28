@@ -26,13 +26,11 @@ export default function RecruiterAuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/search");
-    }
+    recruiterApiClient.getMe().then(() => router.replace("/recruiter/search")).catch(() => undefined);
   }, [router]);
 
   const saveRecruiterSession = (token: string, recruiter: any) => {
-    localStorage.setItem("recruiter_token", token);
+    localStorage.removeItem("recruiter_token");
     localStorage.setItem("recruiter_email", recruiter.email || "");
     localStorage.setItem("recruiter_company", recruiter.companyName || "");
     localStorage.setItem("recruiter_plan", recruiter.plan || "free");

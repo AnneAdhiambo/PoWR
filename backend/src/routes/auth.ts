@@ -2,11 +2,13 @@ import express from "express";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import { dbService } from "../services/database";
+import { rateLimit } from "../middleware/rateLimit";
 
 const router = express.Router();
+const oauthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: "developer-oauth" });
 
 // GitHub OAuth initiation
-router.get("/github", (req, res) => {
+router.get("/github", oauthRateLimit, (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const redirectUri = process.env.GITHUB_CALLBACK_URL || "http://localhost:3001/api/auth/github/callback";
   const scope = "read:user public_repo";
@@ -24,7 +26,7 @@ router.get("/github", (req, res) => {
 });
 
 // GitHub OAuth callback
-router.get("/github/callback", async (req, res) => {
+router.get("/github/callback", oauthRateLimit, async (req, res) => {
   const { code } = req.query;
   
   if (!code) {

@@ -166,6 +166,18 @@ async function initializeTables() {
         last_login TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS recruiter_payment_intents (
+        id SERIAL PRIMARY KEY,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id),
+        payment_hash TEXT UNIQUE NOT NULL,
+        plan TEXT NOT NULL,
+        amount_sats BIGINT NOT NULL,
+        amount_usd NUMERIC(12,2) NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        confirmed_at TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS recruiter_views (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES recruiters(id),
@@ -892,6 +904,31 @@ export class DatabaseService {
 
   async updatePaymentTransactionStatus(txHash: string, status: string, blockNumber?: number) {
     await this.updatePaymentStatus(txHash, status, blockNumber);
+  }
+
+  async saveRecruiterPaymentIntent(recruiterId: number, paymentHash: string, plan: string, amountSats: number, amountUsd: number) {
+    await pool.query(
+      `INSERT INTO recruiter_payment_intents (recruiter_id, payment_hash, plan, amount_sats, amount_usd)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (payment_hash) DO NOTHING`,
+      [recruiterId, paymentHash, plan, amountSats, amountUsd],
+    );
+  }
+
+  async getRecruiterPaymentIntent(paymentHash: string): Promise<any | null> {
+    const result = await pool.query("SELECT * FROM recruiter_payment_intents WHERE payment_hash = $1", [paymentHash]);
+    return result.rows[0] || null;
+  }
+
+  async confirmRecruiterPaymentIntent(paymentHash: string): Promise<any | null> {
+    const result = await pool.query(
+      `UPDATE recruiter_payment_intents
+       SET status = 'confirmed', confirmed_at = NOW()
+       WHERE payment_hash = $1 AND status = 'pending'
+       RETURNING *`,
+      [paymentHash],
+    );
+    return result.rows[0] || null;
   }
 
   // Badge management

@@ -4,11 +4,23 @@ import { dbService } from "../services/database";
 import { requireRecruiter, requireOrganizationMember, requireOrganizationRole, RecruiterJwtPayload } from "../middleware/requireRecruiter";
 import crypto from "crypto";
 import { paymentService } from "../services/paymentService";
+import { rateLimit } from "../middleware/rateLimit";
 
 // Recruiter plan pricing (USD/month)
 const RECRUITER_PLAN_PRICES: Record<string, number> = { pro: 49, enterprise: 299 };
 
 const router = express.Router();
+const recruiterAuthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "recruiter-auth" });
+
+function setRecruiterSession(res: express.Response, token: string) {
+  res.cookie("powr_recruiter_session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+}
 
 router.get("/organization/profile", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
@@ -190,13 +202,14 @@ router.post("/team/invitations/accept", requireRecruiter, async (req, res) => {
 
 
 // POST /api/recruiter/auth/signup
-router.post("/auth/signup", async (req, res) => {
+router.post("/auth/signup", recruiterAuthRateLimit, async (req, res) => {
   try {
     const { email, password, company_name, company_size } = req.body;
     if (!email || !password || !company_name) {
       return res.status(400).json({ error: "Email, password, and company_name required" });
     }
     const result = await recruiterService.signup(email, password, company_name, company_size);
+    setRecruiterSession(res, result.token);
     res.json(result);
   } catch (error: any) {
     console.error("[Recruiter] Signup error:", error.message);
@@ -206,18 +219,29 @@ router.post("/auth/signup", async (req, res) => {
 });
 
 // POST /api/recruiter/auth/login
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", recruiterAuthRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
     const result = await recruiterService.login(email, password);
+    setRecruiterSession(res, result.token);
     res.json(result);
   } catch (error: any) {
     console.error("[Recruiter] Login error:", error.message);
     res.status(401).json({ error: error.message });
   }
+});
+
+router.post("/auth/logout", (_req, res) => {
+  res.clearCookie("powr_recruiter_session", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+  res.json({ success: true });
 });
 
 // GET /api/recruiter/me

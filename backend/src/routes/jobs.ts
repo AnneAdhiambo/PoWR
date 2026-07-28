@@ -3,8 +3,10 @@ import { randomUUID } from "crypto";
 import { dbService } from "../services/database";
 import { requireRecruiter, requireOrganizationMember, requireOrganizationRole, RecruiterJwtPayload } from "../middleware/requireRecruiter";
 import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeveloper";
+import { rateLimit } from "../middleware/rateLimit";
 
 const router = express.Router();
+const applicationRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "job-application" });
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────
 
@@ -49,7 +51,7 @@ router.get("/jobs/:id", async (req, res) => {
   }
 });
 
-router.post("/jobs/:id/applications", requireDeveloper, async (req, res) => {
+router.post("/jobs/:id/applications", applicationRateLimit, requireDeveloper, async (req, res) => {
   try {
     const { username } = (req as any).developer as DeveloperJwtPayload;
     const { applicant_email, cover_note, consent_given, screening_answers, shared_evidence } = req.body;

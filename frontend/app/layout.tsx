@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./components/providers";
+import { SessionBoundary } from "./components/auth/SessionBoundary";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -32,7 +33,7 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers><SessionBoundary>{children}</SessionBoundary></Providers>
       </body>
     </html>
   );

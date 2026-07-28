@@ -5,6 +5,13 @@ function getRecruiterToken(): string | null {
   return localStorage.getItem("recruiter_token");
 }
 
+export function clearRecruiterSession() {
+  if (typeof window === "undefined") return;
+  ["recruiter_token", "recruiter_email", "recruiter_company", "recruiter_plan"].forEach((key) => localStorage.removeItem(key));
+  localStorage.setItem("powr_session_event", `recruiter-logout:${Date.now()}`);
+  window.dispatchEvent(new CustomEvent("powr:recruiter-logout"));
+}
+
 class RecruiterApiClient {
   private baseUrl: string;
 
@@ -21,6 +28,7 @@ class RecruiterApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(tenantHostname ? { "X-PoWR-Hostname": tenantHostname } : {}),
@@ -31,6 +39,9 @@ class RecruiterApiClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      if (response.status === 401 && !endpoint.startsWith("/api/recruiter/auth/")) {
+        clearRecruiterSession();
+      }
       const err = new Error(body.error || response.statusText) as any;
       err.status = response.status;
       err.upgradeRequired = body.upgradeRequired;
@@ -56,6 +67,14 @@ class RecruiterApiClient {
 
   async getMe() {
     return this.request<{ recruiter: any }>("/api/recruiter/me");
+  }
+
+  async logout() {
+    try {
+      await this.request<{ success: boolean }>("/api/recruiter/auth/logout", { method: "POST" });
+    } finally {
+      clearRecruiterSession();
+    }
   }
 
   async getOrganizationProfile() {

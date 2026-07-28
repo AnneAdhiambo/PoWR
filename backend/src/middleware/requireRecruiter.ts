@@ -13,12 +13,22 @@ export interface OrganizationContext {
   role: "owner" | "admin" | "recruiter" | "hiring_manager" | "interviewer";
 }
 
+function readCookie(req: Request, name: string): string | null {
+  const cookie = String(req.headers.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`));
+  return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null;
+}
+
 export function requireRecruiter(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
+  const token = auth?.startsWith("Bearer ")
+    ? auth.slice(7)
+    : readCookie(req, "powr_recruiter_session");
+  if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const token = auth.slice(7);
   try {
     const secret = process.env.JWT_SECRET;
     if (!secret) {

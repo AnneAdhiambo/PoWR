@@ -8,6 +8,7 @@ import {
   CreditCard, List, X, Lightning, ArrowRight
 } from "phosphor-react";
 import toast from "react-hot-toast";
+import { recruiterApiClient } from "../../lib/recruiterApi";
 
 export const RecruiterSidebar: React.FC = () => {
   const pathname = usePathname();
@@ -24,10 +25,10 @@ export const RecruiterSidebar: React.FC = () => {
     setPlan(localStorage.getItem("recruiter_plan") || "free");
   }, []);
 
-  const handleLogout = () => {
-    ["recruiter_token","recruiter_email","recruiter_company","recruiter_plan"].forEach(k => localStorage.removeItem(k));
+  const handleLogout = async () => {
+    await recruiterApiClient.logout();
     toast.success("Logged out");
-    router.push("/recruiter/auth");
+    router.replace("/recruiter/auth");
   };
 
   useEffect(() => {
