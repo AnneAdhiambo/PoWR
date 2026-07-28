@@ -43,7 +43,7 @@ router.get("/applications", requireRecruiter, requireOrganizationMember, async (
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 
-router.patch("/applications/:applicationId", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.patch("/applications/:applicationId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter", "hiring_manager"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const organization = (req as any).organization as { organizationId: number };
@@ -56,7 +56,7 @@ router.patch("/applications/:applicationId", requireRecruiter, requireOrganizati
   } catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
-router.put("/applications/:applicationId/scorecard", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.put("/applications/:applicationId/scorecard", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter", "hiring_manager", "interviewer"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const organization = (req as any).organization as { organizationId: number };
@@ -71,7 +71,7 @@ router.put("/applications/:applicationId/scorecard", requireRecruiter, requireOr
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 
-router.post("/applications/:applicationId/notes", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.post("/applications/:applicationId/notes", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter", "hiring_manager", "interviewer"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const organization = (req as any).organization as { organizationId: number };
@@ -789,6 +789,7 @@ router.post("/billing/verify", requireRecruiter, async (req, res) => {
 // Mock pays a recruiter invoice in development sandbox
 router.post("/billing/lightning/pay-mock", requireRecruiter, async (req, res) => {
   try {
+    if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") return res.status(404).json({ error: "Not found" });
     const { paymentHash } = req.body;
     if (!paymentHash) {
       return res.status(400).json({ error: "paymentHash is required" });

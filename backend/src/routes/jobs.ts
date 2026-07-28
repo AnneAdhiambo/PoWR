@@ -1,7 +1,8 @@
 import express from "express";
 import { randomUUID } from "crypto";
 import { dbService } from "../services/database";
-import { requireRecruiter, requireOrganizationMember, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import { requireRecruiter, requireOrganizationMember, requireOrganizationRole, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeveloper";
 
 const router = express.Router();
 
@@ -48,11 +49,12 @@ router.get("/jobs/:id", async (req, res) => {
   }
 });
 
-router.post("/jobs/:id/applications", async (req, res) => {
+router.post("/jobs/:id/applications", requireDeveloper, async (req, res) => {
   try {
-    const { developer_username, applicant_email, cover_note, consent_given, screening_answers, shared_evidence } = req.body;
-    if (!developer_username || !applicant_email || consent_given !== true) return res.status(400).json({ error: "Applicant identity, email, and consent are required" });
-    const application = await dbService.createJobApplication(Number(req.params.id), developer_username, applicant_email, cover_note, consent_given, randomUUID(), screening_answers || {}, shared_evidence || []);
+    const { username } = (req as any).developer as DeveloperJwtPayload;
+    const { applicant_email, cover_note, consent_given, screening_answers, shared_evidence } = req.body;
+    if (!applicant_email || consent_given !== true) return res.status(400).json({ error: "Applicant email and consent are required" });
+    const application = await dbService.createJobApplication(Number(req.params.id), username, applicant_email, cover_note, consent_given, randomUUID(), screening_answers || {}, shared_evidence || []);
     if (!application) return res.status(404).json({ error: "Job is not accepting applications" });
     res.status(201).json({ application });
   } catch (err: any) {
@@ -73,7 +75,7 @@ router.patch("/applications/self", async (req, res) => {
 });
 
 // POST /api/jobs — requireRecruiter
-router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.post("/jobs", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const { title, company, location, salary, type, description, tags, department, remote_policy, seniority, closing_date, screening_questions, status } = req.body;
@@ -91,7 +93,7 @@ router.post("/jobs", requireRecruiter, requireOrganizationMember, async (req, re
 });
 
 // PUT /api/jobs/:id — requireRecruiter
-router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const allowedStatuses = ["draft", "active", "paused", "closed", "archived"];
@@ -106,7 +108,7 @@ router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req,
   }
 });
 
-router.post("/jobs/:id/duplicate", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.post("/jobs/:id/duplicate", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const job = await dbService.duplicateJob(Number(req.params.id), recruiterId);
@@ -120,7 +122,7 @@ router.post("/jobs/:id/duplicate", requireRecruiter, requireOrganizationMember, 
 });
 
 // DELETE /api/jobs/:id — requireRecruiter
-router.delete("/jobs/:id", requireRecruiter, requireOrganizationMember, async (req, res) => {
+router.delete("/jobs/:id", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     await dbService.deleteJob(Number(req.params.id), recruiterId);
@@ -226,11 +228,12 @@ router.get("/user/nostr-pubkey/:username", async (req, res) => {
 });
 
 // POST /api/user/nostr-pubkey — developer registers pubkey after login
-router.post("/user/nostr-pubkey", async (req, res) => {
+router.post("/user/nostr-pubkey", requireDeveloper, async (req, res) => {
   try {
-    const { username, pubkey } = req.body;
-    if (!username || !pubkey) {
-      return res.status(400).json({ error: "username and pubkey required" });
+    const { username } = (req as any).developer as DeveloperJwtPayload;
+    const { pubkey } = req.body;
+    if (!/^[0-9a-f]{64}$/i.test(String(pubkey || ""))) {
+      return res.status(400).json({ error: "Valid pubkey required" });
     }
     const user = await dbService.getUser(username);
     if (!user) return res.status(404).json({ error: "User not found" });

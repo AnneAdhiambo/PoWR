@@ -4,8 +4,9 @@ import React, { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { ProofChainPanel } from "../../../components/recruiter/ProofChainPanel";
 import { SkillRadarChart } from "../../../components/recruiter/SkillRadarChart";
+import { apiClient } from "../../../lib/api";
 import { recruiterApiClient } from "../../../lib/recruiterApi";
-import { getOrCreateKeypair, getPubkeyForIdentifier, sendDM, RELAYS } from "../../../lib/nostr";
+import { getOrCreateKeypair, sendDM, RELAYS } from "../../../lib/nostr";
 import { SimplePool } from "nostr-tools";
 import {
   ArrowLeft, PaperPlaneTilt, BookmarkSimple, ShieldCheck,
@@ -104,7 +105,8 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
       const recruiterCompany = localStorage.getItem("recruiter_company") || recruiterEmail;
 
       // Derive developer pubkey deterministically from their username — no DB needed
-      const devPubkey = await getPubkeyForIdentifier(username);
+      const devPubkey = await apiClient.getUserNostrPubkey(username);
+      if (!devPubkey) throw new Error("Developer messaging identity is not registered");
       const { sk } = await getOrCreateKeypair(recruiterEmail);
       const pool = new SimplePool();
 

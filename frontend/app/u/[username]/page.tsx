@@ -68,9 +68,8 @@ export default function PublicProfilePage() {
 
   useEffect(() => {
     // Check if user is logged in
-    const token = localStorage.getItem("github_token");
     const storedUsername = localStorage.getItem("github_username") || "";
-    setIsLoggedIn(!!token);
+    setIsLoggedIn(!!storedUsername);
     setLoggedInUsername(storedUsername);
 
     // Load endorsement count from localStorage
@@ -85,8 +84,8 @@ export default function PublicProfilePage() {
     }
 
     // Fetch viewer's score if logged in
-    if (token && storedUsername) {
-      apiClient.getUserProfile(storedUsername, token)
+    if (storedUsername) {
+      apiClient.getUserProfile(storedUsername)
         .then(data => setViewerScore(Math.round(data.overallIndex || 0)))
         .catch(() => {});
     }

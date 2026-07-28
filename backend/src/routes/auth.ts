@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import jwt from "jsonwebtoken";
 import { dbService } from "../services/database";
 
 const router = express.Router();
@@ -74,10 +75,19 @@ router.get("/github/callback", async (req, res) => {
     // Store user and token in database
     await dbService.upsertUser(user.login, user.id, access_token);
     
-    // Redirect to frontend with token in query params
-    // In production, use JWT tokens and secure session management
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return res.status(500).json({ error: "JWT_SECRET is not configured" });
+    const session = jwt.sign({ role: "developer", username: user.login }, jwtSecret, { expiresIn: "7d" });
+    res.cookie("powr_developer_session", session, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const redirectUrl = `${frontendUrl}/auth/callback?token=${access_token}&username=${user.login}`;
+    const redirectUrl = `${frontendUrl}/auth/callback?username=${encodeURIComponent(user.login)}`;
     
     res.redirect(redirectUrl);
   } catch (error: any) {
@@ -92,38 +102,25 @@ router.get("/github/callback", async (req, res) => {
 // Validate GitHub token
 router.get("/validate", async (req, res) => {
   try {
-    const { token } = req.query;
-    
-    if (!token) {
-      return res.status(400).json({ valid: false, error: "Token required" });
-    }
-
-    if (token === "mock_token" || (token as string).startsWith("mock_")) {
-      return res.json({ valid: true, user: "anneadhiambo" });
-    }
-
-    // Validate token by making a test API call to GitHub
+    const cookies = String(req.headers.cookie || "").split(";");
+    const session = cookies.find((cookie) => cookie.trim().startsWith("powr_developer_session="))?.trim().split("=")[1];
+    if (!session) return res.status(401).json({ valid: false, error: "Session required" });
     try {
-      const response = await axios.get("https://api.github.com/user", {
-        headers: {
-          Authorization: `token ${token}`,
-        },
-      });
-      
-      // Token is valid
-      res.json({ valid: true, user: response.data.login });
-    } catch (error: any) {
-      // Token is invalid or expired
-      if (error.response?.status === 401) {
-        res.json({ valid: false, error: "Token expired or invalid" });
-      } else {
-        res.status(500).json({ valid: false, error: "Error validating token" });
-      }
+      const payload = jwt.verify(decodeURIComponent(session), process.env.JWT_SECRET || "") as { role: string; username: string };
+      if (payload.role !== "developer") return res.status(403).json({ valid: false, error: "Developer session required" });
+      res.json({ valid: true, user: payload.username });
+    } catch {
+      res.status(401).json({ valid: false, error: "Session expired or invalid" });
     }
   } catch (error: any) {
     console.error("Token validation error:", error);
     res.status(500).json({ valid: false, error: "Validation failed" });
   }
+});
+
+router.post("/logout", (_req, res) => {
+  res.clearCookie("powr_developer_session", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
+  res.json({ success: true });
 });
 
 export default router;

@@ -16,17 +16,14 @@ function AuthContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    const token = localStorage.getItem("github_token");
     const username = localStorage.getItem("github_username");
-    if (token && username) {
+    if (username) {
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      fetch(`${apiBaseUrl}/api/auth/validate?token=${encodeURIComponent(token)}`)
+      fetch(`${apiBaseUrl}/api/auth/validate`, { credentials: "include" })
         .then((res) => res.json())
         .then((data) => { if (data.valid) router.push("/dashboard"); })
         .catch(() => {
-          localStorage.removeItem("github_token");
           localStorage.removeItem("github_username");
-          localStorage.removeItem("github_token_timestamp");
         });
     }
   }, [router]);

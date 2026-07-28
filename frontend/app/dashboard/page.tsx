@@ -50,20 +50,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Get auth data from localStorage
-    const token = localStorage.getItem("github_token");
     const storedUsername = localStorage.getItem("github_username");
 
-    if (token && storedUsername) {
-      // Check if token is still valid
-      checkTokenValidity(token, storedUsername).then((isValid) => {
+    if (storedUsername) {
+      checkTokenValidity().then((isValid) => {
         if (isValid) {
-          setAccessToken(token);
+          setAccessToken("server-session");
           setUsername(storedUsername);
         } else {
-          // Token expired or invalid, clear and redirect to login
-          localStorage.removeItem("github_token");
           localStorage.removeItem("github_username");
-          localStorage.removeItem("github_token_timestamp");
           router.push("/auth");
         }
       });
@@ -74,27 +69,10 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  const checkTokenValidity = async (token: string, username: string): Promise<boolean> => {
+  const checkTokenValidity = async (): Promise<boolean> => {
     try {
-      // Check token timestamp (GitHub tokens typically don't expire, but we'll validate anyway)
-      const tokenTimestamp = localStorage.getItem("github_token_timestamp");
-      if (tokenTimestamp) {
-        const tokenAge = Date.now() - parseInt(tokenTimestamp);
-        // If token is older than 30 days, validate it
-        if (tokenAge > 30 * 24 * 60 * 60 * 1000) {
-          // Validate token by making a test API call
-          const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-          const response = await fetch(`${apiBaseUrl}/api/auth/validate?token=${encodeURIComponent(token)}`);
-          if (!response.ok) return false;
-          const data = await response.json();
-          return data.valid === true;
-        }
-        // Token is recent, assume valid
-        return true;
-      }
-      // No timestamp, validate token
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiBaseUrl}/api/auth/validate?token=${encodeURIComponent(token)}`);
+      const response = await fetch(`${apiBaseUrl}/api/auth/validate`, { credentials: "include" });
       if (!response.ok) return false;
       const data = await response.json();
       return data.valid === true;

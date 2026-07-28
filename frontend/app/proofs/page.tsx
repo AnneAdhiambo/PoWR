@@ -51,11 +51,10 @@ export default function ProofsPage() {
     const [displayName, setDisplayName] = useState<string>("");
 
     useEffect(() => {
-        const token = localStorage.getItem("github_token");
         const storedUsername = localStorage.getItem("github_username");
 
-        if (token && storedUsername) {
-            setAccessToken(token);
+        if (storedUsername) {
+            setAccessToken("server-session");
             setUsername(storedUsername);
         } else {
             router.push("/auth");

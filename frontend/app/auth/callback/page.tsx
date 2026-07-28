@@ -16,12 +16,11 @@ function AuthCallbackContent() {
   const [step, setStep] = useState<"processing" | "storing" | "redirecting">("processing");
 
   useEffect(() => {
-    const token = searchParams.get("token");
     const username = searchParams.get("username");
 
-    if (!token || !username) {
+    if (!username) {
       setStatus("error");
-      setError("Missing authentication token or username");
+      setError("Missing authenticated username");
       return;
     }
 
@@ -34,12 +33,7 @@ function AuthCallbackContent() {
       // Step 2: Fetch GitHub user info to get avatar
       setStep("storing");
       try {
-        const userResponse = await fetch("https://api.github.com/user", {
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: "application/vnd.github.v3+json",
-          },
-        });
+        const userResponse = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}`);
         if (userResponse.ok) {
           const userData = await userResponse.json();
           if (userData.avatar_url) {
@@ -50,9 +44,7 @@ function AuthCallbackContent() {
         console.error("Failed to fetch GitHub avatar:", error);
       }
 
-      localStorage.setItem("github_token", token);
       localStorage.setItem("github_username", username);
-      localStorage.setItem("github_token_timestamp", Date.now().toString());
 
       // Derive Nostr keypair and register pubkey
       try {

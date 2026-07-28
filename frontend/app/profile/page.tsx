@@ -85,12 +85,11 @@ export default function ProfileManagementPage() {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("github_token");
       const storedUsername = localStorage.getItem("github_username");
       
-      if (token && storedUsername) {
+      if (storedUsername) {
         try {
-          const profileData = await apiClient.getUserProfile(storedUsername, token);
+          const profileData = await apiClient.getUserProfile(storedUsername);
           setProfile(profileData);
         } catch (error) {
           console.error("Failed to load profile:", error);

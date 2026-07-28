@@ -437,13 +437,17 @@ export default function JobDetailPage() {
                   variant="primary" 
                   size="lg"
                   onClick={() => {
-                    const applicantUsername = username || window.prompt("Your PoWR username") || "";
+                    if (!username) {
+                      toast.error("Sign in to apply for this job");
+                      router.push("/auth");
+                      return;
+                    }
                     const applicantEmail = userEmail || window.prompt("Your email address") || "";
-                    if (!applicantUsername || !applicantEmail) return;
+                    if (!applicantEmail) return;
                     const coverNote = window.prompt("Optional cover note") || "";
                     if (!window.confirm("Allow this company to store and review your application and PoWR profile?")) return;
                     const screeningAnswers = Object.fromEntries((job.screening_questions || []).map((question) => [question, window.prompt(question) || ""]));
-                    apiClient.applyToJob(job.id, { developer_username: applicantUsername, applicant_email: applicantEmail, cover_note: coverNote, consent_given: true, screening_answers: screeningAnswers, shared_evidence: ["powr_profile"] })
+                    apiClient.applyToJob(job.id, { applicant_email: applicantEmail, cover_note: coverNote, consent_given: true, screening_answers: screeningAnswers, shared_evidence: ["powr_profile"] })
                       .then(({ application }) => {
                         localStorage.setItem(`powr_application_${application.id}`, application.access_token);
                         toast.success("Application submitted");

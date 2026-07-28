@@ -112,6 +112,7 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(typeof window !== "undefined" && window.location.hostname ? { "X-PoWR-Hostname": window.location.hostname.replace(/\.powr\.localhost$/, ".powr.dev") } : {}),
@@ -128,10 +129,7 @@ class ApiClient {
   }
 
   async getUserProfile(username: string, accessToken?: string): Promise<PoWProfile> {
-    const url = accessToken
-      ? `/api/user/profile?username=${username}&access_token=${accessToken}`
-      : `/api/user/profile?username=${username}`;
-    return this.request<PoWProfile>(url);
+    return this.request<PoWProfile>(`/api/user/profile?username=${username}`);
   }
 
   async getPublicProfile(username: string): Promise<{
@@ -146,15 +144,12 @@ class ApiClient {
 
   async getUserSkills(username: string, accessToken: string): Promise<{ skills: SkillPoWScore[] }> {
     return this.request<{ skills: SkillPoWScore[] }>(
-      `/api/user/skills?username=${username}&access_token=${accessToken}`
+      `/api/user/skills?username=${username}`
     );
   }
 
   async getUserArtifacts(username: string, accessToken?: string): Promise<{ artifacts: Artifact[] }> {
-    const url = accessToken
-      ? `/api/user/artifacts?username=${username}&access_token=${accessToken}`
-      : `/api/user/artifacts?username=${username}`;
-    return this.request<{ artifacts: Artifact[] }>(url);
+    return this.request<{ artifacts: Artifact[] }>(`/api/user/artifacts?username=${username}`);
   }
 
   async triggerAnalysis(
@@ -166,7 +161,7 @@ class ApiClient {
       `/api/user/analyze`,
       {
         method: "POST",
-        body: JSON.stringify({ username, access_token: accessToken, monthsBack }),
+        body: JSON.stringify({ username, monthsBack }),
       }
     );
   }
@@ -280,7 +275,7 @@ class ApiClient {
     return this.request(`/api/jobs/${id}`);
   }
 
-  async applyToJob(id: string, data: { developer_username: string; applicant_email: string; cover_note?: string; consent_given: boolean; screening_answers?: Record<string, string>; shared_evidence?: string[] }) {
+  async applyToJob(id: string, data: { applicant_email: string; cover_note?: string; consent_given: boolean; screening_answers?: Record<string, string>; shared_evidence?: string[] }) {
     return this.request<{ application: any }>(`/api/jobs/${id}/applications`, { method: "POST", body: JSON.stringify(data) });
   }
 

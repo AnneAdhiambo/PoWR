@@ -73,6 +73,7 @@ router.get("/status/:txHash", async (req, res) => {
 // Mock pay an invoice for testing in development sandbox
 router.post("/lightning/pay-mock", async (req, res) => {
   try {
+    if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") return res.status(404).json({ error: "Not found" });
     const { paymentHash } = req.body;
     if (!paymentHash) {
       return res.status(400).json({ error: "paymentHash is required" });
