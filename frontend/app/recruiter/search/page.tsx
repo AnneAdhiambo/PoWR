@@ -4,10 +4,20 @@ import { useRouter } from "next/navigation";
 import { SearchFilters, SearchFilterValues } from "../../components/recruiter/SearchFilters";
 import { DeveloperCard, DeveloperCardData } from "../../components/recruiter/DeveloperCard";
 import { recruiterApiClient } from "../../lib/recruiterApi";
-import { CaretDown, Users } from "phosphor-react";
+import { CaretDown, Users, X } from "phosphor-react";
 import toast from "react-hot-toast";
 
 type SortKey = "overallIndex" | "lastActive" | "proofCount";
+type SourcedDeveloper = DeveloperCardData & {
+  jobMatchScore?: number;
+  matchSnapshotId?: number;
+  matchExplanation?: {
+    matchedRequiredSkills: string[];
+    missingRequiredSkills: string[];
+    matchedPreferredSkills: string[];
+    requiredSkillCoverage: number;
+  };
+};
 
 const SORT_LABELS: Record<SortKey, string> = {
   overallIndex: "PoW Score",
@@ -17,7 +27,7 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 export default function RecruiterSearchPage() {
   const router = useRouter();
-  const [developers, setDevelopers] = useState<DeveloperCardData[]>([]);
+  const [developers, setDevelopers] = useState<SourcedDeveloper[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -27,6 +37,12 @@ export default function RecruiterSearchPage() {
   const [contactUsername, setContactUsername] = useState<string | null>(null);
   const [contactMsg, setContactMsg] = useState("");
   const [sending, setSending] = useState(false);
+  const [jobs, setJobs] = useState<Array<{ id: number; title: string; status?: string }>>([]);
+  const [pools, setPools] = useState<Array<{ id: number; name: string }>>([]);
+  const [selectedJobId, setSelectedJobId] = useState<number | undefined>();
+  const [shortlistUsername, setShortlistUsername] = useState<string | null>(null);
+  const [selectedPoolId, setSelectedPoolId] = useState<number | undefined>();
+  const [savingCandidate, setSavingCandidate] = useState(false);
   const [lastFilters, setLastFilters] = useState<SearchFilterValues>({
     skills: [], minScore: 0, maxScore: 100, activeWithin: undefined, hasOnChainProof: false
   });
@@ -37,10 +53,20 @@ export default function RecruiterSearchPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    Promise.all([recruiterApiClient.getMyJobs(), recruiterApiClient.getSavedPools()])
+      .then(([jobResult, poolResult]) => {
+        setJobs(jobResult.jobs.filter((job: any) => job.status !== "archived"));
+        setPools(poolResult.pools);
+      })
+      .catch(() => toast.error("Could not load jobs and talent lists"));
+  }, []);
+
   const runSearch = useCallback(async (f: SearchFilterValues, p: number, sort: SortKey) => {
     setLoading(true);
     try {
       const result = await recruiterApiClient.searchDevelopers({
+        jobId: selectedJobId,
         skills: f.skills.length ? f.skills : undefined,
         minScore: f.minScore > 0 ? f.minScore : undefined,
         maxScore: f.maxScore < 100 ? f.maxScore : undefined,
@@ -63,7 +89,7 @@ export default function RecruiterSearchPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedJobId]);
 
   const handleApply = (f: SearchFilterValues) => {
     setLastFilters(f);
@@ -85,7 +111,32 @@ export default function RecruiterSearchPage() {
   };
 
   const handleShortlist = async (username: string) => {
-    toast.success(`${username} added to shortlist`);
+    setShortlistUsername(username);
+    setSelectedPoolId(pools[0]?.id);
+  };
+
+  const saveToTalentList = async () => {
+    if (!shortlistUsername || !selectedPoolId) return;
+    setSavingCandidate(true);
+    try {
+      await recruiterApiClient.addToPool(selectedPoolId, shortlistUsername);
+      toast.success(`${shortlistUsername} added to talent list`);
+      setShortlistUsername(null);
+    } catch (error: any) {
+      toast.error(error.message || "Could not add developer");
+    } finally {
+      setSavingCandidate(false);
+    }
+  };
+
+  const addToSelectedJob = async (developer: SourcedDeveloper) => {
+    if (!selectedJobId || !developer.matchSnapshotId) return;
+    try {
+      await recruiterApiClient.addSourcedCandidateToJob(selectedJobId, developer.username, developer.matchSnapshotId);
+      toast.success(`${developer.username} added to the job`);
+    } catch (error: any) {
+      toast.error(error.message || "Could not add developer to job");
+    }
   };
 
   const handleContact = (username: string) => {
@@ -120,6 +171,20 @@ export default function RecruiterSearchPage() {
 
       {/* Main content */}
       <div className="min-w-0 flex-1 p-4 sm:p-8">
+        <div className="mb-6 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <label htmlFor="source-job" className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500">Source for a job</label>
+          <select
+            id="source-job"
+            value={selectedJobId || ""}
+            onChange={(event) => setSelectedJobId(event.target.value ? Number(event.target.value) : undefined)}
+            className="w-full rounded-lg border border-white/[0.08] bg-[#12141a] px-3 py-2.5 text-sm text-white"
+          >
+            <option value="">General talent search</option>
+            {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
+          </select>
+          <p className="mt-2 text-xs text-gray-500">Selecting a job creates an explainable role-fit snapshot while keeping the global PoWR Score separate.</p>
+        </div>
+
         {/* Page header */}
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -182,12 +247,32 @@ export default function RecruiterSearchPage() {
         {!loading && hasSearched && developers.length > 0 && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             {developers.map(dev => (
-              <DeveloperCard
-                key={dev.username}
-                developer={dev}
-                onShortlist={handleShortlist}
-                onContact={handleContact}
-              />
+              <div key={dev.username}>
+                <DeveloperCard
+                  developer={dev}
+                  onShortlist={handleShortlist}
+                  onContact={handleContact}
+                />
+                {dev.jobMatchScore !== undefined && (
+                  <div className="-mt-3 border-x border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-emerald-300">Role match</span>
+                      <span className="text-lg font-semibold text-white">{dev.jobMatchScore}%</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {dev.matchExplanation?.requiredSkillCoverage ?? 0}% required-skill coverage
+                      {dev.matchExplanation?.missingRequiredSkills?.length
+                        ? ` · Missing ${dev.matchExplanation.missingRequiredSkills.join(", ")}`
+                        : " · All required skills matched"}
+                    </p>
+                  </div>
+                )}
+                {selectedJobId && dev.matchSnapshotId && (
+                  <button onClick={() => addToSelectedJob(dev)} className="-mt-3 w-full rounded-b-xl border border-orange-500/30 bg-orange-500/10 py-2 text-sm font-medium text-orange-300 hover:bg-orange-500/20">
+                    Add to selected job
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -239,6 +324,29 @@ export default function RecruiterSearchPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {shortlistUsername && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#12141a] p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Add @{shortlistUsername} to a talent list</h3>
+              <button onClick={() => setShortlistUsername(null)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+            </div>
+            {pools.length ? (
+              <>
+                <select value={selectedPoolId || ""} onChange={(event) => setSelectedPoolId(Number(event.target.value))} className="mt-5 w-full rounded-lg border border-white/[0.08] bg-[#191a1f] px-3 py-2.5 text-sm text-white">
+                  {pools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name}</option>)}
+                </select>
+                <button onClick={saveToTalentList} disabled={savingCandidate} className="mt-4 w-full rounded-lg bg-[#FF5500] py-2.5 text-sm font-medium text-white disabled:opacity-50">
+                  {savingCandidate ? "Adding..." : "Add to talent list"}
+                </button>
+              </>
+            ) : (
+              <p className="mt-5 text-sm text-gray-400">Create a talent list from the Talent Lists page first.</p>
+            )}
           </div>
         </div>
       )}

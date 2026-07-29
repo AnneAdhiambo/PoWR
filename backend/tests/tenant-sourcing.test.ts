@@ -20,6 +20,8 @@ import { dbService } from "../src/services/database";
 describe("organization-scoped sourcing persistence", () => {
   beforeEach(() => {
     queryMock.mockReset();
+    clientQueryMock.mockReset();
+    clientQueryMock.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
   it("scopes talent-list member reads to the active organization", async () => {
@@ -62,5 +64,44 @@ describe("organization-scoped sourcing persistence", () => {
     expect(await dbService.canDiscoverDeveloper("alice", true)).toBe(false);
     expect(queryMock.mock.calls[0][1]).toEqual(["alice", true]);
     expect(queryMock.mock.calls[0][0]).toContain("contactable = TRUE");
+  });
+
+  it("scopes applications to the tenant organization", async () => {
+    queryMock.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    await dbService.createJobApplication(44, 22, "alice", "alice@example.com", undefined, true, "00000000-0000-0000-0000-000000000001", {}, []);
+
+    expect(queryMock.mock.calls[0][0]).toContain("j.organization_id = $2");
+    expect(queryMock.mock.calls[0][1].slice(0, 3)).toEqual([44, 22, "alice"]);
+  });
+
+  it("updates and duplicates jobs only inside the resolved organization", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ id: 44 }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 45, title: "Copy" }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 45 }], rowCount: 1 });
+
+    await dbService.updateJob(44, 22, { status: "paused" });
+    await dbService.duplicateJob(44, 22, 7);
+
+    expect(queryMock.mock.calls[0][0]).toContain("organization_id = $2");
+    expect(queryMock.mock.calls[0][1].slice(0, 2)).toEqual([44, 22]);
+    expect(queryMock.mock.calls[1][0]).toContain("j.organization_id = $2");
+    expect(queryMock.mock.calls[1][1]).toEqual([44, 22, 7]);
+  });
+
+  it("revokes discovery and removes retained sourcing access with application consent", async () => {
+    clientQueryMock
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 9, developer_username: "alice" }], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    await dbService.updateDeveloperApplication("00000000-0000-0000-0000-000000000001", "revoke_consent");
+
+    const sql = clientQueryMock.mock.calls.map(([statement]) => statement).join("\n");
+    expect(sql).toContain("discoverable = FALSE");
+    expect(sql).toContain("DELETE FROM organization_talent_list_members");
+    expect(sql).toContain("DELETE FROM job_sourced_candidates");
+    expect(sql).toContain("COMMIT");
   });
 });

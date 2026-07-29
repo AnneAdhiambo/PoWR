@@ -38,3 +38,36 @@ describe("recruiter session probes", () => {
     window.removeEventListener("powr:recruiter-logout", logout);
   });
 });
+
+describe("recruiter sourcing requests", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("recruiter_token", "token");
+    vi.restoreAllMocks();
+  });
+
+  it("includes job context in talent search", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ developers: [], total: 0 }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await recruiterApiClient.searchDevelopers({ jobId: 42, skills: ["TypeScript"] });
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/recruiter/search?jobId=42&skills=TypeScript");
+  });
+
+  it("persists sourced candidates with their match snapshot", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ candidate: { developer_username: "alice" } }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await recruiterApiClient.addSourcedCandidateToJob(42, "alice", 91);
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/recruiter/jobs/42/sourced-candidates");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ username: "alice", matchSnapshotId: 91 });
+  });
+});

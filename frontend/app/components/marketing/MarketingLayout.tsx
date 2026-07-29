@@ -1,20 +1,45 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { List, X } from "phosphor-react";
+
+const navigation = [
+  ["Product", "/product"],
+  ["How it works", "/#how-it-works"],
+  ["Why PoWR", "/powr-score"],
+  ["Pricing", "/pricing"],
+  ["Jobs", "/jobs"],
+];
 
 export function MarketingLayout({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-[#080a0d] text-white">
       <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#080a0d]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="text-2xl font-bold tracking-tight">Po<span className="text-orange-500">WR</span></Link>
           <nav aria-label="Main navigation" className="hidden items-center gap-7 text-sm text-gray-300 lg:flex">
-            <Link href="/product" className="hover:text-white">Product</Link>
-            <Link href="/#how-it-works" className="hover:text-white">How it works</Link>
-            <Link href="/powr-score" className="hover:text-white">Why PoWR</Link>
-            <Link href="/pricing" className="hover:text-white">Pricing</Link>
-            <Link href="/jobs" className="hover:text-white">Jobs</Link>
+            {navigation.map(([label, href]) => <Link key={label} href={href} className="hover:text-white">{label}</Link>)}
           </nav>
-          <div className="flex items-center gap-3"><Link href="/recruiter/auth" className="hidden text-sm font-medium text-gray-300 hover:text-white sm:block">Log in</Link><Link href="/request-demo" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">Request a demo <span aria-hidden="true">→</span></Link></div>
+          <div className="flex items-center gap-3">
+            <Link href="/recruiter/auth" className="hidden text-sm font-medium text-gray-300 hover:text-white sm:block">Log in</Link>
+            <Link href="/request-demo" className="hidden items-center gap-2 rounded-[var(--radius-control)] bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 sm:inline-flex">Request a demo <span aria-hidden="true">→</span></Link>
+            <button type="button" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="mobile-marketing-navigation" onClick={() => setMobileOpen((open) => !open)} className="rounded-[var(--radius-control)] border border-white/15 p-2.5 text-gray-200 hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-orange-500 lg:hidden">
+              {mobileOpen ? <X size={20} /> : <List size={20} />}
+            </button>
+          </div>
         </div>
+        <nav id="mobile-marketing-navigation" aria-label="Mobile navigation" className={`${mobileOpen ? "block" : "hidden"} border-t border-white/[0.07] px-5 py-4 lg:hidden`}>
+          <div className="mx-auto flex max-w-7xl flex-col gap-1">
+            {navigation.map(([label, href]) => <Link key={label} href={href} onClick={() => setMobileOpen(false)} className="rounded-[var(--radius-control)] px-3 py-3 text-sm text-gray-200 hover:bg-white/[0.06]">{label}</Link>)}
+            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[0.07] pt-4">
+              <Link href="/recruiter/auth" onClick={() => setMobileOpen(false)} className="rounded-[var(--radius-control)] border border-white/15 px-4 py-3 text-center text-sm font-semibold text-white">Log in</Link>
+              <Link href="/request-demo" onClick={() => setMobileOpen(false)} className="rounded-[var(--radius-control)] bg-orange-500 px-4 py-3 text-center text-sm font-semibold text-white">Request demo</Link>
+            </div>
+          </div>
+        </nav>
       </header>
       {children}
       <footer className="border-t border-white/[0.07] bg-[#0c0e12] px-5 py-14 sm:px-8">

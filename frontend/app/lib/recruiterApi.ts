@@ -171,6 +171,7 @@ class RecruiterApiClient {
   }
 
   async searchDevelopers(params: {
+    jobId?: number;
     skills?: string[];
     minScore?: number;
     maxScore?: number;
@@ -180,6 +181,7 @@ class RecruiterApiClient {
     limit?: number;
   }) {
     const q = new URLSearchParams();
+    if (params.jobId !== undefined) q.set("jobId", String(params.jobId));
     if (params.skills?.length) q.set("skills", params.skills.join(","));
     if (params.minScore !== undefined) q.set("minScore", String(params.minScore));
     if (params.maxScore !== undefined) q.set("maxScore", String(params.maxScore));
@@ -276,6 +278,20 @@ class RecruiterApiClient {
 
   async deleteJob(id: string): Promise<void> {
     await this.request(`/api/jobs/${id}`, { method: "DELETE" });
+  }
+
+  async updateJobSourcingRequirements(jobId: number, data: { requiredSkills: string[]; preferredSkills: string[]; minimumPowrScore?: number | null }) {
+    return this.request<{ requirements: any }>(`/api/recruiter/jobs/${jobId}/sourcing-requirements`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addSourcedCandidateToJob(jobId: number, username: string, matchSnapshotId: number) {
+    return this.request<{ candidate: any }>(`/api/recruiter/jobs/${jobId}/sourced-candidates`, {
+      method: "POST",
+      body: JSON.stringify({ username, matchSnapshotId }),
+    });
   }
 
   async duplicateJob(id: string): Promise<{ job: any }> {

@@ -16,11 +16,20 @@ export default function RecruiterAccountPage() {
   const [recruiter, setRecruiter] = useState<any>(null);
   const [organization, setOrganization] = useState<any>(null);
   const [profileForm, setProfileForm] = useState({ display_name: "", summary: "", website: "", location: "", logo_url: "", benefits: "" });
+  const [teamMemberCount, setTeamMemberCount] = useState(0);
+  const [jobCount, setJobCount] = useState(0);
   const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const workspaceHost = organization?.hostname
     ? organization.hostname
     : "your-company.powr.dev";
+  const onboardingSteps = [
+    { label: "Add your company identity", complete: Boolean(profileForm.display_name && profileForm.summary), href: "#public-company-profile" },
+    { label: "Add careers branding and benefits", complete: Boolean(profileForm.logo_url && profileForm.benefits), href: "#public-company-profile" },
+    { label: "Invite your hiring team", complete: teamMemberCount > 1, href: "/recruiter/team" },
+    { label: "Publish your first role", complete: jobCount > 0, href: "/recruiter/jobs" },
+  ];
+  const completedOnboardingSteps = onboardingSteps.filter((step) => step.complete).length;
 
   useEffect(() => {
     if (!localStorage.getItem("recruiter_token")) {
@@ -33,9 +42,16 @@ export default function RecruiterAccountPage() {
   const loadRecruiter = async () => {
     setLoading(true);
     try {
-      const [{ recruiter: data }, { organization: organizationData }] = await Promise.all([recruiterApiClient.getMe(), recruiterApiClient.getOrganizationProfile()]);
+      const [{ recruiter: data }, { organization: organizationData }, { members }, { jobs }] = await Promise.all([
+        recruiterApiClient.getMe(),
+        recruiterApiClient.getOrganizationProfile(),
+        recruiterApiClient.getTeamMembers(),
+        recruiterApiClient.getMyJobs(),
+      ]);
       setRecruiter(data);
       setOrganization(organizationData);
+      setTeamMemberCount(members.length);
+      setJobCount(jobs.length);
       const profile = organizationData.profile || {};
       setProfileForm({
         display_name: organizationData.display_name || data.companyName || "",
@@ -80,6 +96,23 @@ export default function RecruiterAccountPage() {
     <RecruiterPage className="max-w-4xl">
         <PageHeader eyebrow="Organization" title="Careers & account" description="Manage the identity candidates see and the workspace your hiring team uses." />
 
+        <Card className="mb-8 border-orange-500/20 bg-orange-500/[0.04] p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-400">Workspace setup</p>
+              <h2 className="mt-2 text-lg font-semibold text-white">Prepare your organization for candidates</h2>
+              <p className="mt-1 text-sm text-gray-400">{completedOnboardingSteps} of {onboardingSteps.length} setup steps complete</p>
+            </div>
+            <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-300">{Math.round((completedOnboardingSteps / onboardingSteps.length) * 100)}%</span>
+          </div>
+          <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]" aria-label={`${completedOnboardingSteps} of ${onboardingSteps.length} organization setup steps complete`}>
+            <div className="h-full rounded-full bg-orange-500 transition-all" style={{ width: `${(completedOnboardingSteps / onboardingSteps.length) * 100}%` }} />
+          </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {onboardingSteps.map((step) => <Link key={step.label} href={step.href} className="flex items-center gap-3 rounded-[var(--radius-control)] border border-white/[0.07] bg-black/15 px-3 py-3 text-sm text-gray-300 hover:border-orange-500/25 hover:text-white"><span className={`flex h-5 w-5 items-center justify-center rounded-full border ${step.complete ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400" : "border-white/15 text-gray-600"}`}>{step.complete ? <Check size={12} weight="bold" /> : null}</span>{step.label}</Link>)}
+          </div>
+        </Card>
+
         {/* Profile card */}
         {recruiter && (
           <Card className="p-5 mb-8">
@@ -109,7 +142,7 @@ export default function RecruiterAccountPage() {
           </Card>
         )}
 
-        <Card className="p-5 mb-8">
+        <Card id="public-company-profile" className="p-5 mb-8 scroll-mt-24">
           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Organization workspace</p>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

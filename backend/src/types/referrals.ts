@@ -24,8 +24,14 @@ export interface ReliabilitySummary {
   minimumEvidence: number;
   totalPoints: number;
   visible: boolean;
+  suppressed: boolean;
 }
 
 export interface QueryExecutor {
   query<T = any>(text: string, values?: unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
+  connect?(): Promise<QueryTransaction>;
+}
+
+export interface QueryTransaction extends QueryExecutor {
+  release(): void;
 }
