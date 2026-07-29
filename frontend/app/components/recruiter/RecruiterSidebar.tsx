@@ -6,7 +6,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bookmark, Briefcase, Buildings, CaretUp, ChartBar, ChatCircle, CreditCard,
-  Gear, List, MagnifyingGlass, ShareNetwork, SignOut, SquaresFour, UserCircle, Users, Wrench, X,
+  Gear, GitPullRequest, List, MagnifyingGlass, ShareNetwork, SignOut, SquaresFour, UserCircle, Users, Wrench, X,
 } from "phosphor-react";
 import toast from "react-hot-toast";
 import { recruiterApiClient } from "../../lib/recruiterApi";
@@ -30,6 +30,7 @@ const navGroups = [
   { label: "People", items: [
     { icon: UserCircle, label: "Employees", href: "/recruiter/employees" },
     { icon: Wrench, label: "Gigs", href: "/recruiter/gigs" },
+    { icon: GitPullRequest, label: "Open Source review", href: "/recruiter/open-source-review" },
   ]},
   { label: "Organization", items: [
     { icon: Users, label: "Team", href: "/recruiter/team" },

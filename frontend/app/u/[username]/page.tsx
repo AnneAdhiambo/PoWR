@@ -26,6 +26,7 @@ import { apiClient, PoWProfile, Artifact, Proof, Badge, GithubBadge } from "../.
 import { BadgeGrid } from "../../components/profile/BadgeGrid";
 import { EndorsementSection } from "../../components/profile/EndorsementSection";
 import { ReputationTimeline } from "../../components/profile/ReputationTimeline";
+import { OpenSourceEvidence } from "../../components/profile/OpenSourceEvidence";
 import toast from "react-hot-toast";
 
 const PercentileBadge = ({ percentile, score }: { percentile: number; score: number }) => {
@@ -422,6 +423,8 @@ export default function PublicProfilePage() {
 
         {/* Reputation Timeline */}
         <ReputationTimeline username={username} profile={profile} proofs={proofs} />
+
+        <OpenSourceEvidence username={username} />
 
         {/* Endorsements */}
         <EndorsementSection

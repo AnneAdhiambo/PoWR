@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { recruiterApiClient, clearRecruiterSession } from "../../lib/recruiterApi";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-const DEVELOPER_ROUTES = ["/dashboard", "/proofs", "/saved", "/chat", "/notifications", "/profile", "/subscription"];
+const DEVELOPER_ROUTES = ["/dashboard", "/proofs", "/open-source", "/saved", "/chat", "/notifications", "/profile", "/subscription"];
 
 function SessionLoading() {
   return (
