@@ -19,7 +19,11 @@ class RecruiterApiClient {
     this.baseUrl = API_BASE_URL;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    behavior: { suppressUnauthorizedLogout?: boolean } = {},
+  ): Promise<T> {
     const token = getRecruiterToken();
     const browserHostname = typeof window !== "undefined" ? window.location.hostname : "";
     const tenantHostname = browserHostname.endsWith(".powr.localhost")
@@ -39,7 +43,7 @@ class RecruiterApiClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      if (response.status === 401 && !endpoint.startsWith("/api/recruiter/auth/")) {
+      if (response.status === 401 && !endpoint.startsWith("/api/recruiter/auth/") && !behavior.suppressUnauthorizedLogout) {
         clearRecruiterSession();
       }
       const err = new Error(body.error || response.statusText) as any;
@@ -65,8 +69,12 @@ class RecruiterApiClient {
     });
   }
 
-  async getMe() {
-    return this.request<{ recruiter: any }>("/api/recruiter/me");
+  async getMe(options: { passive?: boolean } = {}) {
+    return this.request<{ recruiter: any }>(
+      "/api/recruiter/me",
+      {},
+      { suppressUnauthorizedLogout: options.passive },
+    );
   }
 
   async logout() {

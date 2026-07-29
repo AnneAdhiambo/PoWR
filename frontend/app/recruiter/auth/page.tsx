@@ -26,7 +26,7 @@ export default function RecruiterAuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    recruiterApiClient.getMe().then(() => router.replace("/recruiter/search")).catch(() => undefined);
+    recruiterApiClient.getMe({ passive: true }).then(() => router.replace("/recruiter/search")).catch(() => undefined);
   }, [router]);
 
   const saveRecruiterSession = (token: string, recruiter: any) => {
