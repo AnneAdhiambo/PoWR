@@ -9,5 +9,20 @@ export default function DevelopersPage() {
     { title: "Contribution, not association", description: "Show what you personally changed and delivered rather than relying on the reputation of a company or project." },
     { title: "Consent and control", description: "Choose whether recruiters can discover or contact you and decide what evidence accompanies each application." },
     { title: "Relevant opportunities", description: "Compare roles against your skills, preferences, verified evidence, and availability without hiding the match reasoning." },
-  ]} />;
+  ]} sampleEvidence={{
+    name: "Alex Morgan",
+    role: "Senior Backend Engineer",
+    score: 91,
+    summary: "Demonstrates sustained ownership of distributed backend systems, with recent delivery evidence across reliability, observability, and performance work.",
+    findings: [
+      "Led a multi-service event streaming migration",
+      "Reduced API latency through measured production changes",
+      "Reviewed and shipped reliability improvements across releases",
+    ],
+    sources: [
+      "3 merged pull requests",
+      "8 reviewed commits",
+      "1 verified release note",
+    ],
+  }} />;
 }
