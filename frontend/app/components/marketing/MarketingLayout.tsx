@@ -25,7 +25,7 @@ export function MarketingLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#090b0f] text-white">
-      <header className={`sticky top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-300 ${scrolled ? "border-white/[0.09] bg-[#090b0f]/88 backdrop-blur-[14px]" : "border-white/[0.06] bg-[#090b0f]"}`}>
+      <header className={`sticky top-0 z-50 transition-[background-color,backdrop-filter] duration-300 ${scrolled ? "bg-[#090b0f]/88 backdrop-blur-[14px]" : "bg-[#090b0f]"}`}>
         <div className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-4 sm:px-6">
           <Link href="/" className="text-2xl font-bold tracking-tight">Po<span className="text-[#ff6a1a]">WR</span></Link>
           <nav aria-label="Main navigation" className="hidden items-center gap-7 text-sm text-[#b7bdc7] lg:flex">
