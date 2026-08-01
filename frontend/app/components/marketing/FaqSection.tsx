@@ -23,13 +23,13 @@ export function FaqSection() {
     <section className="bg-[#f5f1e8] px-5 py-20 text-[#15171a] sm:px-8 lg:py-28">
       <div className="mx-auto max-w-[1200px]">
         <p className="text-sm font-bold uppercase tracking-[0.14em] text-[#d94d08]">Questions worth asking</p>
-        <h2 className="mt-4 max-w-4xl text-4xl font-bold tracking-[-0.04em] sm:text-[56px] sm:leading-[1.04]">Questions teams ask before using PoWR</h2>
+        <h2 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-[-0.045em] sm:text-[58px] sm:leading-[1.03]">Questions teams ask before using PoWR</h2>
         <div className="mt-12 border-t border-black/25">
           {faqs.map(([question, answer], index) => {
             const open = openIndex === index;
             return (
               <div key={question} className="border-b border-black/25">
-                <button type="button" aria-expanded={open} aria-controls={`faq-answer-${index}`} onClick={() => setOpenIndex(open ? -1 : index)} className="flex min-h-[88px] w-full items-center justify-between gap-8 py-5 text-left text-xl font-bold tracking-[-0.015em] transition-colors duration-300 hover:text-[#d94d08] sm:text-2xl">
+                <button type="button" aria-expanded={open} aria-controls={`faq-answer-${index}`} onClick={() => setOpenIndex(open ? -1 : index)} className="flex min-h-[92px] w-full items-center justify-between gap-8 py-5 text-left text-xl font-extrabold tracking-[-0.02em] transition-colors duration-300 hover:text-[#d94d08] sm:text-[26px]">
                   <span>{question}</span>
                   <span className="shrink-0 text-[#125f55]" aria-hidden="true">{open ? <ArrowUp size={27} weight="regular" /> : <ArrowDown size={27} weight="regular" />}</span>
                 </button>

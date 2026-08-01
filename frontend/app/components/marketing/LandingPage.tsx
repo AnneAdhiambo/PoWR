@@ -56,11 +56,11 @@ const integrations = [
 ];
 
 const ecosystemBrands = [
-  { name: "GitHub", status: "Available", icon: GithubLogo },
-  { name: "GitLab", status: "Planned", icon: GitlabLogo },
-  { name: "Google Workspace", status: "Planned", icon: GoogleLogo },
-  { name: "Slack", status: "Planned", icon: SlackLogo },
-  { name: "Microsoft Teams", status: "Planned", icon: MicrosoftTeamsLogo },
+  { name: "GitHub", icon: GithubLogo },
+  { name: "GitLab", icon: GitlabLogo },
+  { name: "Google Workspace", icon: GoogleLogo },
+  { name: "Slack", icon: SlackLogo },
+  { name: "Microsoft Teams", icon: MicrosoftTeamsLogo },
 ];
 
 const reveal = {
@@ -73,12 +73,12 @@ export function LandingPage() {
 
   return (
     <main className="overflow-hidden bg-[#090b0f]">
-      <section className="relative border-b border-white/[0.07] px-5 pb-14 pt-14 sm:px-8 lg:pb-20 lg:pt-20">
+      <section className="relative px-5 pb-14 pt-14 sm:px-8 lg:pb-20 lg:pt-20">
         <div className="pointer-events-none absolute right-[8%] top-[18%] h-72 w-72 rounded-full bg-[#6558d9]/10 blur-[110px]" />
         <div className="mx-auto grid max-w-[1200px] items-center gap-12 lg:grid-cols-[0.92fr_1.08fr]">
           <motion.div initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.36 }}>
             <p className="text-sm font-semibold tracking-[0.12em] text-[#ff8a4c]">Evidence-first technical hiring</p>
-            <h1 className="mt-5 max-w-2xl text-[44px] font-bold leading-[1.03] tracking-[-0.045em] text-[#f7f7f5] sm:text-6xl lg:text-[72px]">
+            <h1 className="mt-5 max-w-2xl text-[46px] font-extrabold leading-[1.02] tracking-[-0.05em] text-[#f7f7f5] sm:text-[64px] lg:text-[76px]">
               Know who can do the work before the interview.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-[#98a2b3] sm:text-lg sm:leading-8">
@@ -88,8 +88,8 @@ export function LandingPage() {
               <Link href="/request-demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[#ff6a1a] px-6 font-semibold text-white transition-colors hover:bg-[#f05b0e] active:bg-[#d94d08]">
                 Request a demo
               </Link>
-              <Link href="#product-proof" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/15 px-6 font-semibold text-white transition-colors hover:border-white/25 hover:bg-white/[0.05] active:bg-white/[0.08]">
-                See product proof
+              <Link href="#product" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/15 px-6 font-semibold text-white transition-colors hover:border-white/25 hover:bg-white/[0.05] active:bg-white/[0.08]">
+                See how it works
               </Link>
             </div>
             <p className="mt-6 text-sm text-[#667085]">Real product views. Demo candidate data.</p>
@@ -207,34 +207,18 @@ function HeroVideo({ reduceMotion }: { reduceMotion: boolean }) {
 
 function ProductProof() {
   return (
-    <section id="product-proof" className="scroll-mt-24 bg-[#f5f1e8] px-5 py-16 text-[#15171a] sm:px-8 lg:py-20">
-      <div className="mx-auto max-w-[1200px]">
-        <div className="grid gap-8 rounded-2xl border border-black/[0.09] bg-white/55 p-7 sm:p-9 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.14em] text-[#d94d08]">Working product proof</p>
-            <h2 className="mt-4 text-3xl font-bold tracking-[-0.035em] sm:text-[46px] sm:leading-[1.05]">A real hiring workflow, not a concept deck.</h2>
-          </div>
-          <div>
-            <p className="text-lg leading-8 text-[#4f5662]">PoWR already connects published roles, organized applications, candidate PoWR Scores, hiring stages, notes, scorecards, and employee handoff in one working product.</p>
-            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-[#34383f]">
-              {["Publish roles", "Review candidates", "Inspect PoWR signals", "Coordinate decisions"].map((item) => <span key={item} className="inline-flex items-center gap-2"><span className="flex size-5 items-center justify-center rounded-full bg-[#ddf7f0] text-[#177a66]"><Check size={12} weight="bold" /></span>{item}</span>)}
-            </div>
-          </div>
-        </div>
-        <div className="mt-12 overflow-hidden border-y border-black/[0.09] py-5" aria-label="PoWR evidence and workflow ecosystem">
-          <div className="powr-logo-marquee-track">
-            {[0, 1].map((group) => (
-              <div key={group} className="flex shrink-0 items-center gap-5 pr-5" aria-hidden={group === 1}>
-                {ecosystemBrands.map(({ name, status, icon: BrandIcon }) => (
-                  <div key={name} className="flex min-w-56 items-center gap-3 rounded-xl border border-black/[0.08] bg-white/50 px-5 py-4">
-                    <BrandIcon size={26} weight="fill" className="text-[#2e3238]" />
-                    <div><p className="font-bold">{name}</p><p className={`mt-0.5 text-xs font-semibold ${status === "Available" ? "text-[#177a66]" : "text-[#8a8177]"}`}>{status}</p></div>
-                  </div>
-                ))}
+    <section id="product-proof" className="scroll-mt-24 overflow-hidden bg-[#f5f1e8] py-9 text-[#15171a] sm:py-11" aria-label="Developer tools in the PoWR ecosystem">
+      <div className="powr-logo-marquee-track">
+        {[0, 1].map((group) => (
+          <div key={group} className="flex shrink-0 items-center gap-12 pr-12 sm:gap-16 sm:pr-16" aria-hidden={group === 1}>
+            {ecosystemBrands.map(({ name, icon: BrandIcon }) => (
+              <div key={name} className="flex min-w-44 items-center justify-center gap-3 px-3 py-2 text-[#575c63] opacity-70 transition-[opacity,transform] duration-500 hover:scale-[1.02] hover:opacity-100 sm:min-w-52">
+                <BrandIcon size={30} weight="fill" />
+                <p className="text-lg font-bold tracking-[-0.02em]">{name}</p>
               </div>
             ))}
           </div>
-        </div>
+        ))}
       </div>
     </section>
   );

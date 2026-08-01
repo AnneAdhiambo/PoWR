@@ -26,9 +26,9 @@ export function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#090b0f] text-white">
       <header className={`sticky top-0 z-50 transition-[background-color,backdrop-filter] duration-300 ${scrolled ? "bg-[#090b0f]/88 backdrop-blur-[14px]" : "bg-[#090b0f]"}`}>
-        <div className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-2xl font-bold tracking-tight">Po<span className="text-[#ff6a1a]">WR</span></Link>
-          <nav aria-label="Main navigation" className="hidden items-center gap-7 text-sm text-[#b7bdc7] lg:flex">
+        <div className="mx-auto flex h-20 max-w-[1240px] items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="text-[28px] font-extrabold tracking-[-0.04em]">Po<span className="text-[#ff6a1a]">WR</span></Link>
+          <nav aria-label="Main navigation" className="hidden items-center gap-8 text-base font-semibold text-[#c4c9d1] lg:flex">
             {navigation.map(([label, href]) => (
               <Link key={label} href={href} className="group relative py-2 hover:text-white">
                 {label}
@@ -37,8 +37,8 @@ export function MarketingLayout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="hidden min-h-10 items-center px-2 text-sm font-medium text-[#b7bdc7] hover:text-white sm:inline-flex">Log in</Link>
-            <Link href="/request-demo" className="hidden min-h-10 items-center rounded-[var(--radius-control)] bg-[#ff6a1a] px-4 text-sm font-semibold text-white hover:bg-[#f05b0e] active:bg-[#d94d08] sm:inline-flex">Request a demo</Link>
+            <Link href="/login" className="hidden min-h-11 items-center px-2 text-base font-semibold text-[#c4c9d1] hover:text-white sm:inline-flex">Log in</Link>
+            <Link href="/request-demo" className="hidden min-h-11 items-center rounded-[var(--radius-control)] bg-[#ff6a1a] px-5 text-[15px] font-bold text-white hover:bg-[#f05b0e] active:bg-[#d94d08] sm:inline-flex">Request a demo</Link>
             <button type="button" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="mobile-marketing-navigation" onClick={() => setMobileOpen((open) => !open)} className="rounded-[var(--radius-control)] border border-white/15 p-2.5 text-gray-200 hover:bg-white/[0.06] lg:hidden">
               {mobileOpen ? <X size={20} /> : <List size={20} />}
             </button>
