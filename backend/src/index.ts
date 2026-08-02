@@ -19,8 +19,12 @@ const allowedOrigins = [
 function isAllowedTenantOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
-    return (url.protocol === "http:" || url.protocol === "https:") &&
-      (url.hostname.endsWith(".powr.localhost") || url.hostname.endsWith(".powr.dev"));
+    const hostname = url.hostname.toLowerCase();
+    const isPowrHostname = hostname === "powr.localhost" ||
+      hostname.endsWith(".powr.localhost") ||
+      hostname === "powr.dev" ||
+      hostname.endsWith(".powr.dev");
+    return (url.protocol === "http:" || url.protocol === "https:") && isPowrHostname;
   } catch {
     return false;
   }

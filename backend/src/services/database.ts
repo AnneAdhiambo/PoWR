@@ -1203,15 +1203,16 @@ export class DatabaseService {
 
   async ensureRecruiterOrganization(recruiterId: number, companyName: string): Promise<any> {
     const slugBase = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "company";
+    const slug = `${slugBase}-${recruiterId}`;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const organization = await client.query(
         `INSERT INTO organizations (slug, display_name, created_by_recruiter_id)
-         VALUES ($1 || '-' || $2::text, $3, $2)
+         VALUES ($1, $2, $3)
          ON CONFLICT (created_by_recruiter_id) DO UPDATE SET display_name = EXCLUDED.display_name
          RETURNING *`,
-        [slugBase, recruiterId, companyName],
+        [slug, companyName, recruiterId],
       );
       const row = organization.rows[0];
       await client.query(
