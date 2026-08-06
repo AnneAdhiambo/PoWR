@@ -5,12 +5,12 @@ import { Card } from "../ui";
 import {
   Copy,
   CheckCircle,
-  CircleNotch,
   ArrowLeft,
   Lightning,
   CurrencyBtc,
   Clock,
 } from "phosphor-react";
+import { SquircleLoader } from "../ui/SquircleLoader";
 import toast from "react-hot-toast";
 
 interface PaymentFlowProps {
@@ -261,7 +261,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
         <div className="flex items-center gap-2 mt-4 text-xs">
           {polling ? (
             <>
-              <CircleNotch className="w-3.5 h-3.5 text-[#F7931A] animate-spin" weight="bold" />
+              <SquircleLoader size={14} color="#F7931A" label="Processing payment" />
               <span className="text-gray-400 font-medium animate-pulse">
                 Waiting for payment...
               </span>
@@ -322,7 +322,7 @@ export const PaymentFlow: React.FC<PaymentFlowProps> = ({
           >
             {simulating ? (
               <>
-                <CircleNotch className="w-3.5 h-3.5 animate-spin" weight="bold" />
+                <SquircleLoader size={14} color="currentColor" label="Confirming payment" />
                 Simulating...
               </>
             ) : (

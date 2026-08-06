@@ -7,6 +7,7 @@ import { Briefcase, MapPin, CurrencyDollar, Clock, Star, ArrowLeft, CheckCircle,
 import { savedItems } from "../../lib/savedItems";
 import { apiClient } from "../../lib/api";
 import toast from "react-hot-toast";
+import { SquircleLoader } from "../../components/ui/SquircleLoader";
 
 interface Job {
   id: string;
@@ -227,7 +228,7 @@ export default function JobDetailPage() {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+          <SquircleLoader size={32} label="Loading job" />
         </div>
       </div>
     );

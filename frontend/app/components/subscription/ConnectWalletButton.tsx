@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Wallet, CaretDown, CircleNotch } from "phosphor-react";
+import { Wallet, CaretDown } from "phosphor-react";
+import { SquircleLoader } from "../ui/SquircleLoader";
 import { useStacksWallet } from "../../lib/stacksWallet";
 
 export const ConnectWalletButton: React.FC = () => {
@@ -50,7 +51,7 @@ export const ConnectWalletButton: React.FC = () => {
         className="flex items-center gap-2 bg-[#FF5500] hover:bg-[#e04d00] disabled:bg-[#FF5500]/60 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
       >
         {connecting ? (
-          <CircleNotch className="w-4 h-4 animate-spin" weight="bold" />
+          <SquircleLoader size={16} color="currentColor" label="Connecting wallet" />
         ) : (
           <Wallet className="w-4 h-4" weight="fill" />
         )}

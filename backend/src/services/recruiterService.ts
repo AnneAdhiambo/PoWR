@@ -69,6 +69,7 @@ export class RecruiterService {
       throw new Error("Invalid email or password");
     }
 
+    await dbService.ensureRecruiterOrganization(row.id, row.company_name);
     await dbService.updateRecruiterLastLogin(row.id);
     const sessionVersion = await dbService.rotateRecruiterSession(row.id);
 

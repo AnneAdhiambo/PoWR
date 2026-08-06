@@ -25,9 +25,29 @@ test.describe("public PoWR experience", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const demoLink = page.getByRole("link", { name: "Request a demo" }).first();
-    await demoLink.focus();
-    await expect(demoLink).toBeFocused();
+    const menuButton = page.getByRole("button", { name: "Open menu" });
+    await menuButton.focus();
+    await expect(menuButton).toBeFocused();
+    await menuButton.press("Enter");
+    await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Jobs", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Request demo" })).toBeVisible();
     await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
+  });
+
+  test("developer calls to action lead to onboarding and job discovery", async ({ page }) => {
+    await page.goto("/developers");
+
+    await expect(page.getByRole("link", { name: "Build your profile" })).toHaveAttribute("href", "/auth");
+    await expect(page.getByRole("link", { name: "Explore jobs" })).toHaveAttribute("href", "/jobs");
+  });
+
+  test("publishes crawler metadata endpoints", async ({ request }) => {
+    const [sitemap, robots] = await Promise.all([request.get("/sitemap.xml"), request.get("/robots.txt")]);
+
+    await expect(sitemap).toBeOK();
+    await expect(robots).toBeOK();
+    expect(await sitemap.text()).toContain("/developers");
+    expect(await robots.text()).toContain("Disallow: /recruiter/");
   });
 });

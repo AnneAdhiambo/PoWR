@@ -8,6 +8,7 @@ import { FileText, MapPin, CurrencyDollar, Clock, Star, ArrowRight, User, GridFo
 import { savedItems } from "../lib/savedItems";
 import { apiClient } from "../lib/api";
 import toast from "react-hot-toast";
+import { SquircleLoader } from "../components/ui/SquircleLoader";
 
 function formatPosted(dateStr?: string): string {
   if (!dateStr) return "Recently";
@@ -356,7 +357,7 @@ function GigsPageContent() {
           {/* Gigs List */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+              <SquircleLoader size={32} label="Loading gigs" />
             </div>
           ) : (
             <>
@@ -637,7 +638,7 @@ export default function GigsPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+        <SquircleLoader size={32} label="Loading gigs" />
       </div>
     }>
       <GigsPageContent />

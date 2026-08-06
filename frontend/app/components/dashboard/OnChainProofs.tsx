@@ -7,6 +7,7 @@ import { apiClient } from "../../lib/api";
 import { verifyHashOnChain, POW_REGISTRY_CONTRACT, getExplorerTxUrl, getExplorerContractUrl, getExplorerBlockUrl } from "../../lib/web3";
 import { PricingModal } from "../subscription/PricingModal";
 import toast from "react-hot-toast";
+import { SquircleLoader } from "../ui/SquircleLoader";
 
 const CONTRACT_ADDRESS = POW_REGISTRY_CONTRACT;
 
@@ -271,7 +272,7 @@ export const OnChainProofs: React.FC<OnChainProofsProps> = ({
                       </p>
                       {verifying ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 flex items-center gap-1">
-                          <ArrowsClockwise className="w-3 h-3 animate-spin" weight="bold" />
+                          <SquircleLoader size={12} color="currentColor" label="Checking proof" />
                           Verifying
                         </span>
                       ) : verifiedHashes.has(latestProof.artifactHash) ? (

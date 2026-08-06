@@ -47,10 +47,6 @@ export default function RecruiterApplicationsPage() {
   const { canMoveCandidates } = useRecruiterContext();
 
   useEffect(() => {
-    if (!localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/auth");
-      return;
-    }
     recruiterApiClient.getApplications()
       .then(({ applications: rows }) => setApplications(rows))
       .catch((error) => toast.error(error.message || "Could not load applications"))

@@ -18,6 +18,15 @@
   --status-info: #60a5fa;
   --brand-orange: #ff5500;
   --brand-orange-hover: #e64d00;
+  --marketing-orange: #ff6a1a;
+  --marketing-orange-hover: #f05b0e;
+  --marketing-orange-pressed: #d94d08;
+  --marketing-violet: #6558d9;
+  --marketing-mint: #35bfa0;
+  --marketing-cream: #f5f1e8;
+  --motion-fast: 160ms;
+  --motion-normal: 220ms;
+  --motion-slow: 360ms;
   --focus-ring: rgba(255, 85, 0, 0.7);
   --radius-card: 14px;
   --radius-control: 10px;
@@ -49,13 +58,76 @@ body {
   color: #ffffff;
 }
 
-button, a, input, textarea, select {
+button, a, input, textarea, select, [role="button"], [role="menuitem"] {
   -webkit-tap-highlight-color: transparent;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-:focus-visible {
+:where(button, a, [role="button"], [role="menuitem"]):focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
+}
+
+input,
+textarea {
+  caret-color: var(--brand-orange);
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+.powr-control:focus,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+.powr-control:focus-visible {
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.055);
+  outline: none !important;
+}
+
+.powr-control {
+  min-height: 42px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.625rem 0.75rem;
+  transition-property: border-color, background-color, box-shadow, color;
+}
+
+.powr-control:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.powr-search-field {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: #111318;
+  padding: 0.7rem 0.85rem;
+  transition-property: border-color, background-color, box-shadow;
+}
+
+.powr-search-field:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.powr-search-field:focus-within {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #14161c;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.045);
+}
+
+.powr-search-field input:focus,
+.powr-search-field .powr-control:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+select option {
+  background: #17191f;
+  color: #f3f4f6;
 }
 
 /* Animations */
@@ -106,6 +178,49 @@ button, a, input, textarea, select {
   }
 }
 
+@keyframes powrLogoMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.powr-logo-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: powrLogoMarquee 34s linear infinite;
+}
+
+.powr-logo-marquee-track:hover,
+.powr-logo-marquee-track:focus-within {
+  animation-play-state: paused;
+}
+
+.powr-hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.powr-hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.jobs-search-input,
+.jobs-search-input:focus,
+.jobs-search-input:focus-visible {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  height: auto !important;
+  outline: 0 !important;
+  padding: 0 !important;
+}
+
 /* Ambient depth gradient for main content */
 .main-content-wrapper {
   position: relative;
@@ -123,11 +238,6 @@ button, a, input, textarea, select {
   z-index: 0;
 }
 
-/* Smooth transitions */
-* {
-  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -136,5 +246,14 @@ button, a, input, textarea, select {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .powr-logo-marquee-track {
+    width: auto;
+    flex-wrap: wrap;
+  }
+
+  .powr-logo-marquee-track > :last-child {
+    display: none;
   }
 }

@@ -13,6 +13,7 @@ import { ConnectWalletButton } from "../components/subscription/ConnectWalletBut
 import { PaymentFlow } from "../components/subscription/PaymentFlow";
 import { apiClient } from "../lib/api";
 import { X } from "phosphor-react";
+import { SquircleLoader } from "../components/ui/SquircleLoader";
 import toast from "react-hot-toast";
 
 
@@ -157,7 +158,7 @@ export default function SubscriptionContent() {
       <div className="min-h-screen bg-[#0b0c0f] flex">
         <Sidebar username={username} email={userEmail || undefined} displayName={displayName} />
         <div className="flex-1 ml-60 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
+          <SquircleLoader size={32} label="Loading subscription" />
         </div>
       </div>
     );

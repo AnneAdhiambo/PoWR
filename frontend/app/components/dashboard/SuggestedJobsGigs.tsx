@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card } from "../ui";
 import { Briefcase, Star } from "phosphor-react";
 import { apiClient } from "../../lib/api";
+import { SquircleLoader } from "../ui/SquircleLoader";
 
 interface JobGig {
   id: string;
@@ -69,7 +70,7 @@ export const SuggestedJobsGigs: React.FC<SuggestedJobsGigsProps> = ({
           </h2>
         </div>
         <div className="flex items-center justify-center py-8">
-          <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <SquircleLoader size={20} color="#34d399" label="Loading suggestions" />
         </div>
       </Card>
     );

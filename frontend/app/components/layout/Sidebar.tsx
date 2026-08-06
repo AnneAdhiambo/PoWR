@@ -18,6 +18,7 @@ import {
   Medal,
   Crown,
   Lightning,
+  GitBranch,
 } from "phosphor-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { apiClient } from "../../lib/api";
@@ -111,6 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { icon: SquaresFour, label: "Dashboard", href: "/dashboard" },
     { icon: ShieldCheck, label: "On-Chain Proofs", href: "/proofs" },
+    { icon: GitBranch, label: "Open Source", href: "/open-source" },
     { icon: Briefcase, label: "Jobs", href: "/jobs" },
     { icon: FileText, label: "Gigs", href: "/gigs" },
     { icon: Star, label: "Saved", href: "/saved" },
@@ -133,7 +135,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alt="PoWR Logo"
             className="h-9 w-auto"
           />
-          <span className="text-lg font-semibold text-white tracking-tight">PoWR</span>
         </Link>
       </div>
 

@@ -19,8 +19,12 @@ const allowedOrigins = [
 function isAllowedTenantOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
-    return (url.protocol === "http:" || url.protocol === "https:") &&
-      (url.hostname.endsWith(".powr.localhost") || url.hostname.endsWith(".powr.dev"));
+    const hostname = url.hostname.toLowerCase();
+    const isPowrHostname = hostname === "powr.localhost" ||
+      hostname.endsWith(".powr.localhost") ||
+      hostname === "powr.dev" ||
+      hostname.endsWith(".powr.dev");
+    return (url.protocol === "http:" || url.protocol === "https:") && isPowrHostname;
   } catch {
     return false;
   }
@@ -97,6 +101,7 @@ import badgeRoutes from "./routes/badges";
 import jobsRouter from "./routes/jobs";
 import tenantRoutes from "./routes/tenant";
 import referralRoutes from "./routes/referrals";
+import openSourceRoutes from "./routes/openSource";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -108,6 +113,7 @@ app.use("/api/recruiter", recruiterRoutes);
 app.use("/api/badges", badgeRoutes);
 app.use("/api", jobsRouter);
 app.use("/api/tenant", tenantRoutes);
+app.use("/api", openSourceRoutes);
 app.use("/api", referralRoutes);
 
 // Start scheduler service

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { X, Sparkle, Lightning, Shield, ArrowRight } from "phosphor-react";
 import { PlanCard, Plan } from "./PlanCard";
 import { apiClient } from "../../lib/api";
+import { SquircleLoader } from "../ui/SquircleLoader";
 
 interface PricingModalProps {
   isOpen: boolean;
@@ -185,7 +186,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
           {/* Plans Grid */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+              <SquircleLoader size={32} label="Loading pricing" />
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -6,6 +6,7 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { Card, Button } from "../components/ui";
 import { apiClient } from "../lib/api";
 import { Proof } from "../components/dashboard/OnChainProofs";
+import { SquircleLoader } from "../components/ui/SquircleLoader";
 import { verifyHashOnChain, POW_REGISTRY_CONTRACT, getExplorerTxUrl, getExplorerContractUrl, getExplorerBlockUrl } from "../lib/web3";
 import {
     ShieldCheck,
@@ -207,7 +208,7 @@ export default function ProofsPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+                <SquircleLoader size={64} label="Loading proofs" />
             </div>
         );
     }
@@ -341,7 +342,7 @@ export default function ProofsPage() {
                                                         <h3 className="text-sm font-medium text-white">Snapshot #{proofId}</h3>
                                                         {verifying ? (
                                                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 flex items-center gap-1">
-                                                                <ArrowsClockwise className="w-3 h-3 animate-spin" weight="bold" />
+                                                                <SquircleLoader size={12} color="currentColor" label="Checking proof" />
                                                                 Verifying
                                                             </span>
                                                         ) : isVerified ? (

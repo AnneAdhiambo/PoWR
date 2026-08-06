@@ -1203,15 +1203,16 @@ export class DatabaseService {
 
   async ensureRecruiterOrganization(recruiterId: number, companyName: string): Promise<any> {
     const slugBase = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "company";
+    const slug = `${slugBase}-${recruiterId}`;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const organization = await client.query(
         `INSERT INTO organizations (slug, display_name, created_by_recruiter_id)
-         VALUES ($1 || '-' || $2::text, $3, $2)
+         VALUES ($1, $2, $3)
          ON CONFLICT (created_by_recruiter_id) DO UPDATE SET display_name = EXCLUDED.display_name
          RETURNING *`,
-        [slugBase, recruiterId, companyName],
+        [slug, companyName, recruiterId],
       );
       const row = organization.rows[0];
       await client.query(
@@ -1478,10 +1479,21 @@ export class DatabaseService {
     if (jobId) {
       for (const developer of developers) {
         const snapshot = await pool.query(
-          `INSERT INTO sourcing_match_snapshots
-             (organization_id, job_id, developer_username, powr_score, job_match_score, explanation, created_by_recruiter_id)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-           RETURNING id`,
+          `WITH existing AS (
+             SELECT id FROM sourcing_match_snapshots
+             WHERE organization_id = $1 AND job_id = $2 AND developer_username = $3
+               AND powr_score = $4 AND job_match_score = $5 AND explanation = $6::jsonb
+               AND created_at >= NOW() - INTERVAL '15 minutes'
+             ORDER BY created_at DESC
+             LIMIT 1
+           ), inserted AS (
+             INSERT INTO sourcing_match_snapshots
+               (organization_id, job_id, developer_username, powr_score, job_match_score, explanation, created_by_recruiter_id)
+             SELECT $1, $2, $3, $4, $5, $6::jsonb, $7
+             WHERE NOT EXISTS (SELECT 1 FROM existing)
+             RETURNING id
+           )
+           SELECT id FROM inserted UNION ALL SELECT id FROM existing LIMIT 1`,
           [organizationId, jobId, developer.username, developer.powrScore, developer.jobMatchScore, JSON.stringify(developer.matchExplanation), recruiterId]
         );
         developer.matchSnapshotId = snapshot.rows[0].id;
@@ -1607,20 +1619,40 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
-  async createJobApplication(jobId: number, username: string, email: string, coverNote: string | undefined, consentGiven: boolean, accessToken: string, screeningAnswers: Record<string, string>, sharedEvidence: string[]): Promise<any> {
-    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given, access_token, screening_answers, shared_evidence) SELECT j.id, $2, $3, $4, $5, $6::uuid, $7::jsonb, $8::jsonb FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.id = $1 AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) RETURNING *`, [jobId, username, email, coverNote || null, consentGiven, accessToken, JSON.stringify(screeningAnswers || {}), JSON.stringify(sharedEvidence || [])]);
+  async createJobApplication(jobId: number, organizationId: number | null, username: string, email: string, coverNote: string | undefined, consentGiven: boolean, accessToken: string, screeningAnswers: Record<string, string>, sharedEvidence: string[]): Promise<any> {
+    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given, access_token, screening_answers, shared_evidence) SELECT j.id, $3, $4, $5, $6, $7::uuid, $8::jsonb, $9::jsonb FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.id = $1 AND ($2::INTEGER IS NULL OR j.organization_id = $2) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) RETURNING *`, [jobId, organizationId, username, email, coverNote || null, consentGiven, accessToken, JSON.stringify(screeningAnswers || {}), JSON.stringify(sharedEvidence || [])]);
     const application = result.rows[0];
     if (application) await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, 'application.created')", [application.id, username]);
     return application;
   }
 
   async updateDeveloperApplication(accessToken: string, action: "withdraw" | "revoke_consent"): Promise<any | null> {
-    const result = action === "withdraw"
-      ? await pool.query("UPDATE job_applications SET stage = 'withdrawn', withdrawn_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid AND stage NOT IN ('hired', 'rejected', 'withdrawn') RETURNING *", [accessToken])
-      : await pool.query("UPDATE job_applications SET consent_given = false, shared_evidence = '[]'::jsonb, consent_revoked_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid RETURNING *", [accessToken]);
-    const application = result.rows[0];
-    if (application) await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, $3)", [application.id, application.developer_username, action === "withdraw" ? "application.withdrawn" : "application.consent_revoked"]);
-    return application || null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = action === "withdraw"
+        ? await client.query("UPDATE job_applications SET stage = 'withdrawn', withdrawn_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid AND stage NOT IN ('hired', 'rejected', 'withdrawn') RETURNING *", [accessToken])
+        : await client.query("UPDATE job_applications SET consent_given = false, shared_evidence = '[]'::jsonb, consent_revoked_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid RETURNING *", [accessToken]);
+      const application = result.rows[0];
+      if (application && action === "revoke_consent") {
+        await client.query(
+          `INSERT INTO developer_recruiting_preferences (developer_username, discoverable, contactable, updated_at)
+           VALUES ($1, FALSE, FALSE, NOW())
+           ON CONFLICT (developer_username) DO UPDATE SET discoverable = FALSE, contactable = FALSE, updated_at = NOW()`,
+          [application.developer_username]
+        );
+        await client.query("DELETE FROM organization_talent_list_members WHERE developer_username = $1", [application.developer_username]);
+        await client.query("DELETE FROM job_sourced_candidates WHERE developer_username = $1", [application.developer_username]);
+      }
+      if (application) await client.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, $3)", [application.id, application.developer_username, action === "withdraw" ? "application.withdrawn" : "application.consent_revoked"]);
+      await client.query("COMMIT");
+      return application || null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getOrganizationApplications(organizationId: number): Promise<any[]> {
@@ -1754,9 +1786,9 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
-  async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<any> {
+  async updateJob(id: number, organizationId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<any> {
     const fields: string[] = [];
-    const values: any[] = [id, recruiterId];
+    const values: any[] = [id, organizationId];
     let idx = 3;
     if (data.title !== undefined) { fields.push(`title = $${idx++}`); values.push(data.title); }
     if (data.company !== undefined) { fields.push(`company = $${idx++}`); values.push(data.company); }
@@ -1772,18 +1804,18 @@ export class DatabaseService {
     if (data.screening_questions !== undefined) { fields.push(`screening_questions = $${idx++}::jsonb`); values.push(JSON.stringify(data.screening_questions)); }
     if (data.status !== undefined) { fields.push(`status = $${idx++}`); values.push(data.status); }
     fields.push('updated_at = NOW()');
-    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND organization_id IN (SELECT organization_id FROM organization_members WHERE recruiter_id = $2 AND status = 'active') RETURNING *`, values);
+    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND organization_id = $2 RETURNING *`, values);
     return result.rows[0] || null;
   }
 
-  async duplicateJob(id: number, recruiterId: number): Promise<any | null> {
+  async duplicateJob(id: number, organizationId: number, recruiterId: number): Promise<any | null> {
     const result = await pool.query(`
       INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags, status, department, remote_policy, seniority, closing_date, screening_questions)
-      SELECT $2, j.organization_id, j.title || ' (Copy)', j.company, j.location, j.salary, j.type, j.description, j.tags, 'draft', j.department, j.remote_policy, j.seniority, j.closing_date, j.screening_questions
+      SELECT $3, j.organization_id, j.title || ' (Copy)', j.company, j.location, j.salary, j.type, j.description, j.tags, 'draft', j.department, j.remote_policy, j.seniority, j.closing_date, j.screening_questions
       FROM jobs j
-      WHERE j.id = $1 AND j.organization_id IN (SELECT organization_id FROM organization_members WHERE recruiter_id = $2 AND status = 'active')
+      WHERE j.id = $1 AND j.organization_id = $2
       RETURNING *
-    `, [id, recruiterId]);
+    `, [id, organizationId, recruiterId]);
     const job = result.rows[0];
     if (!job) return null;
     const slugBase = job.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";

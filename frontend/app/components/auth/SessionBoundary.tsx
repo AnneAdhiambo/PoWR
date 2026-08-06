@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { recruiterApiClient, clearRecruiterSession } from "../../lib/recruiterApi";
+import { SquircleLoader } from "../ui/SquircleLoader";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-const DEVELOPER_ROUTES = ["/dashboard", "/proofs", "/saved", "/chat", "/notifications", "/profile", "/subscription"];
+const DEVELOPER_ROUTES = ["/dashboard", "/proofs", "/open-source", "/saved", "/chat", "/notifications", "/profile", "/subscription"];
 
 function SessionLoading() {
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center" role="status" aria-label="Checking session">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-[#FF5500]" />
+      <SquircleLoader size={32} label="Checking session" />
     </div>
   );
 }

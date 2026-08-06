@@ -26,7 +26,7 @@ export default function RecruiterAuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    recruiterApiClient.getMe().then(() => router.replace("/recruiter/search")).catch(() => undefined);
+    recruiterApiClient.getMe({ passive: true }).then(() => router.replace("/recruiter/search")).catch(() => undefined);
   }, [router]);
 
   const saveRecruiterSession = (token: string, recruiter: any) => {
@@ -83,9 +83,7 @@ export default function RecruiterAuthPage() {
 
         {/* Logo */}
         <div className="absolute top-10 left-10 z-10 flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-white">
-            Po<span className="text-[#FF5500]">WR</span>
-          </span>
+          <img src="/logo.png" alt="PoWR" className="h-12 w-12 object-contain" />
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/25 font-semibold uppercase tracking-wide">
             Recruiter
           </span>
@@ -129,9 +127,7 @@ export default function RecruiterAuthPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden mb-10 text-center">
-            <span className="text-3xl font-bold text-white">
-              Po<span className="text-[#FF5500]">WR</span>
-            </span>
+            <img src="/logo.png" alt="PoWR" className="mx-auto h-14 w-14 object-contain" />
           </div>
 
           <p className="text-xs font-mono uppercase tracking-[0.15em] text-gray-600 mb-3">

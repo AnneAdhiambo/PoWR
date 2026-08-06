@@ -35,6 +35,8 @@ pnpm-debug.log*
 # Testing
 coverage/
 .nyc_output/
+frontend/playwright-report/
+frontend/test-results/
 
 # Misc
 *.pem
@@ -72,3 +74,6 @@ settings/Mainnet.toml
 
 # Excluded folders
 powr-frontend/
+powr-showcase/node_modules.incomplete/
+powr-showcase/package-lock.incomplete.json
+powr-showcase/powr-showcase/

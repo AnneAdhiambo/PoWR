@@ -1,4 +1,5 @@
 import React from "react";
+import { SquircleLoader } from "./SquircleLoader";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
@@ -39,7 +40,7 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled || loading}
       {...props}
     >
-      {loading && <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+      {loading && <SquircleLoader size={16} color="currentColor" label="Working" />}
       {children}
     </button>
   );

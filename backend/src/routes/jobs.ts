@@ -12,6 +12,15 @@ function isTenantHostname(hostname: string): boolean {
   return hostname.endsWith(".powr.localhost") || hostname.endsWith(".powr.dev");
 }
 
+async function resolveRequestOrganization(req: express.Request) {
+  const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true"
+    ? req.headers["x-powr-hostname"]
+    : undefined;
+  const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
+  const organization = await dbService.getOrganizationByHostname(hostname);
+  return { hostname, organization };
+}
+
 // ── Jobs ─────────────────────────────────────────────────────────────────────
 
 // GET /api/jobs — public
@@ -20,9 +29,7 @@ router.get("/jobs", async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const offset = (page - 1) * limit;
-    const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
-    const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
-    const organization = await dbService.getOrganizationByHostname(hostname);
+    const { hostname, organization } = await resolveRequestOrganization(req);
     if (isTenantHostname(hostname) && !organization) return res.status(404).json({ error: "Tenant not found" });
     const result = organization ? await dbService.getOrganizationJobs(organization.id, { limit, offset }) : await dbService.getJobs({ limit, offset });
     res.json(result);
@@ -45,9 +52,7 @@ router.get("/jobs/my", requireRecruiter, requireOrganizationMember, async (req, 
 // GET /api/jobs/:id — public
 router.get("/jobs/:id", async (req, res) => {
   try {
-    const developmentHostname = process.env.NODE_ENV === "development" && process.env.ALLOW_TENANT_HEADER === "true" ? req.headers["x-powr-hostname"] : undefined;
-    const hostname = String(developmentHostname || req.hostname || "").toLowerCase().split(":")[0];
-    const organization = await dbService.getOrganizationByHostname(hostname);
+    const { hostname, organization } = await resolveRequestOrganization(req);
     if (isTenantHostname(hostname) && !organization) return res.status(404).json({ error: "Tenant not found" });
     const job = organization ? await dbService.getOrganizationJobByIdentifier(organization.id, req.params.id) : await dbService.getJobByIdentifier(req.params.id);
     if (!job) return res.status(404).json({ error: "Not found" });
@@ -62,7 +67,9 @@ router.post("/jobs/:id/applications", applicationRateLimit, requireDeveloper, as
     const { username } = (req as any).developer as DeveloperJwtPayload;
     const { applicant_email, cover_note, consent_given, screening_answers, shared_evidence } = req.body;
     if (!applicant_email || consent_given !== true) return res.status(400).json({ error: "Applicant email and consent are required" });
-    const application = await dbService.createJobApplication(Number(req.params.id), username, applicant_email, cover_note, consent_given, randomUUID(), screening_answers || {}, shared_evidence || []);
+    const { hostname, organization } = await resolveRequestOrganization(req);
+    if (isTenantHostname(hostname) && !organization) return res.status(404).json({ error: "Tenant not found" });
+    const application = await dbService.createJobApplication(Number(req.params.id), organization?.id ?? null, username, applicant_email, cover_note, consent_given, randomUUID(), screening_answers || {}, shared_evidence || []);
     if (!application) return res.status(404).json({ error: "Job is not accepting applications" });
     res.status(201).json({ application });
   } catch (err: any) {
@@ -106,9 +113,9 @@ router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, requireOrga
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const allowedStatuses = ["draft", "active", "paused", "closed", "archived"];
     if (req.body.status !== undefined && !allowedStatuses.includes(req.body.status)) return res.status(400).json({ error: "Invalid job status" });
-    const job = await dbService.updateJob(Number(req.params.id), recruiterId, req.body);
-    if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
     const organization = (req as any).organization as { organizationId: number };
+    const job = await dbService.updateJob(Number(req.params.id), organization.organizationId, req.body);
+    if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.updated", "job", String(job.id), { fields: Object.keys(req.body) });
     res.json({ job });
   } catch (err: any) {
@@ -119,9 +126,9 @@ router.put("/jobs/:id", requireRecruiter, requireOrganizationMember, requireOrga
 router.post("/jobs/:id/duplicate", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
-    const job = await dbService.duplicateJob(Number(req.params.id), recruiterId);
-    if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
     const organization = (req as any).organization as { organizationId: number };
+    const job = await dbService.duplicateJob(Number(req.params.id), organization.organizationId, recruiterId);
+    if (!job) return res.status(404).json({ error: "Not found or unauthorized" });
     await dbService.recordAuditEvent(organization.organizationId, recruiterId, "job.duplicated", "job", String(job.id), { sourceJobId: Number(req.params.id) });
     res.status(201).json({ job });
   } catch (err: any) {
