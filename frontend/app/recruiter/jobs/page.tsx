@@ -1,11 +1,13 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Briefcase, Plus, Pencil, Trash, X, Copy, ArrowSquareOut, Eye } from "phosphor-react";
+import Link from "next/link";
+import { Briefcase, Plus, X, ArrowSquareOut } from "phosphor-react";
 import { recruiterApiClient } from "../../lib/recruiterApi";
 import toast from "react-hot-toast";
 import { ConfirmDialog, RecruiterPage } from "../../components/ui";
 import { useRecruiterContext } from "../../components/recruiter/RecruiterContext";
+import { JobActionsMenu, type JobAction } from "../../components/recruiter/JobActionsMenu";
+import { SquircleLoader } from "../../components/ui/SquircleLoader";
 
 interface Job {
   id: string | number;
@@ -56,7 +58,6 @@ const emptyForm: JobForm = {
 };
 
 export default function RecruiterJobsPage() {
-  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -67,15 +68,12 @@ export default function RecruiterJobsPage() {
   const [previewJob, setPreviewJob] = useState<Job | null>(null);
   const [organizationSlug, setOrganizationSlug] = useState("");
   const [jobPendingDelete, setJobPendingDelete] = useState<Job | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ job: Job; action: Exclude<JobAction, "view" | "edit" | "duplicate" | "delete"> } | null>(null);
   const { canManageJobs } = useRecruiterContext();
 
   useEffect(() => {
-    if (!localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/auth");
-      return;
-    }
     loadJobs();
-  }, [router]);
+  }, []);
 
   const loadJobs = async () => {
     try {
@@ -91,13 +89,6 @@ export default function RecruiterJobsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const openCreate = () => {
-    setEditingJob(null);
-    setForm(emptyForm);
-    setFormStep(1);
-    setShowForm(true);
   };
 
   const openEdit = (job: Job) => {
@@ -170,7 +161,7 @@ export default function RecruiterJobsPage() {
     if (!jobPendingDelete) return;
     try {
       await recruiterApiClient.deleteJob(String(jobPendingDelete.id));
-      setJobs((prev) => prev.filter((j) => String(j.id) !== String(jobPendingDelete.id)));
+      setJobs((prev) => prev.filter((item) => String(item.id) !== String(jobPendingDelete.id)));
       toast.success("Job deleted");
     } catch {
       toast.error("Failed to delete job");
@@ -189,9 +180,42 @@ export default function RecruiterJobsPage() {
     try {
       const { job: duplicate } = await recruiterApiClient.duplicateJob(String(job.id));
       setJobs((previous) => [duplicate, ...previous]);
-      toast.success("Draft copy created");
     } catch { toast.error("Failed to duplicate job"); }
   };
+
+  const handleJobAction = (job: Job, action: JobAction) => {
+    if (action === "view") {
+      setPreviewJob(job);
+      return;
+    }
+    if (action === "edit") {
+      openEdit(job);
+      return;
+    }
+    if (action === "duplicate") {
+      duplicateJob(job);
+      return;
+    }
+    if (action === "delete") {
+      setJobPendingDelete(job);
+      return;
+    }
+    setPendingAction({ job, action });
+  };
+
+  const confirmAction = () => {
+    if (!pendingAction) return;
+    const { job, action } = pendingAction;
+    const status = action === "publish" ? "active" : action === "pause" ? "paused" : action === "close" ? "closed" : "archived";
+    setJobStatus(job, status);
+  };
+
+  const confirmationCopy = pendingAction ? {
+    publish: { title: "Publish this job?", message: `“${pendingAction.job.title}” will become visible on your public careers page and candidates can apply.`, confirmText: "Publish job", variant: "info" as const },
+    pause: { title: "Pause applications?", message: `“${pendingAction.job.title}” will remain in your workspace but will stop accepting new applications.`, confirmText: "Pause job", variant: "warning" as const },
+    close: { title: "Close this job?", message: `Close “${pendingAction.job.title}” when the role is no longer accepting candidates. Existing applications remain available.`, confirmText: "Close job", variant: "warning" as const },
+    archive: { title: "Archive this job?", message: `“${pendingAction.job.title}” will move out of the active hiring view. Its hiring history remains available.`, confirmText: "Archive job", variant: "warning" as const },
+  }[pendingAction.action] : null;
 
   const getPublicJobUrl = (job: Job) => {
     if (!organizationSlug || !job.public_slug) return "";
@@ -203,27 +227,27 @@ export default function RecruiterJobsPage() {
 
   return (
     <RecruiterPage>
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-9 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Jobs</h1>
-          <p className="text-sm text-gray-500 mt-1">Post and manage job listings</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Jobs</h1>
+          <p className="mt-2 text-base text-gray-400">Post and manage job listings</p>
         </div>
-        {canManageJobs && <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors"
+        {canManageJobs && <Link
+          href="/recruiter/jobs/new"
+          className="flex items-center gap-2 rounded-lg bg-[#FF5500] px-5 py-3 text-base font-semibold text-white transition-colors hover:bg-[#e04d00]"
         >
           <Plus className="w-4 h-4" weight="bold" />
           Post a Job
-        </button>}
+        </Link>}
       </div>
 
       {/* Form Modal */}
-      {showForm && (
+      {showForm && editingJob && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-[#141519] rounded-2xl border border-[rgba(255,255,255,0.08)] w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-white">
-                {editingJob ? "Edit job" : "Create a job"}
+                Edit job
               </h2>
               <button
                 onClick={() => setShowForm(false)}
@@ -385,9 +409,8 @@ export default function RecruiterJobsPage() {
                 </button>
               ) : (
                 <div className="flex gap-3">
-                  {!editingJob && <button onClick={() => handleSubmit("draft")} disabled={saving} className="px-5 py-2.5 rounded-lg border border-white/[0.1] text-gray-300 text-sm hover:bg-white/[0.05] disabled:opacity-60">Save draft</button>}
                   <button onClick={() => handleSubmit("active")} disabled={saving} className="px-6 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors disabled:opacity-60">
-                    {saving ? "Saving..." : editingJob ? "Save changes" : "Publish job"}
+                    {saving ? "Saving..." : "Save changes"}
                   </button>
                 </div>
               )}
@@ -430,7 +453,7 @@ export default function RecruiterJobsPage() {
       {/* Jobs List */}
       {loading ? (
         <div className="flex items-center justify-center py-32">
-          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
+          <SquircleLoader size={32} label="Loading jobs" />
         </div>
       ) : jobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 text-center">
@@ -439,36 +462,36 @@ export default function RecruiterJobsPage() {
           <p className="text-sm text-gray-600 mt-1">
             Post your first job listing to start attracting verified talent.
           </p>
-          <button
-            onClick={openCreate}
+          <Link
+            href="/recruiter/jobs/new"
             className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#FF5500] hover:bg-[#e04d00] text-white text-sm font-medium transition-colors"
           >
             <Plus className="w-4 h-4" weight="bold" />
             Post a Job
-          </button>
+          </Link>
         </div>
       ) : (
         <div className="space-y-4">
           {jobs.map((job) => (
             <div
               key={job.id}
-              className="p-5 rounded-2xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.08)] transition-colors"
+              className="rounded-2xl border border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)] p-6 transition-colors hover:border-[rgba(255,255,255,0.09)]"
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-white">{job.title}</h3>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,85,0,0.15)] text-[#FF6B2B]">
+                  <div className="mb-2 flex items-center gap-2.5">
+                    <h3 className="text-lg font-semibold text-white">{job.title}</h3>
+                    <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-2.5 py-1 text-xs font-medium text-[#FF7A3D]">
                       {job.type}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400 mb-2">
+                  <p className="mb-2 text-sm text-gray-300">
                     {job.company} · {job.location}
                     {job.salary ? ` · ${job.salary}` : ""}
                   </p>
-                  {(job.department || job.seniority || job.remote_policy) && <p className="text-[11px] text-gray-500 mb-2">{[job.department, job.seniority, job.remote_policy].filter(Boolean).join(" · ")}</p>}
+                  {(job.department || job.seniority || job.remote_policy) && <p className="mb-3 text-sm text-gray-500">{[job.department, job.seniority, job.remote_policy].filter(Boolean).join(" · ")}</p>}
                   {job.description && (
-                    <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+                    <p className="mb-4 line-clamp-2 max-w-4xl text-sm leading-6 text-gray-400">
                       {job.description}
                     </p>
                   )}
@@ -477,7 +500,7 @@ export default function RecruiterJobsPage() {
                       {job.tags.map((tag, i) => (
                         <span
                           key={i}
-                          className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] text-gray-400 border border-[rgba(255,255,255,0.04)]"
+                          className="rounded-full border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 text-xs text-gray-400"
                         >
                           {tag}
                         </span>
@@ -485,27 +508,9 @@ export default function RecruiterJobsPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-white/10 text-gray-300 capitalize">{job.status || "active"}</span>
-                  {job.status === "active" ? <button onClick={() => setJobStatus(job, "paused")} className="text-xs text-gray-400 hover:text-white">Pause</button> : job.status !== "archived" ? <button onClick={() => setJobStatus(job, "active")} className="text-xs text-[#FF8a55] hover:text-white">Publish</button> : null}
-                  {job.status !== "closed" && job.status !== "archived" && <button onClick={() => setJobStatus(job, "closed")} className="text-xs text-gray-400 hover:text-white">Close</button>}
-                  {job.status !== "archived" && <button onClick={() => setJobStatus(job, "archived")} className="text-xs text-gray-400 hover:text-white">Archive</button>}
-                  <button onClick={() => setPreviewJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Preview"><Eye className="w-4 h-4" /></button>
-                  <button onClick={() => duplicateJob(job)} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white" title="Duplicate"><Copy className="w-4 h-4" /></button>
-                  {canManageJobs && <button
-                    onClick={() => openEdit(job)}
-                    className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-gray-400 hover:text-white transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil className="w-4 h-4" weight="regular" />
-                  </button>}
-                  {canManageJobs && <button
-                    onClick={() => setJobPendingDelete(job)}
-                    className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash className="w-4 h-4" weight="regular" />
-                  </button>}
+                <div className="flex flex-shrink-0 items-center gap-2 self-center">
+                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium capitalize text-gray-300">{job.status || "active"}</span>
+                  <JobActionsMenu jobTitle={job.title} status={job.status} canManage={canManageJobs} onAction={(action) => handleJobAction(job, action)} />
                 </div>
               </div>
             </div>
@@ -513,6 +518,7 @@ export default function RecruiterJobsPage() {
         </div>
       )}
       <ConfirmDialog isOpen={Boolean(jobPendingDelete)} onClose={() => setJobPendingDelete(null)} onConfirm={handleDelete} title="Delete job?" message={`This permanently removes “${jobPendingDelete?.title || "this job"}” and its public listing.`} confirmText="Delete job" variant="danger" />
+      {pendingAction && confirmationCopy && <ConfirmDialog isOpen onClose={() => setPendingAction(null)} onConfirm={confirmAction} title={confirmationCopy.title} message={confirmationCopy.message} confirmText={confirmationCopy.confirmText} variant={confirmationCopy.variant} />}
     </RecruiterPage>
   );
 }

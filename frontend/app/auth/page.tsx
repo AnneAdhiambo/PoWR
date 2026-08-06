@@ -4,11 +4,13 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Github } from "lucide-react";
 import { Button } from "../components/ui";
+import { SquircleLoader } from "../components/ui/SquircleLoader";
 
 function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [authError, setAuthError] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(false);
 
   useEffect(() => {
     const error = searchParams.get("error");
@@ -17,21 +19,51 @@ function AuthContent() {
 
   useEffect(() => {
     const username = localStorage.getItem("github_username");
-    if (username) {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      fetch(`${apiBaseUrl}/api/auth/validate`, { credentials: "include" })
-        .then((res) => res.json())
-        .then((data) => { if (data.valid) router.push("/dashboard"); })
-        .catch(() => {
-          localStorage.removeItem("github_username");
-        });
-    }
-  }, [router]);
+    if (!username) return;
+
+    let active = true;
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    setCheckingSession(true);
+
+    fetch(`${apiBaseUrl}/api/auth/validate`, { credentials: "include", cache: "no-store" })
+      .then(async (response) => ({ ok: response.ok, data: await response.json().catch(() => null) }))
+      .then(({ ok, data }) => {
+        if (!active) return;
+        if (ok && data?.valid === true) {
+          const returnTo = searchParams.get("returnTo");
+          router.replace(returnTo || "/dashboard");
+          return;
+        }
+        localStorage.removeItem("github_username");
+        localStorage.removeItem("github_email");
+        localStorage.removeItem("github_avatar_url");
+        setCheckingSession(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        localStorage.removeItem("github_username");
+        localStorage.removeItem("github_email");
+        localStorage.removeItem("github_avatar_url");
+        setCheckingSession(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [router, searchParams]);
 
   const handleGitHubLogin = () => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     window.location.href = `${apiBaseUrl}/api/auth/github`;
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-[#0A0B0D] flex items-center justify-center" role="status" aria-label="Checking session">
+        <SquircleLoader size={32} label="Checking session" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0B0D] flex">
@@ -53,9 +85,7 @@ function AuthContent() {
 
         {/* Logo — top left */}
         <div className="absolute top-10 left-10 z-10">
-          <span className="text-xl font-bold tracking-tight text-white">
-            Po<span className="text-[#FF5500]">WR</span>
-          </span>
+          <img src="/logo.png" alt="PoWR" className="h-12 w-12 object-contain" />
         </div>
 
         {/* Centered copy */}
@@ -96,9 +126,7 @@ function AuthContent() {
 
           {/* Mobile logo */}
           <div className="lg:hidden mb-10 text-center">
-            <span className="text-3xl font-bold text-white">
-              Po<span className="text-[#FF5500]">WR</span>
-            </span>
+            <img src="/logo.png" alt="PoWR" className="mx-auto h-14 w-14 object-contain" />
           </div>
 
           <p className="text-xs font-mono uppercase tracking-[0.15em] text-gray-600 mb-3">

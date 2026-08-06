@@ -1,6 +1,32 @@
 import express from "express";
 import { dbService } from "../services/database";
 import { badgeService } from "../services/badgeService";
+import axios from "axios";
+
+const githubAchievementCache = new Map<string, { expiresAt: number; achievements: any[] }>();
+
+async function getPublicGithubAchievements(username: string) {
+  const cached = githubAchievementCache.get(username.toLowerCase());
+  if (cached && cached.expiresAt > Date.now()) return cached.achievements;
+  try {
+    const response = await axios.get(`https://github.com/${encodeURIComponent(username)}?tab=achievements`, {
+      headers: { Accept: "text/html", "User-Agent": "PoWR-GitHub-Evidence" }, timeout: 8000,
+    });
+    const tags = String(response.data).match(/<img\b[^>]*achievement-badge-sidebar[^>]*>/gi) || [];
+    const parsedAchievements = tags.map((tag, index) => {
+      const src = tag.match(/src="([^"]+)"/i)?.[1]?.replace(/&amp;/g, "&");
+      const alt = tag.match(/alt="Achievement:\s*([^"]+)"/i)?.[1];
+      const key = tag.match(/\/achievements\/([^/"?]+)\/detail/i)?.[1] || alt?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      if (!src || !alt || !key) return null;
+      return { id: `github-${index}-${key}`, username, badgeKey: key, displayName: alt, description: "Earned and displayed on the developer's public GitHub profile.", imageUrl: src, source: "github", earnedAt: null };
+    }).filter(Boolean);
+    const achievements = Array.from(
+      new Map(parsedAchievements.map((achievement: any) => [achievement.badgeKey, achievement])).values(),
+    );
+    githubAchievementCache.set(username.toLowerCase(), { expiresAt: Date.now() + 15 * 60 * 1000, achievements });
+    return achievements;
+  } catch { return []; }
+}
 
 const router = express.Router();
 
@@ -61,18 +87,12 @@ router.get("/:username", async (req, res) => {
   try {
     const { username } = req.params;
 
-    const [skillBadges, githubBadges] = await Promise.all([
+    const [skillBadges, publicGithubAchievements] = await Promise.all([
       dbService.getUserBadges(username),
-      dbService.getGithubBadges(username),
+      getPublicGithubAchievements(username),
     ]);
 
-    const achievements = githubBadges.map((b) => ({
-      ...b,
-      displayName: ACHIEVEMENT_META[b.badgeKey]?.displayName || b.badgeKey,
-      description: ACHIEVEMENT_META[b.badgeKey]?.description || "",
-    }));
-
-    res.json({ skillBadges, achievements });
+    res.json({ skillBadges, achievements: publicGithubAchievements });
   } catch (error: any) {
     console.error("Badges fetch error:", error);
     res.status(500).json({ error: "Failed to fetch badges" });

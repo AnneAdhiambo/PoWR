@@ -1,0 +1,22 @@
+{
+  "name": "powr-showcase",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio --no-open",
+    "render": "remotion render PoWRShowcase out/powr-showcase.mp4",
+    "still": "remotion still PoWRShowcase out/preview.png --frame=150"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.506",
+    "@remotion/transitions": "4.0.506",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "remotion": "4.0.506"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.1",
+    "@types/react-dom": "19.2.1",
+    "typescript": "5.9.3"
+  }
+}

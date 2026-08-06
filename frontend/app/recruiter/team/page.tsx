@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button, Card, ConfirmDialog, EmptyState, Field, LoadingState, PageHeader, RecruiterPage, StatusBadge, controlClassName } from "../../components/ui";
 import { useRecruiterContext } from "../../components/recruiter/RecruiterContext";
@@ -11,7 +10,6 @@ const roles = ["admin", "recruiter", "hiring_manager", "interviewer"];
 
 export default function RecruiterTeamPage() {
   const { canManageOrganization, role: organizationRole } = useRecruiterContext();
-  const router = useRouter();
   const [members, setMembers] = useState<any[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("recruiter");
@@ -21,12 +19,8 @@ export default function RecruiterTeamPage() {
   const [memberPendingRemoval, setMemberPendingRemoval] = useState<any | null>(null);
 
   useEffect(() => {
-    if (!localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/auth");
-      return;
-    }
     recruiterApiClient.getTeamMembers().then((result) => setMembers(result.members)).catch(() => toast.error("Could not load team")).finally(() => setLoading(false));
-  }, [router]);
+  }, []);
 
   async function invite(event: FormEvent) {
     event.preventDefault();

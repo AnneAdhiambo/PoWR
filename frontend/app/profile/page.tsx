@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Card } from "../components/ui";
+import { SquircleLoader } from "../components/ui/SquircleLoader";
 import { 
   User, 
   Pencil, 
@@ -156,7 +157,7 @@ export default function ProfileManagementPage() {
           displayName={displayName}
         />
         <div className="flex-1 overflow-y-auto flex items-center justify-center ml-60">
-          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+          <SquircleLoader size={32} label="Loading profile" />
         </div>
       </div>
     );

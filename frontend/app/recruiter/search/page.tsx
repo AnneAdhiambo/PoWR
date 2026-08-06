@@ -1,10 +1,9 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { SearchFilters, SearchFilterValues } from "../../components/recruiter/SearchFilters";
 import { DeveloperCard, DeveloperCardData } from "../../components/recruiter/DeveloperCard";
 import { recruiterApiClient } from "../../lib/recruiterApi";
-import { CaretDown, Users, X } from "phosphor-react";
+import { CaretDown, Users } from "phosphor-react";
 import toast from "react-hot-toast";
 
 type SortKey = "overallIndex" | "lastActive" | "proofCount";
@@ -26,7 +25,6 @@ const SORT_LABELS: Record<SortKey, string> = {
 };
 
 export default function RecruiterSearchPage() {
-  const router = useRouter();
   const [developers, setDevelopers] = useState<SourcedDeveloper[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -38,28 +36,17 @@ export default function RecruiterSearchPage() {
   const [contactMsg, setContactMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [jobs, setJobs] = useState<Array<{ id: number; title: string; status?: string }>>([]);
-  const [pools, setPools] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | undefined>();
-  const [shortlistUsername, setShortlistUsername] = useState<string | null>(null);
-  const [selectedPoolId, setSelectedPoolId] = useState<number | undefined>();
-  const [savingCandidate, setSavingCandidate] = useState(false);
   const [lastFilters, setLastFilters] = useState<SearchFilterValues>({
     skills: [], minScore: 0, maxScore: 100, activeWithin: undefined, hasOnChainProof: false
   });
 
   useEffect(() => {
-    if (!localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/auth");
-    }
-  }, [router]);
-
-  useEffect(() => {
-    Promise.all([recruiterApiClient.getMyJobs(), recruiterApiClient.getSavedPools()])
-      .then(([jobResult, poolResult]) => {
+    recruiterApiClient.getMyJobs()
+      .then((jobResult) => {
         setJobs(jobResult.jobs.filter((job: any) => job.status !== "archived"));
-        setPools(poolResult.pools);
       })
-      .catch(() => toast.error("Could not load jobs and talent lists"));
+      .catch(() => toast.error("Could not load jobs"));
   }, []);
 
   const runSearch = useCallback(async (f: SearchFilterValues, p: number, sort: SortKey) => {
@@ -111,22 +98,16 @@ export default function RecruiterSearchPage() {
   };
 
   const handleShortlist = async (username: string) => {
-    setShortlistUsername(username);
-    setSelectedPoolId(pools[0]?.id);
-  };
-
-  const saveToTalentList = async () => {
-    if (!shortlistUsername || !selectedPoolId) return;
-    setSavingCandidate(true);
-    try {
-      await recruiterApiClient.addToPool(selectedPoolId, shortlistUsername);
-      toast.success(`${shortlistUsername} added to talent list`);
-      setShortlistUsername(null);
-    } catch (error: any) {
-      toast.error(error.message || "Could not add developer");
-    } finally {
-      setSavingCandidate(false);
+    if (!selectedJobId) {
+      toast.error("Select a job before adding a developer");
+      return;
     }
+    const developer = developers.find((item) => item.username === username);
+    if (!developer?.matchSnapshotId) {
+      toast.error("Run the search for the selected job first");
+      return;
+    }
+    await addToSelectedJob(developer);
   };
 
   const addToSelectedJob = async (developer: SourcedDeveloper) => {
@@ -251,6 +232,7 @@ export default function RecruiterSearchPage() {
                 <DeveloperCard
                   developer={dev}
                   onShortlist={handleShortlist}
+                  shortlistLabel="Add to job"
                   onContact={handleContact}
                 />
                 {dev.jobMatchScore !== undefined && (
@@ -266,11 +248,6 @@ export default function RecruiterSearchPage() {
                         : " · All required skills matched"}
                     </p>
                   </div>
-                )}
-                {selectedJobId && dev.matchSnapshotId && (
-                  <button onClick={() => addToSelectedJob(dev)} className="-mt-3 w-full rounded-b-xl border border-orange-500/30 bg-orange-500/10 py-2 text-sm font-medium text-orange-300 hover:bg-orange-500/20">
-                    Add to selected job
-                  </button>
                 )}
               </div>
             ))}
@@ -324,29 +301,6 @@ export default function RecruiterSearchPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {shortlistUsername && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#12141a] p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Add @{shortlistUsername} to a talent list</h3>
-              <button onClick={() => setShortlistUsername(null)} className="text-gray-500 hover:text-white"><X size={18} /></button>
-            </div>
-            {pools.length ? (
-              <>
-                <select value={selectedPoolId || ""} onChange={(event) => setSelectedPoolId(Number(event.target.value))} className="mt-5 w-full rounded-lg border border-white/[0.08] bg-[#191a1f] px-3 py-2.5 text-sm text-white">
-                  {pools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name}</option>)}
-                </select>
-                <button onClick={saveToTalentList} disabled={savingCandidate} className="mt-4 w-full rounded-lg bg-[#FF5500] py-2.5 text-sm font-medium text-white disabled:opacity-50">
-                  {savingCandidate ? "Adding..." : "Add to talent list"}
-                </button>
-              </>
-            ) : (
-              <p className="mt-5 text-sm text-gray-400">Create a talent list from the Talent Lists page first.</p>
-            )}
           </div>
         </div>
       )}

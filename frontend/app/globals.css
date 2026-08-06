@@ -198,6 +198,29 @@ select option {
   animation-play-state: paused;
 }
 
+.powr-hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.powr-hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.jobs-search-input,
+.jobs-search-input:focus,
+.jobs-search-input:focus-visible {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  height: auto !important;
+  outline: 0 !important;
+  padding: 0 !important;
+}
+
 /* Ambient depth gradient for main content */
 .main-content-wrapper {
   position: relative;

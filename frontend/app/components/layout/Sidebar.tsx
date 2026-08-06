@@ -135,7 +135,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alt="PoWR Logo"
             className="h-9 w-auto"
           />
-          <span className="text-lg font-semibold text-white tracking-tight">PoWR</span>
         </Link>
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowDown, ArrowUp } from "phosphor-react";
+import { MinusIcon, PlusIcon } from "@untitledui/icons-react/outline";
 import { useState } from "react";
 
 const faqs = [
@@ -20,23 +20,23 @@ export function FaqSection() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="bg-[#f5f1e8] px-5 py-20 text-[#15171a] sm:px-8 lg:py-28">
-      <div className="mx-auto max-w-[1200px]">
-        <p className="text-sm font-bold uppercase tracking-[0.14em] text-[#d94d08]">Questions worth asking</p>
+    <section className="relative overflow-hidden bg-[#090b0f] px-5 py-20 text-white sm:px-8 lg:py-28">
+      <div className="relative mx-auto max-w-[1200px]">
+        <p className="text-sm font-bold uppercase tracking-[0.14em] text-orange-500">Questions worth asking</p>
         <h2 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-[-0.045em] sm:text-[58px] sm:leading-[1.03]">Questions teams ask before using PoWR</h2>
-        <div className="mt-12 border-t border-black/25">
+        <div className="mt-12 space-y-3">
           {faqs.map(([question, answer], index) => {
             const open = openIndex === index;
             return (
-              <div key={question} className="border-b border-black/25">
-                <button type="button" aria-expanded={open} aria-controls={`faq-answer-${index}`} onClick={() => setOpenIndex(open ? -1 : index)} className="flex min-h-[92px] w-full items-center justify-between gap-8 py-5 text-left text-xl font-extrabold tracking-[-0.02em] transition-colors duration-300 hover:text-[#d94d08] sm:text-[26px]">
+              <div key={question} className={`rounded-2xl bg-[#121317] px-5 transition-colors duration-300 sm:px-7 ${open ? "bg-[#15161a]" : "hover:bg-[#141519]"}`}>
+                <button type="button" aria-expanded={open} aria-controls={`faq-answer-${index}`} onClick={() => setOpenIndex(open ? -1 : index)} className="flex min-h-[88px] w-full items-center justify-between gap-8 py-5 text-left text-xl font-extrabold tracking-[-0.02em] transition-colors duration-300 hover:text-orange-500 sm:text-[24px]">
                   <span>{question}</span>
-                  <span className="shrink-0 text-[#125f55]" aria-hidden="true">{open ? <ArrowUp size={27} weight="regular" /> : <ArrowDown size={27} weight="regular" />}</span>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-orange-500/10 text-orange-500" aria-hidden="true">{open ? <MinusIcon className="size-5" /> : <PlusIcon className="size-5" />}</span>
                 </button>
                 <AnimatePresence initial={false}>
                   {open && (
                     <motion.div id={`faq-answer-${index}`} initial={reduceMotion ? false : { height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.32, ease: "easeOut" }} className="overflow-hidden">
-                      <p className="max-w-5xl pb-9 pr-12 text-[17px] leading-8 text-[#4f5662]">{answer}</p>
+                      <p className="max-w-5xl pb-9 pr-12 text-[17px] leading-8 text-gray-400">{answer}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>

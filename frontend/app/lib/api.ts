@@ -54,10 +54,12 @@ export interface Badge {
 }
 
 export interface GithubBadge {
-  id: number;
+  id: number | string;
   username: string;
   badgeKey: string;
   earnedAt: string;
+  imageUrl?: string;
+  source?: "github" | "powr";
   displayName: string;
   description: string;
 }

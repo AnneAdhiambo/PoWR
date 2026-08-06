@@ -1,9 +1,10 @@
 import React from "react";
 import { WarningCircle } from "phosphor-react";
 import { Card } from "./Card";
+import { SquircleLoader } from "./SquircleLoader";
 
 export function RecruiterPage({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`mx-auto w-full max-w-[var(--content-recruiter)] px-4 py-6 sm:px-6 sm:py-8 ${className}`}>{children}</div>;
+  return <div className={`mr-auto w-full px-4 py-6 sm:px-6 sm:py-8 ${className}`}>{children}</div>;
 }
 
 export function PageHeader({
@@ -32,7 +33,7 @@ export function PageHeader({
 export function LoadingState({ label = "Loading" }: { label?: string }) {
   return (
     <Card className="flex min-h-40 items-center justify-center p-8" role="status" aria-live="polite">
-      <span aria-hidden="true" className="mr-3 size-5 animate-spin rounded-full border-2 border-[var(--brand-orange)] border-t-transparent" />
+      <span className="mr-3"><SquircleLoader size={20} label="Loading" /></span>
       <span className="text-sm text-[var(--text-muted)]">{label}</span>
     </Card>
   );
@@ -116,4 +117,4 @@ export function Field({
   );
 }
 
-export const controlClassName = "w-full rounded-[var(--radius-control)] border border-[var(--border-strong)] bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-600 hover:border-white/20 focus:border-[var(--brand-orange)] disabled:cursor-not-allowed disabled:opacity-50";
+export const controlClassName = "powr-control w-full text-sm text-white placeholder:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50";

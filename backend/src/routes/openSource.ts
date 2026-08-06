@@ -11,12 +11,29 @@ const fail = (error: any, res: express.Response) => res.status(error.status || 4
 router.get("/open-source/projects", async (req, res) => {
   try {
     openSourceService.assertEnabled();
-    res.json({ projects: await openSourceService.projects({
+    res.json(await openSourceService.projects({
       q: String(req.query.q || "") || undefined,
       language: String(req.query.language || "") || undefined,
       partner: req.query.partner === undefined ? undefined : req.query.partner === "true",
-    }) });
+      page: Number(req.query.page || 1),
+      limit: Number(req.query.limit || 20),
+    }));
   } catch (error) { fail(error, res); }
+});
+
+router.get("/open-source/recommended", async (_req, res) => {
+  try { res.json({ projects: await openSourceService.weeklyRecommended(3) }); }
+  catch (error) { fail(error, res); }
+});
+
+router.get("/open-source/github-search", async (req, res) => {
+  try { res.json({ projects: await openSourceService.searchGithub(String(req.query.q || "")) }); }
+  catch (error) { fail(error, res); }
+});
+
+router.get("/open-source/developers/:username/repositories", async (req, res) => {
+  try { res.json(await openSourceService.developerRepositories(req.params.username)); }
+  catch (error) { fail(error, res); }
 });
 
 router.get("/open-source/projects/:id", async (req, res) => {
@@ -31,7 +48,7 @@ router.post("/open-source/nominations", requireDeveloper, writes, async (req, re
   try {
     openSourceService.assertEnabled();
     const user = (req as any).developer as DeveloperJwtPayload;
-    res.status(201).json({ nomination: await openSourceService.nominate(user.username, req.body.githubFullName, req.body.reason) });
+    res.status(201).json(await openSourceService.nominate(user.username, req.body.githubFullName, req.body.reason));
   } catch (error) { fail(error, res); }
 });
 

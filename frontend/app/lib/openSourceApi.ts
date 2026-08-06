@@ -37,18 +37,36 @@ export interface OpenSourceProject {
   partner_guidance?: string;
   health_score: number;
   available_issue_count: number;
+  open_issues?: number;
+  commit_count?: number;
+  pull_request_count?: number;
+  fork_count?: number;
+  verified_contributions?: number;
+  contributors?: number;
+  awarded_points?: number;
   issues?: OpenSourceIssue[];
 }
 
 export const openSourceApi = {
-  projects(query = "") {
-    return request<{ projects: OpenSourceProject[] }>(`/api/open-source/projects${query ? `?q=${encodeURIComponent(query)}` : ""}`);
+  projects(filters: { query?: string; page?: number; limit?: number; partner?: boolean } = {}) {
+    const params = new URLSearchParams();
+    if (filters.query) params.set("q", filters.query);
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.limit) params.set("limit", String(filters.limit));
+    if (filters.partner !== undefined) params.set("partner", String(filters.partner));
+    return request<{ projects: OpenSourceProject[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/open-source/projects?${params}`);
   },
   project(id: number) {
     return request<{ project: OpenSourceProject }>(`/api/open-source/projects/${id}`);
   },
+  recommended() {
+    return request<{ projects: OpenSourceProject[] }>("/api/open-source/recommended");
+  },
+  searchGithub(query: string) {
+    return request<{ projects: any[] }>(`/api/open-source/github-search?q=${encodeURIComponent(query)}`);
+  },
   nominate(githubFullName: string, reason: string) {
-    return request<{ nomination: any }>("/api/open-source/nominations", {
+    return request<{ nomination: any; project?: OpenSourceProject; autoApproved: boolean }>("/api/open-source/nominations", {
       method: "POST",
       body: JSON.stringify({ githubFullName, reason }),
     });
@@ -67,6 +85,9 @@ export const openSourceApi = {
   },
   profile(username: string) {
     return request<{ openSource: any }>(`/api/open-source/profile/${encodeURIComponent(username)}`);
+  },
+  developerRepositories(username: string) {
+    return request<{ pinned: any[]; active: any[]; source: string }>(`/api/open-source/developers/${encodeURIComponent(username)}/repositories`);
   },
   reviewQueue() {
     return request<{ claims: any[] }>("/api/open-source/admin/review-queue");

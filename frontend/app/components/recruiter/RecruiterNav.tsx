@@ -39,7 +39,6 @@ export const RecruiterNav: React.FC = () => {
       {/* Logo */}
       <Link href="/recruiter/search" className="flex items-center gap-2 flex-shrink-0">
         <img src="/logo.png" alt="PoWR" className="h-7 w-auto" />
-        <span className="text-base font-semibold text-white tracking-tight">PoWR</span>
         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[rgba(255,85,0,0.15)] text-[#FF5500] border border-[#FF5500]/30">
           Recruiter
         </span>

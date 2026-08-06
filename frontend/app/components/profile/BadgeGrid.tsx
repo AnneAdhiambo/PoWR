@@ -6,12 +6,13 @@ import { Medal, Star } from "phosphor-react";
 
 interface BadgeGridProps {
   skillBadges: Badge[];
-  achievements: Array<GithubBadge & { displayName: string; description: string }>;
+  achievements: GithubBadge[];
 }
 
 export function BadgeGrid({ skillBadges, achievements }: BadgeGridProps) {
   const hasSkill = skillBadges.length > 0;
   const hasAchievements = achievements.length > 0;
+  const githubAchievements = achievements.filter((achievement) => achievement.source === "github");
 
   if (!hasSkill && !hasAchievements) {
     return (
@@ -52,16 +53,16 @@ export function BadgeGrid({ skillBadges, achievements }: BadgeGridProps) {
         <div className="border-t border-[rgba(255,255,255,0.04)] mb-5" />
       )}
 
-      {/* Achievement Badges Section */}
-      {hasAchievements && (
+      {githubAchievements.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Star className="w-4 h-4 text-amber-400" weight="fill" />
-            <h3 className="text-sm font-medium text-amber-400">Achievements</h3>
+            <h3 className="text-sm font-medium text-white">GitHub achievements</h3>
+            <span className="text-[10px] text-gray-500">From the public GitHub profile</span>
           </div>
           <div className="flex flex-wrap gap-4">
-            {achievements.map((ach) => (
-              <AchievementBadgeCard key={ach.badgeKey} badge={ach} />
+            {githubAchievements.map((ach) => (
+              <AchievementBadgeCard key={String(ach.id)} badge={ach} />
             ))}
           </div>
         </div>
