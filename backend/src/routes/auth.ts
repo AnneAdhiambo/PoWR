@@ -8,6 +8,16 @@ import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeve
 const router = express.Router();
 const oauthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: "developer-oauth" });
 
+function developerCookieOptions() {
+  const production = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: production,
+    sameSite: production ? "none" as const : "lax" as const,
+    path: "/",
+  };
+}
+
 function githubOAuthConfig() {
   return {
     clientId: process.env.GITHUB_CLIENT_ID?.trim(),
@@ -104,11 +114,8 @@ router.get("/github/callback", oauthRateLimit, async (req, res) => {
     if (!jwtSecret) return res.status(500).json({ error: "JWT_SECRET is not configured" });
     const session = jwt.sign({ role: "developer", username: user.login, sessionVersion }, jwtSecret, { expiresIn: "7d" });
     res.cookie("powr_developer_session", session, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      ...developerCookieOptions(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/",
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -148,7 +155,7 @@ router.get("/validate", async (req, res) => {
 router.post("/logout", requireDeveloper, async (req, res) => {
   const { username } = (req as any).developer as DeveloperJwtPayload;
   await dbService.rotateDeveloperSession(username);
-  res.clearCookie("powr_developer_session", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
+  res.clearCookie("powr_developer_session", developerCookieOptions());
   res.json({ success: true });
 });
 
