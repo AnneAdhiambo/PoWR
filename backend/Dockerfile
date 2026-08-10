@@ -40,6 +40,11 @@ FROM base
 # Copy built application
 COPY --from=build /app /app
 
+# Setup sqlite3 on a separate volume
+RUN mkdir -p /data
+VOLUME /data
+
 # Start the server by default, this can be overwritten at runtime
-EXPOSE 3001
-CMD [ "npm", "run", "start:production" ]
+EXPOSE 3000
+ENV DATABASE_URL="file:///data/sqlite.db"
+CMD [ "npm", "run", "start" ]
