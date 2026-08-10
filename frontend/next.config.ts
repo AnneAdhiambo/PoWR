@@ -1,11 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Keep Turbopack scoped to this frontend. The machine has higher-level
-  // lockfiles, which otherwise make Next scan the entire user directory.
-  turbopack: {
-    root: process.cwd(),
-  },
   // pino / thread-stream are Node.js-only packages that may appear as transitive
   // deps and cannot be bundled for SSR. @walletconnect is no longer a dependency
   // of @stacks/connect v8 so those entries have been removed.

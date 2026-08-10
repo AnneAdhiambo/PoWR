@@ -2,15 +2,10 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRightIcon,
-  Award01Icon,
-  BookOpen01Icon,
   Briefcase01Icon,
-  CoinsStacked01Icon,
   Dataflow01Icon,
   EyeIcon,
   FileSearch02Icon,
-  GitPullRequestIcon,
-  GraduationHat01Icon,
   MessageChatCircleIcon,
   SearchLgIcon,
   ShieldTickIcon,
@@ -123,63 +118,6 @@ export default function Home() {
         </section>
 
         <FeaturedDevelopers />
-
-        <section id="open-source" className="scroll-mt-24 bg-[#0d0e12] px-5 py-20 sm:px-8 lg:py-28">
-          <div className="mx-auto max-w-7xl">
-            <div className="flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
-              <div className="max-w-4xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-orange-500">Open-source growth on PoWR</p>
-                <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-6xl">Build in public. Learn through <span className="text-orange-500">real contributions.</span></h2>
-                <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-400">Developers can discover work suited to their level, contribute to production projects, and turn merged pull requests into evidence hiring teams can inspect.</p>
-              </div>
-              <Link href="/open-source" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 font-semibold text-white transition-colors hover:bg-orange-600">Explore open source <ArrowRightIcon className="size-5" /></Link>
-            </div>
-
-            <div className="mt-12 grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  [BookOpen01Icon, "Find work worth learning from", "Browse curated public projects and issues with enough context to choose your next contribution."],
-                  [GraduationHat01Icon, "Choose the right challenge", "Use difficulty, language, project health, and contribution value to find work that stretches your skills."],
-                  [GitPullRequestIcon, "Ship work that counts", "Claim an issue, add your PoWR token, and submit a contribution through the project’s normal GitHub workflow."],
-                  [CoinsStacked01Icon, "Earn verified Street Points", "Meaningful merged pull requests are verified automatically and added to your public PoWR evidence."],
-                ].map(([Icon, title, description]) => {
-                  const BenefitIcon = Icon as typeof BookOpen01Icon;
-                  return <article key={String(title)} className="rounded-2xl bg-[#15161a] p-6"><span className="flex size-11 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><BenefitIcon className="size-5" /></span><h3 className="mt-6 text-lg font-semibold text-white">{title as string}</h3><p className="mt-3 text-sm leading-7 text-gray-400">{description as string}</p></article>;
-                })}
-              </div>
-
-              <article className="rounded-3xl bg-[#121317] p-6 shadow-[0_28px_80px_rgba(0,0,0,0.28)] sm:p-8">
-                <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-                  <div className="flex items-center gap-4"><span className="flex size-12 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><GitPullRequestIcon className="size-6" /></span><div><p className="font-semibold text-white">calcom/cal.com</p><p className="mt-1 text-xs text-gray-500">Scheduling infrastructure · TypeScript</p></div></div>
-                  <span className="w-fit rounded-md bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-400">PoWR partner</span>
-                </div>
-
-                <div className="mt-8 rounded-2xl bg-[#191a1f] p-5 sm:p-6">
-                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Available issue</p><h3 className="mt-3 text-lg font-semibold leading-7 text-white">Improve keyboard navigation in the availability editor</h3></div><div className="shrink-0 text-left sm:text-right"><p className="text-2xl font-semibold text-orange-500">180</p><p className="text-xs text-gray-500">Street Points</p></div></div>
-                  <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-xs text-gray-400">Intermediate</span><span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-xs text-gray-400">Accessibility</span><span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-xs text-gray-400">TypeScript</span></div>
-                  <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><p className="max-w-md text-sm leading-6 text-gray-400">Claiming reserves a public verification token. Multiple developers may work on the issue; only meaningful merged work scores.</p><Link href="/open-source" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white hover:bg-orange-600">View issue</Link></div>
-                </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  {[
-                    [BookOpen01Icon, "Choose an issue"],
-                    [GitPullRequestIcon, "Merge the work"],
-                    [Award01Icon, "Verify the evidence"],
-                  ].map(([Icon, label]) => {
-                    const StepIcon = Icon as typeof BookOpen01Icon;
-                    return <div key={String(label)} className="flex items-center gap-3 rounded-xl bg-[#17181c] p-3"><StepIcon className="size-4 shrink-0 text-orange-500" /><span className="text-xs font-medium text-gray-300">{label as string}</span></div>;
-                  })}
-                </div>
-              </article>
-            </div>
-
-            <div className="mt-6 grid gap-4 rounded-2xl bg-[#15161a] p-6 md:grid-cols-[48px_1fr_auto] md:items-center">
-              <span className="flex size-11 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><EyeIcon className="size-5" /></span>
-              <div><h3 className="font-semibold text-white">For hiring teams, contributions become inspectable proof.</h3><p className="mt-2 text-sm leading-6 text-gray-400">Review the original issue, commits, pull request, merge, and PoWR verification instead of relying only on self-reported project experience.</p></div>
-              <Link href="/developers#sample-evidence" className="inline-flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-300">See contribution evidence <ArrowRightIcon className="size-4" /></Link>
-            </div>
-          </div>
-        </section>
 
         <FaqSection />
 

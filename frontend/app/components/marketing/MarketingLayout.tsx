@@ -57,11 +57,11 @@ export function MarketingLayout({ children, theme = "dark" }: { children: React.
       </header>
       {children}
       <footer className={`border-t px-5 py-14 sm:px-8 ${light ? "border-black/[0.08] bg-[#eee9df]" : "border-white/[0.07] bg-[#0c0e12]"}`}>
-        <div className="mx-auto grid max-w-[1200px] grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-10">
-          <div className="col-span-2 md:col-span-1"><Link href="/" aria-label="PoWR home" className="inline-flex"><img src="/logo.png" alt="PoWR" className="h-14 w-14 object-contain" /></Link><p className={`mt-4 max-w-sm text-sm leading-6 ${light ? "text-[#69727d]" : "text-gray-500"}`}>The trust layer for technical work and hiring. Real evidence, clearer contribution, better decisions.</p></div>
+        <div className="mx-auto grid max-w-[1200px] gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div><Link href="/" aria-label="PoWR home" className="inline-flex"><img src="/logo.png" alt="PoWR" className="h-14 w-14 object-contain" /></Link><p className={`mt-4 max-w-sm text-sm leading-6 ${light ? "text-[#69727d]" : "text-gray-500"}`}>The trust layer for technical work and hiring. Real evidence, clearer contribution, better decisions.</p></div>
           <FooterColumn title="Product" links={[["Recruiting", "/product"], ["PoWR Score", "/powr-score"], ["Pricing", "/pricing"], ["Security", "/security"]]} />
           <FooterColumn title="For people" links={[["Developers", "/developers"], ["Find jobs", "/jobs"], ["Recruiter login", "/recruiter/auth"], ["Developer login", "/auth"]]} />
-          <FooterColumn title="Company" className="col-span-2 md:col-span-1" twoColumnLinks links={[["Request a demo", "/request-demo"], ["Privacy", "/security#privacy"], ["Accessibility", "/security#accessibility"], ["GitHub", "https://github.com/AnneAdhiambo/PoWR"]]} />
+          <FooterColumn title="Company" links={[["Request a demo", "/request-demo"], ["Privacy", "/security#privacy"], ["Accessibility", "/security#accessibility"], ["GitHub", "https://github.com/AnneAdhiambo/PoWR"]]} />
         </div>
         <div className="mx-auto mt-12 flex max-w-[1200px] flex-col gap-2 border-t border-white/[0.07] pt-6 text-xs text-gray-600 sm:flex-row sm:justify-between"><p>© {new Date().getFullYear()} PoWR. Built around proof of work.</p><p>Scores support human decisions; they do not replace them.</p></div>
       </footer>
@@ -69,6 +69,6 @@ export function MarketingLayout({ children, theme = "dark" }: { children: React.
   );
 }
 
-function FooterColumn({ title, links, className = "", twoColumnLinks = false }: { title: string; links: string[][]; className?: string; twoColumnLinks?: boolean }) {
-  return <div className={className}><h2 className="text-sm font-semibold text-white">{title}</h2><div className={`mt-4 ${twoColumnLinks ? "grid grid-cols-2 gap-x-5 gap-y-3 md:block md:space-y-3" : "space-y-3"}`}>{links.map(([label, href]) => <Link key={label} href={href} className="block text-sm text-gray-500 hover:text-gray-200">{label}</Link>)}</div></div>;
+function FooterColumn({ title, links }: { title: string; links: string[][] }) {
+  return <div><h2 className="text-sm font-semibold text-white">{title}</h2><div className="mt-4 space-y-3">{links.map(([label, href]) => <Link key={label} href={href} className="block text-sm text-gray-500 hover:text-gray-200">{label}</Link>)}</div></div>;
 }

@@ -64,7 +64,7 @@ pool.on("error", (err: Error) => {
 });
 
 // Initialize tables on startup
-export async function initializeTables() {
+async function initializeTables() {
   const client = await pool.connect();
   try {
     await client.query(`
@@ -533,15 +533,21 @@ export async function initializeTables() {
     console.log("PostgreSQL tables initialized successfully");
   } catch (error) {
     console.error("Failed to initialize PostgreSQL tables:", error);
-    throw error;
   } finally {
     client.release();
   }
 }
 
-export async function closeDatabasePool() {
-  await pool.end();
+// Initialize tables when module loads — retry on failure (e.g. cold Neon start)
+function initializeTablesWithRetry(retries = 5, delayMs = 3000) {
+  initializeTables().catch((err) => {
+    console.error(`[DB] Table init failed (${retries} retries left):`, err.message);
+    if (retries > 0) {
+      setTimeout(() => initializeTablesWithRetry(retries - 1, delayMs), delayMs);
+    }
+  });
 }
+initializeTablesWithRetry();
 
 export class DatabaseService {
   // User management
