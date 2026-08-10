@@ -1,4 +1,5 @@
 export const CURATED_OPEN_SOURCE_PROJECTS = [
+  "bitcoin/bitcoin", "ethereum/go-ethereum", "stacks-network/stacks-core", "rust-bitcoin/rust-bitcoin",
   "facebook/react", "vuejs/core", "angular/angular", "sveltejs/svelte", "vercel/next.js",
   "nuxt/nuxt", "remix-run/remix", "astro-build/astro", "solidjs/solid", "withastro/starlight",
   "microsoft/TypeScript", "nodejs/node", "denoland/deno", "bun-sh/bun", "npm/cli",
