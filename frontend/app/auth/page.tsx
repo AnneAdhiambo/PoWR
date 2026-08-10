@@ -1,10 +1,37 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Github } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  Code01Icon,
+  GitBranch01Icon,
+  Lock01Icon,
+  ShieldTickIcon,
+} from "@untitledui/icons-react/outline";
 import { Button } from "../components/ui";
 import { SquircleLoader } from "../components/ui/SquircleLoader";
+
+const developerBenefits = [
+  {
+    icon: Code01Icon,
+    title: "Make your work visible",
+    description: "Turn public repositories and contributions into evidence people can understand.",
+  },
+  {
+    icon: GitBranch01Icon,
+    title: "Grow through open source",
+    description: "Find contribution opportunities, ship useful work, and earn Street Points.",
+  },
+  {
+    icon: ShieldTickIcon,
+    title: "Build a reputation you own",
+    description: "Keep a portable technical profile grounded in publicly verifiable work.",
+  },
+];
 
 function AuthContent() {
   const router = useRouter();
@@ -59,122 +86,98 @@ function AuthContent() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen bg-[#0A0B0D] flex items-center justify-center" role="status" aria-label="Checking session">
-        <SquircleLoader size={32} label="Checking session" />
+      <div className="flex min-h-screen items-center justify-center bg-[#090A0C]" role="status" aria-label="Checking session">
+        <SquircleLoader size={44} label="Checking session" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0B0D] flex">
+    <main className="min-h-screen bg-[#090A0C] px-5 py-5 text-white sm:px-8 sm:py-8 lg:flex lg:items-center lg:py-12">
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="flex items-center justify-between">
+          <Link href="/" aria-label="PoWR home" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500">
+            <Image src="/logo.png" alt="PoWR" width={44} height={44} className="size-11 object-contain" priority />
+            <span className="text-lg font-semibold tracking-[-0.03em]">PoWR</span>
+          </Link>
+          <Link href="/" className="group inline-flex items-center gap-2 text-sm font-medium text-gray-400 transition-colors hover:text-white">
+            <ArrowLeftIcon className="size-4 transition-transform group-hover:-translate-x-0.5" />
+            Back to home
+          </Link>
+        </header>
 
-      {/* ── Left panel ── */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center p-16">
-        {/* Orbs */}
-        <div className="absolute top-[-15%] left-[-15%] w-[70%] h-[70%] rounded-full bg-[#FF5500]/20 blur-[140px] animate-pulse" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-[#B19EEF]/15 blur-[120px] animate-pulse" style={{ animationDelay: "2s" }} />
-        {/* Grid */}
-        <div
-          className="absolute inset-0 opacity-[0.035]"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,1) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)`,
-            backgroundSize: "60px 60px",
-          }}
-        />
-
-        {/* Logo — top left */}
-        <div className="absolute top-10 left-10 z-10">
-          <img src="/logo.png" alt="PoWR" className="h-12 w-12 object-contain" />
-        </div>
-
-        {/* Centered copy */}
-        <div className="relative z-10 max-w-sm">
-          <p className="text-xs font-mono uppercase tracking-[0.2em] text-[#FF5500] mb-6">
-            Proof of Work Reputation
-          </p>
-          <h2 className="text-6xl font-black text-white leading-[1.05] tracking-tight mb-8">
-            Your code<br />
-            has a story.<br />
-            <span className="text-[#FF5500]">Prove it.</span>
-          </h2>
-          <p className="text-gray-400 text-lg leading-relaxed">
-            Connect GitHub. Get a verifiable,<br />
-            on-chain reputation score backed<br />
-            by your real work.
-          </p>
-
-          {/* Three clean stats */}
-          <div className="mt-12 grid grid-cols-3 gap-6 border-t border-white/8 pt-8">
-            {[
-              { value: "4", label: "Skill dims" },
-              { value: "NFT", label: "Badges" },
-              { value: "STX", label: "Anchored" },
-            ].map((s) => (
-              <div key={s.label}>
-                <div className="text-2xl font-bold text-white">{s.value}</div>
-                <div className="text-xs text-gray-600 mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Right panel ── */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-sm">
-
-          {/* Mobile logo */}
-          <div className="lg:hidden mb-10 text-center">
-            <img src="/logo.png" alt="PoWR" className="mx-auto h-14 w-14 object-contain" />
-          </div>
-
-          <p className="text-xs font-mono uppercase tracking-[0.15em] text-gray-600 mb-3">
-            Developer portal
-          </p>
-          <h1 className="text-4xl font-black text-white tracking-tight mb-2">
-            Sign in
-          </h1>
-          <p className="text-gray-500 text-base mb-10">
-            Connect GitHub to build your profile
-          </p>
-
-          {authError && (
-            <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-              {authError}
-            </div>
-          )}
-
-          <Button
-            onClick={handleGitHubLogin}
-            className="w-full flex items-center justify-center gap-3 h-14 text-base font-semibold rounded-xl"
-            size="lg"
-          >
-            <Github className="w-5 h-5" />
-            Continue with GitHub
-          </Button>
-
-          <p className="text-xs text-gray-600 text-center mt-4">
-            Read-only · public repos only · no write access
-          </p>
-
-          <div className="mt-12 pt-6 border-t border-white/6 text-center">
-            <p className="text-sm text-gray-600">
-              Hiring?{" "}
-              <a href="/recruiter/auth" className="text-[#FF5500] hover:text-white transition-colors font-medium">
-                Recruiter portal →
-              </a>
+        <div className="grid gap-10 pb-8 pt-14 lg:grid-cols-[1.05fr_0.8fr] lg:items-center lg:gap-24 lg:pb-12 lg:pt-20">
+          <section>
+            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">Developer workspace</p>
+            <h1 className="max-w-3xl text-5xl font-semibold leading-[1.02] tracking-[-0.05em] sm:text-6xl lg:text-7xl">
+              Let your work speak <span className="text-orange-500">before you do.</span>
+            </h1>
+            <p className="mt-6 max-w-2xl text-base leading-7 text-gray-400 sm:text-lg sm:leading-8">
+              Connect GitHub to build a living technical profile, discover meaningful open-source work, and show what you can do with evidence.
             </p>
-          </div>
+
+            <div className="mt-10 grid gap-3 sm:grid-cols-3 lg:max-w-3xl">
+              {developerBenefits.map(({ icon: Icon, title, description }) => (
+                <div key={title} className="rounded-2xl bg-[#111216] p-5 transition-colors duration-200 hover:bg-[#15161A]">
+                  <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
+                    <Icon className="size-5" />
+                  </span>
+                  <h2 className="mt-5 text-sm font-semibold text-white">{title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-500">{description}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[28px] bg-[#111216] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:p-9 lg:p-10" aria-labelledby="sign-in-heading">
+            <span className="flex size-12 items-center justify-center rounded-2xl bg-orange-500 text-black">
+              <GitBranch01Icon className="size-6" />
+            </span>
+            <p className="mt-8 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Your developer profile</p>
+            <h2 id="sign-in-heading" className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Continue with GitHub</h2>
+            <p className="mt-3 max-w-md text-sm leading-6 text-gray-400">
+              Sign in securely and let PoWR begin turning your public work into a profile you can use anywhere.
+            </p>
+
+            {authError && (
+              <div className="mt-6 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300" role="alert">
+                {authError}
+              </div>
+            )}
+
+            <Button
+              onClick={handleGitHubLogin}
+              className="group mt-8 flex h-14 w-full cursor-pointer items-center justify-center gap-3 rounded-xl text-base font-semibold"
+              size="lg"
+            >
+              Connect GitHub
+              <ArrowRightIcon className="size-5 transition-transform group-hover:translate-x-0.5" />
+            </Button>
+
+            <div className="mt-5 flex items-start gap-3 rounded-xl bg-black/20 px-4 py-3.5">
+              <Lock01Icon className="mt-0.5 size-4 shrink-0 text-orange-500" />
+              <p className="text-xs leading-5 text-gray-500">
+                Public repositories and read-only access. PoWR cannot edit your code or act on your behalf.
+              </p>
+            </div>
+
+            <Link href="/recruiter/auth" className="group mt-8 flex items-center justify-between rounded-2xl bg-[#191A1F] p-4 transition-colors hover:bg-[#202126] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500">
+              <span>
+                <span className="block text-xs text-gray-500">Hiring talent?</span>
+                <span className="mt-1 block text-sm font-semibold text-white">Open the recruiter workspace</span>
+              </span>
+              <ArrowRightIcon className="size-5 text-orange-500 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0A0B0D]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#090A0C]" />}>
       <AuthContent />
     </Suspense>
   );
