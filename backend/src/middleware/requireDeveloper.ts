@@ -15,7 +15,8 @@ function readCookie(req: Request, name: string): string | undefined {
 }
 
 export function readDeveloperSession(req: Request): string | undefined {
-  const authorization = req.get("authorization");
+  const authorizationHeader = req.headers.authorization;
+  const authorization = Array.isArray(authorizationHeader) ? authorizationHeader[0] : authorizationHeader;
   if (authorization?.toLowerCase().startsWith("bearer ")) {
     return authorization.slice(7).trim() || undefined;
   }

@@ -4,10 +4,7 @@ import { readDeveloperSession } from "../src/middleware/requireDeveloper";
 
 function request(authorization?: string, cookie?: string): Request {
   return {
-    get(name: string) {
-      return name.toLowerCase() === "authorization" ? authorization : undefined;
-    },
-    headers: { cookie },
+    headers: { authorization, cookie },
   } as Request;
 }
 
