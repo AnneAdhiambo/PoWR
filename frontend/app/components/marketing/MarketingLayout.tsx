@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { List, X } from "phosphor-react";
+import PixelBlast from "../ui/PixelBlast";
 
 const navigation = [
   ["Product", "/product"],
@@ -56,8 +57,10 @@ export function MarketingLayout({ children, theme = "dark" }: { children: React.
         </nav>
       </header>
       {children}
-      <footer className={`border-t px-5 py-14 sm:px-8 ${light ? "border-black/[0.08] bg-[#eee9df]" : "border-white/[0.07] bg-[#0c0e12]"}`}>
-        <div className="mx-auto grid max-w-[1200px] grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-10">
+      <footer className={`relative isolate overflow-hidden border-t px-5 py-14 sm:px-8 ${light ? "border-black/[0.08] bg-[#eee9df]" : "border-white/[0.07] bg-[#0c0e12]"}`}>
+        {!light && <div className="absolute inset-0 -z-10 opacity-80" aria-hidden="true"><PixelBlast /></div>}
+        {!light && <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,#0c0e12_0%,rgba(12,14,18,.86)_55%,rgba(12,14,18,.55)_100%)]" />}
+        <div className="relative mx-auto grid max-w-[1200px] grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-10">
           <div className="col-span-2 md:col-span-1"><Link href="/" aria-label="PoWR home" className="inline-flex"><img src="/logo.png" alt="PoWR" className="h-14 w-14 object-contain" /></Link><p className={`mt-4 max-w-sm text-sm leading-6 ${light ? "text-[#69727d]" : "text-gray-500"}`}>The trust layer for technical work and hiring. Real evidence, clearer contribution, better decisions.</p></div>
           <FooterColumn title="Product" links={[["Recruiting", "/product"], ["PoWR Score", "/powr-score"], ["Pricing", "/pricing"], ["Security", "/security"]]} />
           <FooterColumn title="For people" links={[["Developers", "/developers"], ["Find jobs", "/jobs"], ["Recruiter login", "/recruiter/auth"], ["Developer login", "/auth"]]} />

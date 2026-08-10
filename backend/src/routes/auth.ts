@@ -8,20 +8,32 @@ import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeve
 const router = express.Router();
 const oauthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: "developer-oauth" });
 
+function githubOAuthConfig() {
+  return {
+    clientId: process.env.GITHUB_CLIENT_ID?.trim(),
+    clientSecret: process.env.GITHUB_CLIENT_SECRET?.trim(),
+    redirectUri: process.env.GITHUB_CALLBACK_URL?.trim() || "http://localhost:3001/api/auth/github/callback",
+  };
+}
+
+function isPlaceholder(value?: string) {
+  return !value || value.startsWith("your_") || value.includes("replace-with");
+}
+
 // GitHub OAuth initiation
 router.get("/github", oauthRateLimit, (req, res) => {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const redirectUri = process.env.GITHUB_CALLBACK_URL || "http://localhost:3001/api/auth/github/callback";
+  const { clientId, clientSecret, redirectUri } = githubOAuthConfig();
   const scope = "read:user public_repo";
   
-  if (!clientId || clientId === "your_github_client_id") {
+  if (isPlaceholder(clientId) || isPlaceholder(clientSecret)) {
     return res.status(500).json({ 
       error: "GitHub OAuth not configured",
-      message: "Please set GITHUB_CLIENT_ID in backend/.env file. See GITHUB_APP_SETUP.md for instructions."
+      message: "Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to credentials from the same GitHub OAuth App. A personal access token cannot be used here."
     });
   }
   
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+  const query = new URLSearchParams({ client_id: clientId!, redirect_uri: redirectUri, scope });
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?${query.toString()}`;
   
   res.redirect(githubAuthUrl);
 });
@@ -29,9 +41,17 @@ router.get("/github", oauthRateLimit, (req, res) => {
 // GitHub OAuth callback
 router.get("/github/callback", oauthRateLimit, async (req, res) => {
   const { code } = req.query;
+  const { clientId, clientSecret, redirectUri } = githubOAuthConfig();
   
   if (!code) {
     return res.status(400).json({ error: "No authorization code provided" });
+  }
+
+  if (isPlaceholder(clientId) || isPlaceholder(clientSecret)) {
+    return res.status(500).json({
+      error: "GitHub OAuth not configured",
+      reason: "The deployment needs a GitHub OAuth App client ID and client secret; a personal access token is not valid for the OAuth code exchange.",
+    });
   }
   
   try {
@@ -39,9 +59,10 @@ router.get("/github/callback", oauthRateLimit, async (req, res) => {
     const tokenResponse = await axios.post(
       "https://github.com/login/oauth/access_token",
       {
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
+        redirect_uri: redirectUri,
       },
       {
         headers: {
