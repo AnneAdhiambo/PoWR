@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "../../components/ui";
@@ -8,6 +8,7 @@ import { CheckCircle2, Github } from "lucide-react";
 import { SquircleLoader } from "../../components/ui/SquircleLoader";
 import { apiClient } from "../../lib/api";
 import { getOrCreateKeypair } from "../../lib/nostr";
+import { clearDeveloperSession, setDeveloperSession } from "../../lib/developerSession";
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -15,28 +16,41 @@ function AuthCallbackContent() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState<string>("");
   const [step, setStep] = useState<"processing" | "storing" | "redirecting">("processing");
+  const authStarted = useRef(false);
 
   useEffect(() => {
-    const username = searchParams.get("username");
+    if (authStarted.current) return;
+    authStarted.current = true;
 
-    if (!username) {
+    const callback = new URLSearchParams(window.location.hash.slice(1));
+    const username = callback.get("username") || searchParams.get("username");
+    const session = callback.get("session");
+    const returnTo = callback.get("returnTo") || "/dashboard";
+
+    if (!username || !session) {
       setStatus("error");
-      setError("Missing authenticated username");
+      setError("GitHub login completed without a PoWR session. Please try again.");
       return;
     }
 
     const processAuth = async () => {
       try {
         setStep("processing");
+        setDeveloperSession(session);
+
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         const validation = await fetch(`${apiBaseUrl}/api/auth/validate`, {
           credentials: "include",
           cache: "no-store",
+          headers: { Authorization: `Bearer ${session}` },
         });
 
         if (!validation.ok) {
-          throw new Error("GitHub approved the login, but the browser could not establish a PoWR session. Please allow cross-site cookies and try again.");
+          const body = await validation.json().catch(() => null);
+          throw new Error(body?.error || "PoWR could not validate the authenticated session.");
         }
+
+        window.history.replaceState(null, "", window.location.pathname);
 
         setStep("storing");
         localStorage.setItem("github_username", username);
@@ -54,8 +68,10 @@ function AuthCallbackContent() {
 
         setStatus("success");
         setStep("redirecting");
-        router.replace("/dashboard");
+        router.replace(returnTo);
       } catch (authError) {
+        window.history.replaceState(null, "", window.location.pathname);
+        clearDeveloperSession();
         localStorage.removeItem("github_username");
         setStatus("error");
         setError(authError instanceof Error ? authError.message : "Unable to establish your PoWR session");

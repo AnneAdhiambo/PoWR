@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { recruiterApiClient, clearRecruiterSession } from "../../lib/recruiterApi";
 import { SquircleLoader } from "../ui/SquircleLoader";
+import { clearDeveloperSession, developerAuthHeaders } from "../../lib/developerSession";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const DEVELOPER_ROUTES = ["/dashboard", "/proofs", "/open-source", "/saved", "/chat", "/notifications", "/profile", "/subscription"];
@@ -44,7 +45,11 @@ export function SessionBoundary({ children }: { children: React.ReactNode }) {
         if (recruiterRoute) {
           await recruiterApiClient.getMe();
         } else {
-          const response = await fetch(`${API_BASE_URL}/api/auth/validate`, { credentials: "include", cache: "no-store" });
+          const response = await fetch(`${API_BASE_URL}/api/auth/validate`, {
+            credentials: "include",
+            cache: "no-store",
+            headers: developerAuthHeaders(),
+          });
           if (!response.ok) throw new Error("Developer session invalid");
         }
         if (active) setVerifiedPath(pathname);
@@ -54,6 +59,7 @@ export function SessionBoundary({ children }: { children: React.ReactNode }) {
           localStorage.removeItem("github_username");
           localStorage.removeItem("github_email");
           localStorage.removeItem("github_avatar");
+          clearDeveloperSession();
         }
         redirectToLogin(recruiterRoute ? "recruiter" : "developer");
       }
