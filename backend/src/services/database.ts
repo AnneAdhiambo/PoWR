@@ -97,6 +97,18 @@ export async function initializeTables() {
         updated_at TIMESTAMP DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS analysis_progress (
+        username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'complete', 'failed')),
+        stage TEXT NOT NULL,
+        message TEXT NOT NULL,
+        progress INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+        error_message TEXT,
+        started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       -- Migrations: safe for both fresh and existing databases
       DO $$ BEGIN
         ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id INTEGER;
@@ -695,6 +707,69 @@ export class DatabaseService {
     const lastAnalyzed = new Date(result.rows[0].last_analyzed);
     const hoursSince = (Date.now() - lastAnalyzed.getTime()) / (1000 * 60 * 60);
     return hoursSince >= maxAgeHours;
+  }
+
+  async setAnalysisProgress(
+    username: string,
+    update: {
+      status: "running" | "complete" | "failed";
+      stage: string;
+      message: string;
+      progress: number;
+      errorMessage?: string | null;
+    },
+  ): Promise<void> {
+    await pool.query(`
+      INSERT INTO analysis_progress (
+        username, status, stage, message, progress, error_message, started_at, completed_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, NOW(), CASE WHEN $2 = 'running' THEN NULL ELSE NOW() END, NOW()
+      )
+      ON CONFLICT(username) DO UPDATE SET
+        status = EXCLUDED.status,
+        stage = EXCLUDED.stage,
+        message = EXCLUDED.message,
+        progress = EXCLUDED.progress,
+        error_message = EXCLUDED.error_message,
+        started_at = CASE WHEN EXCLUDED.status = 'running' AND analysis_progress.status <> 'running'
+          THEN NOW() ELSE analysis_progress.started_at END,
+        completed_at = CASE WHEN EXCLUDED.status = 'running' THEN NULL ELSE NOW() END,
+        updated_at = NOW()
+    `, [
+      username,
+      update.status,
+      update.stage,
+      update.message,
+      Math.min(100, Math.max(0, Math.round(update.progress))),
+      update.errorMessage || null,
+    ]);
+  }
+
+  async getAnalysisProgress(username: string): Promise<{
+    username: string;
+    status: "running" | "complete" | "failed";
+    stage: string;
+    message: string;
+    progress: number;
+    errorMessage: string | null;
+    updatedAt: Date;
+  } | null> {
+    const result = await pool.query(`
+      SELECT username, status, stage, message, progress, error_message, updated_at
+      FROM analysis_progress
+      WHERE username = $1
+    `, [username]);
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      username: row.username,
+      status: row.status,
+      stage: row.stage,
+      message: row.message,
+      progress: Number(row.progress),
+      errorMessage: row.error_message || null,
+      updatedAt: new Date(row.updated_at),
+    };
   }
 
   // Blockchain proof management

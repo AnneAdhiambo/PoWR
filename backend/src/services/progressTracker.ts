@@ -1,44 +1,56 @@
-interface ProgressState {
+import { dbService } from "./database";
+
+export interface ProgressState {
   username: string;
+  status: "running" | "complete" | "failed";
   stage: string;
   message: string;
-  progress: number; // 0-100
-  timestamp: number;
+  progress: number;
+  updatedAt: string;
 }
 
-class ProgressTrackerService {
-  private progressMap: Map<string, ProgressState> = new Map();
+const STALE_ANALYSIS_MS = 30 * 60 * 1000;
 
-  setProgress(username: string, stage: string, message: string, progress: number) {
-    this.progressMap.set(username, {
-      username,
+class ProgressTrackerService {
+  async setProgress(username: string, stage: string, message: string, progress: number) {
+    await dbService.setAnalysisProgress(username, {
+      status: stage === "complete" ? "complete" : "running",
       stage,
       message,
-      progress: Math.min(100, Math.max(0, progress)),
-      timestamp: Date.now(),
+      progress,
     });
   }
 
-  getProgress(username: string): ProgressState | null {
-    const progress = this.progressMap.get(username);
-    if (!progress) return null;
-    
-    // Clean up old progress (older than 5 minutes)
-    if (Date.now() - progress.timestamp > 5 * 60 * 1000) {
-      this.progressMap.delete(username);
-      return null;
-    }
-    
-    return progress;
+  async failProgress(username: string, message: string, error?: unknown) {
+    const previous = await dbService.getAnalysisProgress(username);
+    const errorMessage = error instanceof Error ? error.message : error ? String(error) : null;
+    await dbService.setAnalysisProgress(username, {
+      status: "failed",
+      stage: "failed",
+      message,
+      progress: previous?.progress || 0,
+      errorMessage,
+    });
   }
 
-  clearProgress(username: string) {
-    this.progressMap.delete(username);
+  async getProgress(username: string): Promise<ProgressState | null> {
+    const progress = await dbService.getAnalysisProgress(username);
+    if (!progress) return null;
+
+    if (progress.status === "running" && Date.now() - progress.updatedAt.getTime() > STALE_ANALYSIS_MS) {
+      await this.failProgress(username, "Analysis was interrupted before it finished. You can retry safely.");
+      return this.getProgress(username);
+    }
+
+    return {
+      username: progress.username,
+      status: progress.status,
+      stage: progress.stage,
+      message: progress.message,
+      progress: progress.progress,
+      updatedAt: progress.updatedAt.toISOString(),
+    };
   }
 }
 
 export const progressTracker = new ProgressTrackerService();
-
-
-
-

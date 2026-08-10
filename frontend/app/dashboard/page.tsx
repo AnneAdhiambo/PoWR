@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [proofs, setProofs] = useState<Proof[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string>("Loading your PoW profile...");
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [subscription, setSubscription] = useState<any>(null);
@@ -47,6 +48,7 @@ export default function DashboardPage() {
   const [showPublishPrompt, setShowPublishPrompt] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<{
+    hasProfile: boolean;
     hasUnpublished: boolean;
     lastAnalyzed: string | null;
   } | null>(null);
@@ -82,12 +84,19 @@ export default function DashboardPage() {
       const progressInterval = setInterval(async () => {
         try {
           const progress = await apiClient.getProgress(username);
-          if (progress.stage !== "idle" && progress.stage !== "complete") {
+          if (progress.status === "running") {
             setAnalyzing(true);
+            setAnalysisFailed(false);
             setProgressMessage(progress.message);
             setProgressPercent(progress.progress);
-          } else if (progress.stage === "complete" && !analysisCompletedRef.current) {
+          } else if (progress.status === "failed") {
+            setAnalyzing(false);
+            setAnalysisFailed(true);
+            setProgressMessage(progress.message);
+            setProgressPercent(progress.progress);
+          } else if (progress.status === "complete" && !analysisCompletedRef.current) {
             analysisCompletedRef.current = true;
+            setAnalysisFailed(false);
             setProgressMessage("Your evidence profile is ready");
             setProgressPercent(100);
             setAnalyzing(false);
@@ -96,7 +105,7 @@ export default function DashboardPage() {
         } catch (error) {
           // Ignore progress polling errors
         }
-      }, 500); // Poll every 500ms
+      }, 2000);
 
       return () => clearInterval(progressInterval);
     }
@@ -106,21 +115,24 @@ export default function DashboardPage() {
     if (!username || analysisStartedRef.current) return;
     analysisStartedRef.current = true;
     setAnalyzing(true);
-    setProgressMessage("Connecting your public GitHub evidence…");
-    setProgressPercent(8);
+    setAnalysisFailed(false);
+    setProgressMessage("Preparing your public GitHub evidence…");
+    setProgressPercent(5);
     void apiClient.triggerAnalysis(username, accessToken, 12)
       .then((result) => {
         setProfile(result.profile);
         setProgressMessage("Your evidence profile is ready");
         setProgressPercent(100);
         setAnalyzing(false);
+        setAnalysisFailed(false);
         analysisCompletedRef.current = true;
         void loadDashboard();
       })
       .catch((error) => {
         console.error("Background analysis failed:", error);
         setAnalyzing(false);
-        setProgressMessage("Analysis paused — you can retry without leaving the dashboard");
+        setAnalysisFailed(true);
+        setProgressMessage("Analysis stopped before completion. You can retry safely.");
       });
   };
 
@@ -144,11 +156,7 @@ export default function DashboardPage() {
   }, [username]);
 
   const loadDashboard = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:47', message: 'loadDashboard entry', data: { hasToken: !!accessToken, username }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-    // #endregion
     try {
-      setLoading(true);
       // For demo, we'll use mock data if no token
       if (!accessToken) {
         // Mock data for development
@@ -211,26 +219,14 @@ export default function DashboardPage() {
           }
         ]);
       } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:95', message: 'Promise.all start', data: { username }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-        // #endregion
         const [profileData, artifactsData, proofsData, subscriptionData, nextUpdateData, analysisStatusData, badgesData, projectsData] = await Promise.all([
-          apiClient.getUserProfile(username, accessToken).catch(err => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:96', message: 'getUserProfile error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-            // #endregion
+          apiClient.getUserProfile(username, accessToken).catch(() => {
             return null;
           }),
-          apiClient.getUserArtifacts(username, accessToken || undefined).catch(err => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:97', message: 'getUserArtifacts error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-            // #endregion
+          apiClient.getUserArtifacts(username, accessToken || undefined).catch(() => {
             return { artifacts: [] };
           }),
-          apiClient.getProofs(username).catch(err => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:98', message: 'getProofs error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-            // #endregion
+          apiClient.getProofs(username).catch(() => {
             return { proofs: [] };
           }),
           apiClient.getCurrentSubscription(username).catch(() => ({ subscription: null, plan: null })),
@@ -239,15 +235,13 @@ export default function DashboardPage() {
           apiClient.getUserBadges(username).catch(() => ({ skillBadges: [], achievements: [] })),
           apiClient.getUserProjects(username).catch(() => ({ projects: [] })),
         ]);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:100', message: 'Promise.all complete', data: { hasProfile: !!profileData, hasArtifacts: !!artifactsData, hasProofs: !!proofsData }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-        // #endregion
         setProfile(profileData || INITIAL_PROFILE);
         setArtifacts(artifactsData.artifacts);
         setProofs(proofsData.proofs);
         setSubscription(subscriptionData.subscription);
         setNextUpdateDate(nextUpdateData.nextUpdateDate);
         setAnalysisStatus({
+          hasProfile: Boolean(profileData) || analysisStatusData.hasProfile,
           hasUnpublished: analysisStatusData.hasUnpublished,
           lastAnalyzed: analysisStatusData.lastAnalyzed
         });
@@ -257,15 +251,9 @@ export default function DashboardPage() {
         if (!analysisStatusData.hasProfile) startBackgroundAnalysis();
       }
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:104', message: 'loadDashboard catch', data: { error: error?.message || String(error) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-      // #endregion
       console.error("Failed to load dashboard:", error);
       setProfile((current) => current || INITIAL_PROFILE);
     } finally {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:107', message: 'loadDashboard finally', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-      // #endregion
       setLoading(false);
     }
   };
@@ -278,9 +266,14 @@ export default function DashboardPage() {
 
     try {
       setAnalyzing(true);
+      setAnalysisFailed(false);
+      setProgressMessage("Preparing your public GitHub evidence…");
+      setProgressPercent(5);
       toast.loading("Analyzing your artifacts...", { id: "analyzing" });
       const result = await apiClient.triggerAnalysis(username, accessToken, 12);
       setProfile(result.profile);
+      setProgressMessage("Your evidence profile is ready");
+      setProgressPercent(100);
       await loadDashboard();
       toast.success("Analysis complete! Ready to publish on-chain.", { id: "analyzing" });
       // Show publish prompt after successful analysis
@@ -296,6 +289,8 @@ export default function DashboardPage() {
         setShowUpgradeModal(true);
       } else {
         console.error("Analysis failed:", error);
+        setAnalysisFailed(true);
+        setProgressMessage("Analysis stopped before completion. You can retry safely.");
         toast.error("Failed to analyze artifacts", { id: "analyzing" });
       }
     } finally {
@@ -388,11 +383,26 @@ export default function DashboardPage() {
               </Button>
             </div>
 
-            {(analyzing || (progressMessage.includes("paused") && progressPercent < 100)) && (
-              <div className="mb-6 overflow-hidden rounded-[14px] border border-[#ff6a1a]/20 bg-gradient-to-r from-[#ff6a1a]/10 to-[#8b5cf6]/[0.06] p-4">
-                <div className="flex items-center justify-between gap-4"><div><div className="flex items-center gap-2 text-sm font-semibold text-white"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff6a1a] opacity-50" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6a1a]" /></span>Building your evidence profile</div><p className="mt-1 text-xs text-[#9ca2ad]">{progressMessage || "Reviewing repositories, contributions, and engineering signals…"}</p></div><div className="text-sm font-semibold text-[#ff9a64]">{Math.max(5, progressPercent)}%</div></div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6a1a] to-[#a855f7] transition-all duration-500" style={{ width: `${Math.max(5, progressPercent)}%` }} /></div>
-                <div className="mt-2 text-[10px] text-[#6f7580]">You can explore jobs, open source, and your workspace while PoWR finishes.</div>
+            {(analyzing || analysisFailed) && (
+              <div className={`mb-6 overflow-hidden rounded-[14px] border p-4 ${analysisFailed ? "border-red-400/20 bg-red-400/[0.06]" : "border-[#ff6a1a]/20 bg-gradient-to-r from-[#ff6a1a]/10 to-[#8b5cf6]/[0.06]"}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <span className={`relative flex h-2.5 w-2.5 rounded-full ${analysisFailed ? "bg-red-400" : "bg-[#ff6a1a]"}`}>
+                        {!analysisFailed && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff6a1a] opacity-50" />}
+                      </span>
+                      {analysisFailed ? "Analysis needs attention" : "Building your evidence profile"}
+                    </div>
+                    <p className="mt-1 text-xs text-[#9ca2ad]">{progressMessage || "Reviewing repositories, contributions, and engineering signals…"}</p>
+                  </div>
+                  {analysisFailed ? (
+                    <Button type="button" size="sm" onClick={handleAnalyze} className="shrink-0 cursor-pointer">Retry analysis</Button>
+                  ) : (
+                    <div className="text-sm font-semibold text-[#ff9a64]">{Math.max(5, progressPercent)}%</div>
+                  )}
+                </div>
+                {!analysisFailed && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6a1a] to-[#a855f7] transition-all duration-500" style={{ width: `${Math.max(5, progressPercent)}%` }} /></div>}
+                <div className="mt-2 text-[10px] text-[#6f7580]">{analysisFailed ? (analysisStatus?.hasProfile ? "Your last saved profile remains available." : "No new score was saved from this attempt.") : "You can explore jobs, open source, and your workspace while PoWR finishes."}</div>
               </div>
             )}
 

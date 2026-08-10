@@ -176,8 +176,15 @@ class ApiClient {
     return this.request<{ proofs: Proof[] }>(`/api/user/proofs?username=${username}`);
   }
 
-  async getProgress(username: string): Promise<{ stage: string; message: string; progress: number }> {
-    return this.request<{ stage: string; message: string; progress: number }>(`/api/user/progress?username=${username}`);
+  async getProgress(username: string): Promise<{
+    status: "idle" | "running" | "complete" | "failed";
+    stage: string;
+    message: string;
+    progress: number;
+    errorMessage?: string | null;
+    updatedAt?: string;
+  }> {
+    return this.request(`/api/user/progress?username=${username}`);
   }
 
   async publishProof(username: string): Promise<{ success: boolean; proof?: Proof; message: string; upgradeRequired?: boolean }> {

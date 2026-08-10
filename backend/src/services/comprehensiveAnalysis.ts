@@ -59,10 +59,19 @@ export interface DeveloperProfile {
 export class ComprehensiveAnalysisService {
   private accessToken: string;
   private geminiApiKey: string | null;
+  private onProgress?: (stage: string, message: string, progress: number) => void | Promise<void>;
 
-  constructor(accessToken: string) {
+  constructor(
+    accessToken: string,
+    onProgress?: (stage: string, message: string, progress: number) => void | Promise<void>,
+  ) {
     this.accessToken = accessToken;
     this.geminiApiKey = process.env.GEMINI_API_KEY || null;
+    this.onProgress = onProgress;
+  }
+
+  private async reportProgress(stage: string, message: string, progress: number) {
+    await this.onProgress?.(stage, message, progress);
   }
 
   private async githubRequest(url: string, params: any = {}) {
@@ -78,6 +87,7 @@ export class ComprehensiveAnalysisService {
 
   async analyzeUser(username: string, monthsBack: number = 12): Promise<DeveloperProfile> {
     console.log(`[ANALYSIS] Starting comprehensive analysis for ${username}`);
+    await this.reportProgress("github", "Reading your public GitHub activity…", 12);
 
     // Fetch everything in parallel for speed
     const [
@@ -96,6 +106,8 @@ export class ComprehensiveAnalysisService {
       this.searchUserIssues(username),
     ]);
 
+    await this.reportProgress("repositories", `Reviewing ${repos.length} repositories and contribution history…`, 30);
+
     console.log(`[ANALYSIS] User: ${username}, Account created: ${userInfo.created_at}`);
     console.log(`[ANALYSIS] Repos: ${repos.length}, Events: ${events.length}`);
     console.log(`[ANALYSIS] Search results - PRs: ${searchPRs.total}, Commits: ${searchCommits.total}, Issues: ${searchIssues.total}`);
@@ -108,6 +120,7 @@ export class ComprehensiveAnalysisService {
     // Analyze repos with languages
     const ownedRepos = repos.filter((r: any) => r.owner.login.toLowerCase() === username.toLowerCase() && !r.archived);
     const repoAnalyses = await this.analyzeRepos(ownedRepos, username);
+    await this.reportProgress("languages", "Mapping languages and engineering activity…", 50);
     
     // Aggregate languages
     const { topLanguages, totalBytes } = this.aggregateLanguages(repoAnalyses);
@@ -129,6 +142,7 @@ export class ComprehensiveAnalysisService {
 
     // Estimate additions/deletions from recent commits
     const { additions, deletions } = await this.estimateCodeChanges(username, events);
+    await this.reportProgress("scoring", "Calculating contribution depth and delivery signals…", 64);
 
     // Calculate skill scores
     let skillScores: DeveloperProfile["skillScores"];
@@ -151,6 +165,7 @@ export class ComprehensiveAnalysisService {
 
     if (this.geminiApiKey) {
       try {
+        await this.reportProgress("ai_analysis", "Building your evidence-based skill profile…", 70);
         const aiResult = await this.analyzeWithAI(analysisData);
         skillScores = aiResult.scores;
         confidence = aiResult.confidence;
@@ -169,6 +184,8 @@ export class ComprehensiveAnalysisService {
       confidence = result.confidence;
       analysisMethod = "heuristic";
     }
+
+    await this.reportProgress("profile", "Preparing your PoWR profile…", 78);
 
     return {
       username,

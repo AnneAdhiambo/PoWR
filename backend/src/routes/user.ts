@@ -6,6 +6,7 @@ import { progressTracker } from "../services/progressTracker";
 import { dbService } from "../services/database";
 import { blockchainService } from "../services/blockchain";
 import { badgeService } from "../services/badgeService";
+import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeveloper";
 
 const router = express.Router();
 
@@ -41,25 +42,25 @@ router.get("/profile", async (req, res) => {
       await dbService.upsertUser(username as string, 0, access_token as string);
     }
 
-    progressTracker.setProgress(username as string, "ingestion", "Fetching your repositories...", 10);
+    await progressTracker.setProgress(username as string, "ingestion", "Fetching your repositories…", 10);
     const ingestionService = new ArtifactIngestionService(token);
 
     // Use FAST mode - only fetches repo metadata + events (~18 API calls vs 100+)
     const fastData = await ingestionService.ingestFast(username as string, 12);
-    progressTracker.setProgress(username as string, "ingestion", `Found ${fastData.repos.length} repos with ${fastData.recentEvents.length} recent events`, 30);
+    await progressTracker.setProgress(username as string, "ingestion", `Found ${fastData.repos.length} repositories with ${fastData.recentEvents.length} recent events`, 30);
     const artifacts = ingestionService.normalizeFastData(fastData, username as string);
 
     // Save artifacts to database
     await dbService.saveArtifacts(username as string, artifacts);
 
-    progressTracker.setProgress(username as string, "ai_analysis", "Analyzing your contributions with AI...", 40);
+    await progressTracker.setProgress(username as string, "ai_analysis", "Analyzing your contribution evidence…", 40);
     const aiService = new AIAnalysisService();
     const aiExtraction = await aiService.extractSkills(
       username as string,
       artifacts,
       fastData.timeWindow
     );
-    progressTracker.setProgress(username as string, "scoring", "Calculating your PoW scores...", 70);
+    await progressTracker.setProgress(username as string, "scoring", "Calculating your PoWR scores…", 70);
 
     const scoringEngine = new ScoringEngine();
     const profile = await scoringEngine.generatePoWProfile(artifacts, aiExtraction);
@@ -85,12 +86,15 @@ router.get("/profile", async (req, res) => {
       }
     }
 
-    progressTracker.setProgress(username as string, "complete", "Profile generated!", 100);
+    await progressTracker.setProgress(username as string, "complete", "Your evidence profile is ready", 100);
 
     res.json({ ...profile, unpublished: true });
-    setTimeout(() => progressTracker.clearProgress(username as string), 1000);
   } catch (error: any) {
     console.error("Profile error:", error);
+    const username = typeof req.query.username === "string" ? req.query.username : null;
+    if (username) {
+      await progressTracker.failProgress(username, "We could not finish the analysis. Your existing profile is safe.", error).catch(() => {});
+    }
     res.status(500).json({ error: error.message || "Failed to generate profile" });
   }
 });
@@ -438,13 +442,20 @@ router.get("/artifacts", async (req, res) => {
 });
 
 // Trigger analysis
-router.post("/analyze", async (req, res) => {
+router.post("/analyze", requireDeveloper, async (req, res) => {
   try {
     const { username, access_token, monthsBack } = req.body;
 
     if (!username) {
       return res.status(400).json({ error: "Username required" });
     }
+
+    const developer = (req as any).developer as DeveloperJwtPayload;
+    if (developer.username.toLowerCase() !== String(username).toLowerCase()) {
+      return res.status(403).json({ error: "You can only analyze your own GitHub profile" });
+    }
+
+    await progressTracker.setProgress(username, "starting", "Preparing your GitHub evidence…", 5);
 
     const { subscriptionService } = await import("../services/subscriptionService");
     const { ComprehensiveAnalysisService } = await import("../services/comprehensiveAnalysis");
@@ -466,7 +477,10 @@ router.post("/analyze", async (req, res) => {
     }
 
     // Use comprehensive analysis service with AI + heuristic fallback
-    const analysisService = new ComprehensiveAnalysisService(token);
+    const analysisService = new ComprehensiveAnalysisService(
+      token,
+      (stage, message, progress) => progressTracker.setProgress(username, stage, message, progress),
+    );
     const devProfile = await analysisService.analyzeUser(username, monthsBack || 12);
 
     console.log(`[ANALYZE] Comprehensive analysis complete: ${devProfile.totalRepos} repos, ${devProfile.totalCommits} commits`);
@@ -485,6 +499,7 @@ router.post("/analyze", async (req, res) => {
     // Generate summary
     let profileSummary = "Developer verified by PoWR.";
     try {
+      await progressTracker.setProgress(username, "summary", "Writing a clear summary of your verified work…", 82);
       profileSummary = await aiService.generateProfileSummary(username, summarySkills);
     } catch (err) {
       console.error("Summary generation error:", err);
@@ -542,6 +557,7 @@ router.post("/analyze", async (req, res) => {
     };
 
     // Also fetch artifacts for storage
+    await progressTracker.setProgress(username, "artifacts", "Organizing repositories, commits, and pull requests…", 88);
     const ingestionService = new ArtifactIngestionService(token);
     const ingested = await ingestionService.ingestUserArtifacts(username, monthsBack || 12);
     const artifacts = ingestionService.normalizeArtifacts(ingested, username);
@@ -551,6 +567,7 @@ router.post("/analyze", async (req, res) => {
 
     await dbService.saveArtifacts(username, artifacts);
     await dbService.saveProfile(username, profile, devProfile.totalRepos, artifactHash);
+    await progressTracker.setProgress(username, "finalizing", "Saving your evidence profile…", 96);
 
     // Profile saved - blockchain publishing is now a separate step
     // User can manually publish via /api/user/publish-proof endpoint
@@ -566,6 +583,8 @@ router.post("/analyze", async (req, res) => {
       console.error(`[Analyze] Badge evaluation error for ${username}:`, err.message)
     );
 
+    await progressTracker.setProgress(username, "complete", "Your evidence profile is ready", 100);
+
     res.json({
       success: true,
       profile,
@@ -575,6 +594,10 @@ router.post("/analyze", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Analysis error:", error);
+    const username = typeof req.body?.username === "string" ? req.body.username : null;
+    if (username) {
+      await progressTracker.failProgress(username, "Analysis stopped before completion. You can retry safely.", error).catch(() => {});
+    }
     res.status(500).json({ error: error.message || "Failed to analyze artifacts" });
   }
 
@@ -599,9 +622,9 @@ router.get("/progress", async (req, res) => {
     if (!username) {
       return res.status(400).json({ error: "Username required" });
     }
-    const progress = progressTracker.getProgress(username as string);
+    const progress = await progressTracker.getProgress(username as string);
     if (!progress) {
-      return res.json({ stage: "idle", message: "No analysis in progress", progress: 0 });
+      return res.json({ status: "idle", stage: "idle", message: "No analysis in progress", progress: 0 });
     }
     res.json(progress);
   } catch (error: any) {
