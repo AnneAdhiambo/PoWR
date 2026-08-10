@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   ArrowLeftIcon,
@@ -19,6 +20,7 @@ const projects = [
     stars: 247124,
     issues: 1249,
     points: "80–220",
+    avatar: "https://avatars.githubusercontent.com/u/102812?v=4",
   },
   {
     catalogName: "vercel/next.js",
@@ -29,6 +31,7 @@ const projects = [
     stars: 141687,
     issues: 4403,
     points: "100–260",
+    avatar: "https://avatars.githubusercontent.com/u/14985020?v=4",
   },
   {
     catalogName: "withastro/starlight",
@@ -39,6 +42,7 @@ const projects = [
     stars: 9041,
     issues: 23,
     points: "60–180",
+    avatar: "https://avatars.githubusercontent.com/u/44914786?v=4",
   },
   {
     catalogName: "microsoft/TypeScript",
@@ -49,6 +53,7 @@ const projects = [
     stars: 110120,
     issues: 5081,
     points: "70–240",
+    avatar: "https://avatars.githubusercontent.com/u/6154722?v=4",
   },
 ] as const;
 
@@ -119,7 +124,7 @@ export function OpenSourceProjectCarousel() {
           >
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><GitBranch01Icon className="size-5" /></span>
+                <Image src={issue.avatar} alt="" width={44} height={44} className="size-11 shrink-0 rounded-xl bg-white/[0.05] object-cover" />
                 <div className="min-w-0"><p className="truncate font-semibold text-white">{issue.project}</p><p className="mt-1 truncate text-xs text-gray-500">{issue.language} · Public repository</p></div>
               </div>
               <span className="shrink-0 rounded-md bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-400">Curated</span>
