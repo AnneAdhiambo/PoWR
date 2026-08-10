@@ -18,7 +18,7 @@ import {
 import { MarketingLayout } from "./components/marketing/MarketingLayout";
 import { FaqSection } from "./components/marketing/FaqSection";
 import { FeaturedDevelopers } from "./components/marketing/FeaturedDevelopers";
-import { OpenSourceIssueCarousel } from "./components/marketing/OpenSourceIssueCarousel";
+import { OpenSourceProjectCarousel } from "./components/marketing/OpenSourceIssueCarousel";
 import LiquidEther from "./components/ui/LiquidEther";
 import FaultyTerminal from "./components/ui/FaultyTerminal";
 
@@ -154,7 +154,7 @@ export default function Home() {
                 })}
               </div>
 
-              <OpenSourceIssueCarousel />
+              <OpenSourceProjectCarousel />
             </div>
           </div>
         </section>
