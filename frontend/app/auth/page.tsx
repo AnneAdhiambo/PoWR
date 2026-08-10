@@ -14,6 +14,7 @@ import {
 } from "@untitledui/icons-react/outline";
 import { Button } from "../components/ui";
 import { SquircleLoader } from "../components/ui/SquircleLoader";
+import { clearDeveloperSession, developerAuthHeaders, getDeveloperSession } from "../lib/developerSession";
 
 const developerBenefits = [
   {
@@ -46,13 +47,18 @@ function AuthContent() {
 
   useEffect(() => {
     const username = localStorage.getItem("github_username");
-    if (!username) return;
+    const session = getDeveloperSession();
+    if (!username || !session) return;
 
     let active = true;
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     setCheckingSession(true);
 
-    fetch(`${apiBaseUrl}/api/auth/validate`, { credentials: "include", cache: "no-store" })
+    fetch(`${apiBaseUrl}/api/auth/validate`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: developerAuthHeaders(),
+    })
       .then(async (response) => ({ ok: response.ok, data: await response.json().catch(() => null) }))
       .then(({ ok, data }) => {
         if (!active) return;
@@ -64,6 +70,7 @@ function AuthContent() {
         localStorage.removeItem("github_username");
         localStorage.removeItem("github_email");
         localStorage.removeItem("github_avatar_url");
+        clearDeveloperSession();
         setCheckingSession(false);
       })
       .catch(() => {
@@ -71,6 +78,7 @@ function AuthContent() {
         localStorage.removeItem("github_username");
         localStorage.removeItem("github_email");
         localStorage.removeItem("github_avatar_url");
+        clearDeveloperSession();
         setCheckingSession(false);
       });
 
@@ -81,7 +89,8 @@ function AuthContent() {
 
   const handleGitHubLogin = () => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    window.location.href = `${apiBaseUrl}/api/auth/github`;
+    const returnTo = searchParams.get("returnTo") || "/dashboard";
+    window.location.href = `${apiBaseUrl}/api/auth/github?returnTo=${encodeURIComponent(returnTo)}`;
   };
 
   if (checkingSession) {

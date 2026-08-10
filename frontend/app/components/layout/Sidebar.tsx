@@ -22,6 +22,7 @@ import {
 } from "phosphor-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { apiClient } from "../../lib/api";
+import { clearDeveloperSession, developerAuthHeaders } from "../../lib/developerSession";
 import toast from "react-hot-toast";
 
 interface SidebarProps {
@@ -94,11 +95,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleLogout = async () => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    await fetch(`${apiBaseUrl}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+    await fetch(`${apiBaseUrl}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: developerAuthHeaders(),
+    }).catch(() => {});
     // Clear all auth data
     localStorage.removeItem("github_username");
     localStorage.removeItem("github_avatar_url");
     localStorage.removeItem("github_email");
+    clearDeveloperSession();
 
     // Show success toast
     toast.success("Logged out successfully");

@@ -3,7 +3,7 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import { dbService } from "../services/database";
 import { rateLimit } from "../middleware/rateLimit";
-import { DeveloperJwtPayload, requireDeveloper } from "../middleware/requireDeveloper";
+import { DeveloperJwtPayload, readDeveloperSession, requireDeveloper } from "../middleware/requireDeveloper";
 
 const router = express.Router();
 const oauthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: "developer-oauth" });
@@ -13,7 +13,7 @@ function developerCookieOptions() {
   return {
     httpOnly: true,
     secure: production,
-    sameSite: production ? "none" as const : "lax" as const,
+    sameSite: "lax" as const,
     path: "/",
   };
 }
@@ -30,10 +30,17 @@ function isPlaceholder(value?: string) {
   return !value || value.startsWith("your_") || value.includes("replace-with");
 }
 
+function safeReturnTo(value: unknown): string {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : "/dashboard";
+}
+
 // GitHub OAuth initiation
 router.get("/github", oauthRateLimit, (req, res) => {
   const { clientId, clientSecret, redirectUri } = githubOAuthConfig();
   const scope = "read:user public_repo";
+  const jwtSecret = process.env.JWT_SECRET;
   
   if (isPlaceholder(clientId) || isPlaceholder(clientSecret)) {
     return res.status(500).json({ 
@@ -41,8 +48,16 @@ router.get("/github", oauthRateLimit, (req, res) => {
       message: "Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to credentials from the same GitHub OAuth App. A personal access token cannot be used here."
     });
   }
+
+  if (!jwtSecret) return res.status(500).json({ error: "JWT_SECRET is not configured" });
+
+  const state = jwt.sign(
+    { purpose: "github-oauth", returnTo: safeReturnTo(req.query.returnTo) },
+    jwtSecret,
+    { expiresIn: "10m" },
+  );
   
-  const query = new URLSearchParams({ client_id: clientId!, redirect_uri: redirectUri, scope });
+  const query = new URLSearchParams({ client_id: clientId!, redirect_uri: redirectUri, scope, state });
   const githubAuthUrl = `https://github.com/login/oauth/authorize?${query.toString()}`;
   
   res.redirect(githubAuthUrl);
@@ -50,11 +65,23 @@ router.get("/github", oauthRateLimit, (req, res) => {
 
 // GitHub OAuth callback
 router.get("/github/callback", oauthRateLimit, async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   const { clientId, clientSecret, redirectUri } = githubOAuthConfig();
   
   if (!code) {
     return res.status(400).json({ error: "No authorization code provided" });
+  }
+
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) return res.status(500).json({ error: "JWT_SECRET is not configured" });
+
+  let returnTo = "/dashboard";
+  try {
+    const oauthState = jwt.verify(String(state || ""), jwtSecret) as { purpose?: string; returnTo?: string };
+    if (oauthState.purpose !== "github-oauth") throw new Error("Unexpected OAuth state");
+    returnTo = safeReturnTo(oauthState.returnTo);
+  } catch {
+    return res.status(400).json({ error: "Invalid or expired GitHub login. Please start again." });
   }
 
   if (isPlaceholder(clientId) || isPlaceholder(clientSecret)) {
@@ -110,16 +137,18 @@ router.get("/github/callback", oauthRateLimit, async (req, res) => {
     await dbService.upsertUser(user.login, user.id, access_token);
     const sessionVersion = await dbService.rotateDeveloperSession(user.login);
     
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) return res.status(500).json({ error: "JWT_SECRET is not configured" });
     const session = jwt.sign({ role: "developer", username: user.login, sessionVersion }, jwtSecret, { expiresIn: "7d" });
     res.cookie("powr_developer_session", session, {
       ...developerCookieOptions(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const redirectUrl = `${frontendUrl}/auth/callback?username=${encodeURIComponent(user.login)}`;
+    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+    // Hand the PoWR session to the SPA in the URL fragment. Fragments are not
+    // sent to servers or referrers, and this avoids relying on third-party
+    // cookies when the frontend and API use different hosting domains.
+    const fragment = new URLSearchParams({ session, username: user.login, returnTo });
+    const redirectUrl = `${frontendUrl}/auth/callback#${fragment.toString()}`;
     
     res.redirect(redirectUrl);
   } catch (error: any) {
@@ -134,11 +163,10 @@ router.get("/github/callback", oauthRateLimit, async (req, res) => {
 // Validate GitHub token
 router.get("/validate", async (req, res) => {
   try {
-    const cookies = String(req.headers.cookie || "").split(";");
-    const session = cookies.find((cookie) => cookie.trim().startsWith("powr_developer_session="))?.trim().split("=")[1];
+    const session = readDeveloperSession(req);
     if (!session) return res.status(401).json({ valid: false, error: "Session required" });
     try {
-      const payload = jwt.verify(decodeURIComponent(session), process.env.JWT_SECRET || "") as DeveloperJwtPayload;
+      const payload = jwt.verify(session, process.env.JWT_SECRET || "") as DeveloperJwtPayload;
       if (payload.role !== "developer") return res.status(403).json({ valid: false, error: "Developer session required" });
       const currentVersion = await dbService.getDeveloperSessionVersion(payload.username);
       if (currentVersion === null || currentVersion !== payload.sessionVersion) return res.status(401).json({ valid: false, error: "Session revoked" });

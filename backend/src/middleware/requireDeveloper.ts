@@ -14,8 +14,17 @@ function readCookie(req: Request, name: string): string | undefined {
   return match ? decodeURIComponent(match.trim().slice(name.length + 1)) : undefined;
 }
 
+export function readDeveloperSession(req: Request): string | undefined {
+  const authorizationHeader = req.headers.authorization;
+  const authorization = Array.isArray(authorizationHeader) ? authorizationHeader[0] : authorizationHeader;
+  if (authorization?.toLowerCase().startsWith("bearer ")) {
+    return authorization.slice(7).trim() || undefined;
+  }
+  return readCookie(req, "powr_developer_session");
+}
+
 export async function requireDeveloper(req: Request, res: Response, next: NextFunction) {
-  const token = readCookie(req, "powr_developer_session");
+  const token = readDeveloperSession(req);
   if (!token) return res.status(401).json({ error: "Developer authentication required" });
   try {
     const secret = process.env.JWT_SECRET;

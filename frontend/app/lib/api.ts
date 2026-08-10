@@ -1,3 +1,5 @@
+import { developerAuthHeaders } from "./developerSession";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export interface SkillPoWScore {
@@ -118,6 +120,7 @@ class ApiClient {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...developerAuthHeaders(),
         ...(typeof window !== "undefined" && window.location.hostname ? { "X-PoWR-Hostname": window.location.hostname.replace(/\.powr\.localhost$/, ".powr.dev") } : {}),
         ...options.headers,
       },

@@ -1,7 +1,9 @@
+import { getDeveloperSession } from "./developerSession";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("recruiter_token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("recruiter_token") || getDeveloperSession() : null;
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     credentials: "include",
