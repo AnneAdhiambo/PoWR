@@ -25,30 +25,41 @@ function AuthCallbackContent() {
       return;
     }
 
-    // Simulate processing steps for smoother UX
     const processAuth = async () => {
-      // Step 1: Processing
-      setStep("processing");
-      localStorage.setItem("github_username", username);
+      try {
+        setStep("processing");
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+        const validation = await fetch(`${apiBaseUrl}/api/auth/validate`, {
+          credentials: "include",
+          cache: "no-store",
+        });
 
-      // Step 2: Fetch GitHub user info to get avatar
-      setStep("storing");
-      void fetch(`https://api.github.com/users/${encodeURIComponent(username)}`).then(async (userResponse) => {
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          if (userData.avatar_url) localStorage.setItem("github_avatar_url", userData.avatar_url);
+        if (!validation.ok) {
+          throw new Error("GitHub approved the login, but the browser could not establish a PoWR session. Please allow cross-site cookies and try again.");
         }
-      }).catch((error) => console.error("Failed to fetch GitHub avatar:", error));
 
-      // Derive Nostr keypair and register pubkey
-      void getOrCreateKeypair(username).then(({ pk }) => apiClient.registerNostrPubkey(username, pk)).catch(() => {
-        // Non-critical — continue even if this fails
-      });
+        setStep("storing");
+        localStorage.setItem("github_username", username);
 
-      // Step 3: Success and redirect
-      setStatus("success");
-      setStep("redirecting");
-      router.replace("/dashboard");
+        void fetch(`https://api.github.com/users/${encodeURIComponent(username)}`).then(async (userResponse) => {
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.avatar_url) localStorage.setItem("github_avatar_url", userData.avatar_url);
+          }
+        }).catch((avatarError) => console.error("Failed to fetch GitHub avatar:", avatarError));
+
+        void getOrCreateKeypair(username).then(({ pk }) => apiClient.registerNostrPubkey(username, pk)).catch(() => {
+          // Non-critical — continue even if this fails
+        });
+
+        setStatus("success");
+        setStep("redirecting");
+        router.replace("/dashboard");
+      } catch (authError) {
+        localStorage.removeItem("github_username");
+        setStatus("error");
+        setError(authError instanceof Error ? authError.message : "Unable to establish your PoWR session");
+      }
     };
 
     processAuth();

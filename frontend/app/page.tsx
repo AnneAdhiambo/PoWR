@@ -2,10 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRightIcon,
-  Award01Icon,
   BookOpen01Icon,
   Briefcase01Icon,
-  CoinsStacked01Icon,
   Dataflow01Icon,
   EyeIcon,
   FileSearch02Icon,
@@ -20,6 +18,9 @@ import {
 import { MarketingLayout } from "./components/marketing/MarketingLayout";
 import { FaqSection } from "./components/marketing/FaqSection";
 import { FeaturedDevelopers } from "./components/marketing/FeaturedDevelopers";
+import { OpenSourceProjectCarousel } from "./components/marketing/OpenSourceIssueCarousel";
+import LiquidEther from "./components/ui/LiquidEther";
+import FaultyTerminal from "./components/ui/FaultyTerminal";
 
 const workflow = [
   ["01", "Define the work", "Turn the role into skills, outcomes, and evidence your hiring team can agree on."],
@@ -34,9 +35,13 @@ export default function Home() {
   return (
     <MarketingLayout theme="dark">
       <main>
-        <section className="px-5 py-20 sm:px-8 lg:py-28">
-          <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.88fr_1.12fr]">
-            <div>
+        <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:py-28">
+          <div className="absolute inset-0 -z-10 opacity-75" aria-hidden="true">
+            <LiquidEther colors={["#ff4d00", "#ff7a1a", "#2b1209"]} mouseForce={14} cursorSize={86} autoSpeed={0.32} autoIntensity={1.5} resolution={0.38} />
+          </div>
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,#090b0f_8%,rgba(9,11,15,.9)_42%,rgba(9,11,15,.38)_100%)]" />
+          <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.88fr_1.12fr]">
+            <div className="rounded-3xl bg-[#090b0f]/55 py-5 backdrop-blur-[2px]">
               <h1 className="max-w-3xl text-5xl font-semibold leading-[1.02] tracking-[-0.045em] text-white sm:text-7xl">
                 Know who can do the work <span className="text-[var(--brand-orange)]">before the interview.</span>
               </h1>
@@ -124,59 +129,32 @@ export default function Home() {
 
         <FeaturedDevelopers />
 
-        <section id="open-source" className="scroll-mt-24 bg-[#0d0e12] px-5 py-20 sm:px-8 lg:py-28">
-          <div className="mx-auto max-w-7xl">
+        <section id="open-source" className="relative isolate scroll-mt-24 overflow-hidden bg-[#0d0e12] px-5 py-20 sm:px-8 lg:py-28">
+          <div className="absolute inset-0 -z-10 opacity-70" aria-hidden="true"><FaultyTerminal /></div>
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_70%_45%,rgba(255,85,0,.08),transparent_38%),linear-gradient(90deg,#0d0e12_0%,rgba(13,14,18,.78)_55%,#0d0e12_100%)]" />
+          <div className="relative mx-auto max-w-7xl">
             <div className="flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
               <div className="max-w-4xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-orange-500">Open-source growth on PoWR</p>
                 <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-6xl">Build in public. Learn through <span className="text-orange-500">real contributions.</span></h2>
-                <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-400">Developers can discover work suited to their level, contribute to production projects, and turn merged pull requests into evidence hiring teams can inspect.</p>
+                <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-400">Choose a real issue, contribute on GitHub, and turn merged work into verified Street Points.</p>
               </div>
               <Link href="/open-source" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 font-semibold text-white transition-colors hover:bg-orange-600">Explore open source <ArrowRightIcon className="size-5" /></Link>
             </div>
 
-            <div className="mt-12 grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="mt-12 grid gap-6 lg:grid-cols-[0.72fr_1.28fr] lg:items-stretch">
+              <div className="flex flex-col justify-center gap-3">
                 {[
-                  [BookOpen01Icon, "Find work worth learning from", "Browse curated public projects and issues with enough context to choose your next contribution."],
-                  [GraduationHat01Icon, "Choose the right challenge", "Use difficulty, language, project health, and contribution value to find work that stretches your skills."],
-                  [GitPullRequestIcon, "Ship work that counts", "Claim an issue, add your PoWR token, and submit a contribution through the project’s normal GitHub workflow."],
-                  [CoinsStacked01Icon, "Earn verified Street Points", "Meaningful merged pull requests are verified automatically and added to your public PoWR evidence."],
+                  [BookOpen01Icon, "Find your next issue", "Browse maintained projects with clear contribution paths."],
+                  [GraduationHat01Icon, "Learn by shipping", "Pick work that matches your language and experience."],
+                  [GitPullRequestIcon, "Prove the outcome", "Merged work becomes evidence and Street Points."],
                 ].map(([Icon, title, description]) => {
                   const BenefitIcon = Icon as typeof BookOpen01Icon;
-                  return <article key={String(title)} className="rounded-2xl bg-[#15161a] p-6"><span className="flex size-11 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><BenefitIcon className="size-5" /></span><h3 className="mt-6 text-lg font-semibold text-white">{title as string}</h3><p className="mt-3 text-sm leading-7 text-gray-400">{description as string}</p></article>;
+                  return <article key={String(title)} className="flex gap-4 rounded-2xl bg-[#15161a]/90 p-5 backdrop-blur-sm"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><BenefitIcon className="size-5" /></span><div><h3 className="font-semibold text-white">{title as string}</h3><p className="mt-1.5 text-sm leading-6 text-gray-400">{description as string}</p></div></article>;
                 })}
               </div>
 
-              <article className="rounded-3xl bg-[#121317] p-6 shadow-[0_28px_80px_rgba(0,0,0,0.28)] sm:p-8">
-                <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-                  <div className="flex items-center gap-4"><span className="flex size-12 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><GitPullRequestIcon className="size-6" /></span><div><p className="font-semibold text-white">calcom/cal.com</p><p className="mt-1 text-xs text-gray-500">Scheduling infrastructure · TypeScript</p></div></div>
-                  <span className="w-fit rounded-md bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-400">PoWR partner</span>
-                </div>
-
-                <div className="mt-8 rounded-2xl bg-[#191a1f] p-5 sm:p-6">
-                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Available issue</p><h3 className="mt-3 text-lg font-semibold leading-7 text-white">Improve keyboard navigation in the availability editor</h3></div><div className="shrink-0 text-left sm:text-right"><p className="text-2xl font-semibold text-orange-500">180</p><p className="text-xs text-gray-500">Street Points</p></div></div>
-                  <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-xs text-gray-400">Intermediate</span><span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-xs text-gray-400">Accessibility</span><span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-xs text-gray-400">TypeScript</span></div>
-                  <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><p className="max-w-md text-sm leading-6 text-gray-400">Claiming reserves a public verification token. Multiple developers may work on the issue; only meaningful merged work scores.</p><Link href="/open-source" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white hover:bg-orange-600">View issue</Link></div>
-                </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  {[
-                    [BookOpen01Icon, "Choose an issue"],
-                    [GitPullRequestIcon, "Merge the work"],
-                    [Award01Icon, "Verify the evidence"],
-                  ].map(([Icon, label]) => {
-                    const StepIcon = Icon as typeof BookOpen01Icon;
-                    return <div key={String(label)} className="flex items-center gap-3 rounded-xl bg-[#17181c] p-3"><StepIcon className="size-4 shrink-0 text-orange-500" /><span className="text-xs font-medium text-gray-300">{label as string}</span></div>;
-                  })}
-                </div>
-              </article>
-            </div>
-
-            <div className="mt-6 grid gap-4 rounded-2xl bg-[#15161a] p-6 md:grid-cols-[48px_1fr_auto] md:items-center">
-              <span className="flex size-11 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><EyeIcon className="size-5" /></span>
-              <div><h3 className="font-semibold text-white">For hiring teams, contributions become inspectable proof.</h3><p className="mt-2 text-sm leading-6 text-gray-400">Review the original issue, commits, pull request, merge, and PoWR verification instead of relying only on self-reported project experience.</p></div>
-              <Link href="/developers#sample-evidence" className="inline-flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-300">See contribution evidence <ArrowRightIcon className="size-4" /></Link>
+              <OpenSourceProjectCarousel />
             </div>
           </div>
         </section>

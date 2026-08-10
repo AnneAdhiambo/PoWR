@@ -67,6 +67,7 @@ frontend/app/api/debug/
 *.md
 !README.md
 !**/README.md
+!CONTRIBUTING.md
 
 # Clarinet network configs that contain mnemonics — never commit
 settings/Testnet.toml

@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "avatars.githubusercontent.com",
+        pathname: "/u/**",
+      },
+    ],
+  },
   // Keep Turbopack scoped to this frontend. The machine has higher-level
   // lockfiles, which otherwise make Next scan the entire user directory.
   turbopack: {
