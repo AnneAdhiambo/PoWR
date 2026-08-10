@@ -115,7 +115,7 @@ export function OpenSourceProjectCarousel() {
           <section
             key={`${issue.url}-${index}`}
             aria-hidden={position !== index}
-            className="min-h-[410px] w-full shrink-0 sm:min-h-[350px]"
+            className="w-full shrink-0"
           >
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
@@ -145,9 +145,9 @@ export function OpenSourceProjectCarousel() {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <div className="flex gap-2" aria-label="Choose issue">
-          {projects.map((item, index) => <button key={item.url} type="button" onClick={() => choose(index)} aria-label={`Show project ${index + 1}`} aria-current={active === index} className={`h-1.5 cursor-pointer rounded-full transition-all ${active === index ? "w-8 bg-orange-500" : "w-3 bg-white/15 hover:bg-white/30"}`} />)}
+      <div className="mt-5 flex items-center justify-between">
+        <div className="flex gap-2" aria-label="Choose project">
+          {projects.map((item, index) => <button key={item.url} type="button" onClick={() => choose(index)} aria-label={`Show project ${index + 1}`} aria-current={active === index} style={{ transitionDuration: "1000ms", transitionTimingFunction: "cubic-bezier(.22,1,.36,1)" }} className={`h-1.5 cursor-pointer rounded-full transition-[width,background-color] ${active === index ? "w-8 bg-orange-500" : "w-3 bg-white/15 hover:bg-white/30"}`} />)}
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={previous} aria-label="Previous project" className="flex size-10 cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] text-gray-300 transition-colors hover:bg-orange-500 hover:text-white"><ArrowLeftIcon className="size-4" /></button>
