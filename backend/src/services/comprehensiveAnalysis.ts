@@ -13,6 +13,18 @@ export interface RepoAnalysis {
   pushedAt: string;
   topics: string[];
   commitCount: number;
+  role: "owner" | "fork-maintainer";
+  isFork: boolean;
+  archived: boolean;
+  defaultBranch: string;
+  license: string | null;
+  sizeKb: number;
+  openIssues: number;
+  watchers: number;
+  daysSincePush: number;
+  activityScore: number;
+  evidenceScore: number;
+  evidenceSignals: string[];
 }
 
 export interface DeveloperProfile {
@@ -94,7 +106,7 @@ export class ComprehensiveAnalysisService {
     );
 
     // Analyze repos with languages
-    const ownedRepos = repos.filter((r: any) => r.owner.login === username && !r.fork);
+    const ownedRepos = repos.filter((r: any) => r.owner.login.toLowerCase() === username.toLowerCase() && !r.archived);
     const repoAnalyses = await this.analyzeRepos(ownedRepos, username);
     
     // Aggregate languages
@@ -293,6 +305,15 @@ export class ComprehensiveAnalysisService {
             pushedAt: repo.pushed_at,
             topics: repo.topics || [],
             commitCount,
+            role: repo.fork ? "fork-maintainer" as const : "owner" as const,
+            isFork: Boolean(repo.fork),
+            archived: Boolean(repo.archived),
+            defaultBranch: repo.default_branch || "main",
+            license: repo.license?.spdx_id || null,
+            sizeKb: repo.size || 0,
+            openIssues: repo.open_issues_count || 0,
+            watchers: repo.subscribers_count || repo.watchers_count || 0,
+            ...this.repositoryEvidence(repo, languages, commitCount),
           };
         })
       );
@@ -300,6 +321,27 @@ export class ComprehensiveAnalysisService {
     }
 
     return analyses;
+  }
+
+  private repositoryEvidence(repo: any, languages: GitHubRepoLanguages, commitCount: number) {
+    const pushedAt = new Date(repo.pushed_at || repo.updated_at || 0).getTime();
+    const daysSincePush = Math.max(0, Math.floor((Date.now() - pushedAt) / 86400000));
+    const languageCount = Object.keys(languages).length;
+    const signals: string[] = [];
+    let evidenceScore = 15;
+    if (daysSincePush <= 30) { evidenceScore += 20; signals.push("active in the last 30 days"); }
+    else if (daysSincePush <= 180) { evidenceScore += 10; signals.push("active in the last six months"); }
+    if (commitCount >= 20) { evidenceScore += 20; signals.push("sustained commit history"); }
+    else if (commitCount >= 5) { evidenceScore += 10; signals.push("repeat contribution history"); }
+    if (languageCount >= 3) { evidenceScore += 8; signals.push("multi-language implementation"); }
+    if ((repo.stargazers_count || 0) >= 10) { evidenceScore += 7; signals.push("external adoption signal"); }
+    if ((repo.forks_count || 0) >= 3) { evidenceScore += 5; signals.push("downstream reuse signal"); }
+    if (repo.has_issues) { evidenceScore += 5; signals.push("public issue workflow"); }
+    if (repo.license?.spdx_id) { evidenceScore += 5; signals.push("declared open-source license"); }
+    if (repo.archived) { evidenceScore -= 30; signals.push("archived repository"); }
+    if (repo.fork) { evidenceScore -= 5; signals.push("fork; authorship requires commit-level evidence"); }
+    const activityScore = Math.max(0, Math.min(100, Math.round(100 - Math.min(100, daysSincePush / 3) + Math.log10((commitCount || 0) + 1) * 8)));
+    return { daysSincePush, activityScore, evidenceScore: Math.max(0, Math.min(100, evidenceScore)), evidenceSignals: signals };
   }
 
   private aggregateLanguages(repos: RepoAnalysis[]) {

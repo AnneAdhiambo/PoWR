@@ -4,7 +4,8 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "../../components/ui";
-import { CheckCircle2, Loader2, Github } from "lucide-react";
+import { CheckCircle2, Github } from "lucide-react";
+import { SquircleLoader } from "../../components/ui/SquircleLoader";
 import { apiClient } from "../../lib/api";
 import { getOrCreateKeypair } from "../../lib/nostr";
 
@@ -16,12 +17,11 @@ function AuthCallbackContent() {
   const [step, setStep] = useState<"processing" | "storing" | "redirecting">("processing");
 
   useEffect(() => {
-    const token = searchParams.get("token");
     const username = searchParams.get("username");
 
-    if (!token || !username) {
+    if (!username) {
       setStatus("error");
-      setError("Missing authentication token or username");
+      setError("Missing authenticated username");
       return;
     }
 
@@ -29,47 +29,26 @@ function AuthCallbackContent() {
     const processAuth = async () => {
       // Step 1: Processing
       setStep("processing");
-      await new Promise(resolve => setTimeout(resolve, 500));
+      localStorage.setItem("github_username", username);
 
       // Step 2: Fetch GitHub user info to get avatar
       setStep("storing");
-      try {
-        const userResponse = await fetch("https://api.github.com/user", {
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: "application/vnd.github.v3+json",
-          },
-        });
+      void fetch(`https://api.github.com/users/${encodeURIComponent(username)}`).then(async (userResponse) => {
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          if (userData.avatar_url) {
-            localStorage.setItem("github_avatar_url", userData.avatar_url);
-          }
+          if (userData.avatar_url) localStorage.setItem("github_avatar_url", userData.avatar_url);
         }
-      } catch (error) {
-        console.error("Failed to fetch GitHub avatar:", error);
-      }
-
-      localStorage.setItem("github_token", token);
-      localStorage.setItem("github_username", username);
-      localStorage.setItem("github_token_timestamp", Date.now().toString());
+      }).catch((error) => console.error("Failed to fetch GitHub avatar:", error));
 
       // Derive Nostr keypair and register pubkey
-      try {
-        const { pk } = await getOrCreateKeypair(username);
-        await apiClient.registerNostrPubkey(username, pk);
-      } catch {
+      void getOrCreateKeypair(username).then(({ pk }) => apiClient.registerNostrPubkey(username, pk)).catch(() => {
         // Non-critical — continue even if this fails
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
+      });
 
       // Step 3: Success and redirect
       setStatus("success");
       setStep("redirecting");
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      router.push("/dashboard");
+      router.replace("/dashboard");
     };
 
     processAuth();
@@ -153,7 +132,7 @@ function AuthCallbackContent() {
 
             {status === "loading" && (
               <div className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 text-[#FF5500] animate-spin" />
+                <SquircleLoader size={20} label="Authenticating" />
                 <div className="flex gap-1">
                   <motion.div
                     className="w-2 h-2 bg-[#FF5500] rounded-full"
@@ -185,7 +164,7 @@ export default function AuthCallbackPage() {
     <Suspense fallback={
       <div className="min-h-screen bg-[#0A0B0D] flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-8">
-          <Loader2 className="w-16 h-16 text-[#FF5500] animate-spin mx-auto" />
+          <SquircleLoader size={64} label="Loading authentication" />
           <p className="text-gray-400 mt-4">Loading...</p>
         </Card>
       </div>

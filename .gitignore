@@ -35,6 +35,8 @@ pnpm-debug.log*
 # Testing
 coverage/
 .nyc_output/
+frontend/playwright-report/
+frontend/test-results/
 
 # Misc
 *.pem
@@ -61,9 +63,17 @@ backend/history.txt
 backend/test.js
 frontend/app/api/debug/
 
+# Keep repository documentation limited to README files; retain other Markdown locally.
+*.md
+!README.md
+!**/README.md
+
 # Clarinet network configs that contain mnemonics — never commit
 settings/Testnet.toml
 settings/Mainnet.toml
 
 # Excluded folders
 powr-frontend/
+powr-showcase/node_modules.incomplete/
+powr-showcase/package-lock.incomplete.json
+powr-showcase/powr-showcase/

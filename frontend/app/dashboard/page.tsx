@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "../components/layout/Sidebar";
 import { TrustScoreCircle } from "../components/ui/TrustScoreCircle";
@@ -17,6 +17,20 @@ import { Button, Card } from "../components/ui";
 import { ArrowClockwise, Quotes, Sparkle } from "phosphor-react";
 import { PricingModal } from "../components/subscription/PricingModal";
 import toast from "react-hot-toast";
+import { openSourceApi } from "../lib/openSourceApi";
+import { StreetScoreCircle } from "../components/ui/StreetScoreCircle";
+import { SquircleLoader } from "../components/ui/SquircleLoader";
+
+const INITIAL_PROFILE: PoWProfile = {
+  skills: [
+    { skill: "Backend Engineering", score: 0, percentile: 0, confidence: 0, artifactCount: 0 },
+    { skill: "Frontend Engineering", score: 0, percentile: 0, confidence: 0, artifactCount: 0 },
+    { skill: "DevOps / Infrastructure", score: 0, percentile: 0, confidence: 0, artifactCount: 0 },
+    { skill: "Systems / Architecture", score: 0, percentile: 0, confidence: 0, artifactCount: 0 },
+  ],
+  overallIndex: 0,
+  artifactSummary: { repos: 0, commits: 0, pullRequests: 0, mergedPRs: 0 },
+};
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -39,6 +53,9 @@ export default function DashboardPage() {
   const [skillBadges, setSkillBadges] = useState<Badge[]>([]);
   const [achievements, setAchievements] = useState<GithubBadge[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [streetPoints, setStreetPoints] = useState(0);
+  const analysisStartedRef = useRef(false);
+  const analysisCompletedRef = useRef(false);
 
   // Get from sessionStorage (set by auth callback)
   const [username, setUsername] = useState<string>("");
@@ -49,63 +66,16 @@ export default function DashboardPage() {
   const [displayName, setDisplayName] = useState<string>("");
 
   useEffect(() => {
-    // Get auth data from localStorage
-    const token = localStorage.getItem("github_token");
     const storedUsername = localStorage.getItem("github_username");
-
-    if (token && storedUsername) {
-      // Check if token is still valid
-      checkTokenValidity(token, storedUsername).then((isValid) => {
-        if (isValid) {
-          setAccessToken(token);
-          setUsername(storedUsername);
-        } else {
-          // Token expired or invalid, clear and redirect to login
-          localStorage.removeItem("github_token");
-          localStorage.removeItem("github_username");
-          localStorage.removeItem("github_token_timestamp");
-          router.push("/auth");
-        }
-      });
-    } else {
-      // No auth data, redirect to auth page
-      router.push("/auth");
-      return;
-    }
-  }, [router]);
-
-  const checkTokenValidity = async (token: string, username: string): Promise<boolean> => {
-    try {
-      // Check token timestamp (GitHub tokens typically don't expire, but we'll validate anyway)
-      const tokenTimestamp = localStorage.getItem("github_token_timestamp");
-      if (tokenTimestamp) {
-        const tokenAge = Date.now() - parseInt(tokenTimestamp);
-        // If token is older than 30 days, validate it
-        if (tokenAge > 30 * 24 * 60 * 60 * 1000) {
-          // Validate token by making a test API call
-          const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-          const response = await fetch(`${apiBaseUrl}/api/auth/validate?token=${encodeURIComponent(token)}`);
-          if (!response.ok) return false;
-          const data = await response.json();
-          return data.valid === true;
-        }
-        // Token is recent, assume valid
-        return true;
-      }
-      // No timestamp, validate token
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiBaseUrl}/api/auth/validate?token=${encodeURIComponent(token)}`);
-      if (!response.ok) return false;
-      const data = await response.json();
-      return data.valid === true;
-    } catch (error) {
-      console.error("Token validation error:", error);
-      return false;
-    }
-  };
+    if (!storedUsername) return;
+    setAccessToken("server-session");
+    setUsername(storedUsername);
+  }, []);
 
   useEffect(() => {
     if (username && accessToken) {
+      setProfile((current) => current || INITIAL_PROFILE);
+      setLoading(false);
       loadDashboard();
 
       // Poll for progress updates
@@ -113,8 +83,15 @@ export default function DashboardPage() {
         try {
           const progress = await apiClient.getProgress(username);
           if (progress.stage !== "idle" && progress.stage !== "complete") {
+            setAnalyzing(true);
             setProgressMessage(progress.message);
             setProgressPercent(progress.progress);
+          } else if (progress.stage === "complete" && !analysisCompletedRef.current) {
+            analysisCompletedRef.current = true;
+            setProgressMessage("Your evidence profile is ready");
+            setProgressPercent(100);
+            setAnalyzing(false);
+            await loadDashboard();
           }
         } catch (error) {
           // Ignore progress polling errors
@@ -124,6 +101,35 @@ export default function DashboardPage() {
       return () => clearInterval(progressInterval);
     }
   }, [username, accessToken]);
+
+  const startBackgroundAnalysis = () => {
+    if (!username || analysisStartedRef.current) return;
+    analysisStartedRef.current = true;
+    setAnalyzing(true);
+    setProgressMessage("Connecting your public GitHub evidence…");
+    setProgressPercent(8);
+    void apiClient.triggerAnalysis(username, accessToken, 12)
+      .then((result) => {
+        setProfile(result.profile);
+        setProgressMessage("Your evidence profile is ready");
+        setProgressPercent(100);
+        setAnalyzing(false);
+        analysisCompletedRef.current = true;
+        void loadDashboard();
+      })
+      .catch((error) => {
+        console.error("Background analysis failed:", error);
+        setAnalyzing(false);
+        setProgressMessage("Analysis paused — you can retry without leaving the dashboard");
+      });
+  };
+
+  useEffect(() => {
+    if (!username) return;
+    openSourceApi.profile(username)
+      .then((data) => setStreetPoints(Number(data.openSource.street_points || 0)))
+      .catch(() => setStreetPoints(0));
+  }, [username]);
 
   // Get user email and display name for sidebar
   useEffect(() => {
@@ -213,19 +219,19 @@ export default function DashboardPage() {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:96', message: 'getUserProfile error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
             // #endregion
-            throw err;
+            return null;
           }),
           apiClient.getUserArtifacts(username, accessToken || undefined).catch(err => {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:97', message: 'getUserArtifacts error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
             // #endregion
-            throw err;
+            return { artifacts: [] };
           }),
           apiClient.getProofs(username).catch(err => {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:98', message: 'getProofs error', data: { error: err?.message || String(err) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
             // #endregion
-            throw err;
+            return { proofs: [] };
           }),
           apiClient.getCurrentSubscription(username).catch(() => ({ subscription: null, plan: null })),
           apiClient.getNextUpdateDate(username).catch(() => ({ nextUpdateDate: null, planType: "free" })),
@@ -236,7 +242,7 @@ export default function DashboardPage() {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:100', message: 'Promise.all complete', data: { hasProfile: !!profileData, hasArtifacts: !!artifactsData, hasProofs: !!proofsData }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
-        setProfile(profileData);
+        setProfile(profileData || INITIAL_PROFILE);
         setArtifacts(artifactsData.artifacts);
         setProofs(proofsData.proofs);
         setSubscription(subscriptionData.subscription);
@@ -248,12 +254,14 @@ export default function DashboardPage() {
         setSkillBadges(badgesData.skillBadges);
         setAchievements(badgesData.achievements);
         setProjects(projectsData.projects || []);
+        if (!analysisStatusData.hasProfile) startBackgroundAnalysis();
       }
     } catch (error: any) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:104', message: 'loadDashboard catch', data: { error: error?.message || String(error) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
       // #endregion
       console.error("Failed to load dashboard:", error);
+      setProfile((current) => current || INITIAL_PROFILE);
     } finally {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/e50544f0-1e4f-47a1-90ac-c89d010c6423', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'dashboard/page.tsx:107', message: 'loadDashboard finally', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
@@ -329,7 +337,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="mx-auto mb-4"><SquircleLoader size={64} label="Loading dashboard" /></div>
           <p className="text-gray-400 mb-2">{progressMessage}</p>
           {progressPercent > 0 && (
             <div className="w-64 h-2 bg-[#141519] rounded-full mx-auto overflow-hidden">
@@ -344,25 +352,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-[#0A0B0D] flex">
-        <Sidebar
-          username={username}
-          email={userEmail || undefined}
-          displayName={displayName}
-        />
-        <div className="flex-1 flex items-center justify-center p-4 ml-60">
-          <div className="text-center">
-            <p className="text-gray-400 mb-4">No profile found</p>
-            <Button onClick={handleAnalyze} disabled={analyzing}>
-              {analyzing ? "Analyzing..." : "Generate Profile"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const dashboardProfile = profile || INITIAL_PROFILE;
 
   return (
     <>
@@ -393,10 +383,18 @@ export default function DashboardPage() {
                 variant="outline"
                 className="flex items-center gap-2 text-xs px-3 py-1.5"
               >
-                <ArrowClockwise className={`w-3.5 h-3.5 ${analyzing ? "animate-spin" : ""}`} weight="regular" />
+                {analyzing ? <SquircleLoader size={14} color="currentColor" label="Analyzing" /> : <ArrowClockwise className="w-3.5 h-3.5" weight="regular" />}
                 {analyzing ? "Analyzing..." : "Refresh Analysis"}
               </Button>
             </div>
+
+            {(analyzing || (progressMessage.includes("paused") && progressPercent < 100)) && (
+              <div className="mb-6 overflow-hidden rounded-[14px] border border-[#ff6a1a]/20 bg-gradient-to-r from-[#ff6a1a]/10 to-[#8b5cf6]/[0.06] p-4">
+                <div className="flex items-center justify-between gap-4"><div><div className="flex items-center gap-2 text-sm font-semibold text-white"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff6a1a] opacity-50" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6a1a]" /></span>Building your evidence profile</div><p className="mt-1 text-xs text-[#9ca2ad]">{progressMessage || "Reviewing repositories, contributions, and engineering signals…"}</p></div><div className="text-sm font-semibold text-[#ff9a64]">{Math.max(5, progressPercent)}%</div></div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6a1a] to-[#a855f7] transition-all duration-500" style={{ width: `${Math.max(5, progressPercent)}%` }} /></div>
+                <div className="mt-2 text-[10px] text-[#6f7580]">You can explore jobs, open source, and your workspace while PoWR finishes.</div>
+              </div>
+            )}
 
             {/* Publish Prompt Banner */}
             {showPublishPrompt && (
@@ -443,19 +441,24 @@ export default function DashboardPage() {
               {/* Main Content Column */}
               <div className="space-y-6">
                 {/* Metrics Cards Row */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-5 gap-4">
                   {/* Trust Score - Large Circle */}
                   <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] rounded-[14px] p-4 flex flex-col items-center justify-center min-h-[84px]">
-                    <TrustScoreCircle score={profile.overallIndex} size="md" />
+                    <TrustScoreCircle score={dashboardProfile.overallIndex} size="md" />
+                  </div>
+
+                  <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.04)] rounded-[14px] p-4 flex flex-col items-center justify-center min-h-[84px]">
+                    <StreetScoreCircle points={streetPoints} size={92} compact />
+                    <span className="mt-2 text-xs text-gray-400">Street Score</span>
                   </div>
 
                   {/* Other Metrics - 3 cards */}
                   <div className="col-span-3">
                     <ArtifactsSummary
-                      repos={profile.artifactSummary.repos}
-                      commits={profile.artifactSummary.commits}
-                      pullRequests={profile.artifactSummary.pullRequests}
-                      mergedPRs={profile.artifactSummary.mergedPRs}
+                      repos={dashboardProfile.artifactSummary.repos}
+                      commits={dashboardProfile.artifactSummary.commits}
+                      pullRequests={dashboardProfile.artifactSummary.pullRequests}
+                      mergedPRs={dashboardProfile.artifactSummary.mergedPRs}
                     />
                   </div>
                 </div>
@@ -463,7 +466,7 @@ export default function DashboardPage() {
                 {/* Middle Section: Two Columns */}
                 <div className="grid grid-cols-2 gap-6">
                   {/* Skill Percentiles - Radar Chart */}
-                  <SkillsRadarChart skills={profile.skills} />
+                  <SkillsRadarChart skills={dashboardProfile.skills} />
 
                   {/* Recent Verified Work */}
                   <RecentWorkFeed artifacts={artifacts} limit={5} projects={projects} />
@@ -500,7 +503,7 @@ export default function DashboardPage() {
                       AI Profile Summary
                     </h3>
                     <p className="text-gray-300 leading-relaxed text-xs relative z-10 font-light tracking-wide">
-                      {profile.summary}
+                      {dashboardProfile.summary}
                     </p>
                   </Card>
                 )}

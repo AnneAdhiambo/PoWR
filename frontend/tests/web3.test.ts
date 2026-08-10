@@ -1,34 +1,26 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// Mock @stacks/transactions — no real network calls
-// ---------------------------------------------------------------------------
-vi.mock("@stacks/transactions", () => ({
-  Cl: {
-    buffer:     (v: Buffer) => ({ type: "buffer", buffer: v }),
-    principal:  (v: string) => ({ type: "principal", value: v }),
-    uint:       (v: number) => ({ type: "uint", value: BigInt(v) }),
-  },
-  ClarityType:        { OptionalSome: 9, OptionalNone: 10 },
-  fetchCallReadOnlyFunction: vi.fn(),
-  cvToValue:          vi.fn(),
-}));
-
-import * as stacksTx from "@stacks/transactions";
 import {
-  getExplorerTxUrl,
+  POW_REGISTRY_CONTRACT,
   getExplorerBlockUrl,
   getExplorerContractUrl,
+  getExplorerTxUrl,
   getNetworkLabel,
-  verifyHashOnChain,
   getOnChainSnapshot,
+  verifyHashOnChain,
 } from "../app/lib/web3";
 
 describe("web3 helpers", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
 
-  // -------------------------------------------------------------------------
-  // Explorer URL helpers
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_STACKS_NETWORK;
+    delete process.env.NEXT_PUBLIC_STACKS_API_URL;
+    vi.unstubAllGlobals();
+  });
 
   describe("getExplorerTxUrl", () => {
     it("returns a Hiro Explorer URL with the txId", () => {
@@ -38,14 +30,12 @@ describe("web3 helpers", () => {
     });
 
     it("includes chain=testnet for non-mainnet", () => {
-      delete process.env.NEXT_PUBLIC_STACKS_NETWORK;
       expect(getExplorerTxUrl("0xabc")).toContain("chain=testnet");
     });
 
-    it("omits chain param on mainnet", () => {
+    it("omits the chain parameter on mainnet", () => {
       process.env.NEXT_PUBLIC_STACKS_NETWORK = "mainnet";
       expect(getExplorerTxUrl("0xabc")).not.toContain("chain=");
-      delete process.env.NEXT_PUBLIC_STACKS_NETWORK;
     });
   });
 
@@ -58,87 +48,74 @@ describe("web3 helpers", () => {
   });
 
   describe("getNetworkLabel", () => {
-    it("returns 'Stacks Mainnet' for mainnet", () => {
+    it("returns Stacks Mainnet for mainnet", () => {
       process.env.NEXT_PUBLIC_STACKS_NETWORK = "mainnet";
       expect(getNetworkLabel()).toBe("Stacks Mainnet");
-      delete process.env.NEXT_PUBLIC_STACKS_NETWORK;
     });
 
-    it("returns 'Stacks Testnet' for testnet", () => {
+    it("returns Stacks Testnet for testnet", () => {
       process.env.NEXT_PUBLIC_STACKS_NETWORK = "testnet";
       expect(getNetworkLabel()).toBe("Stacks Testnet");
-      delete process.env.NEXT_PUBLIC_STACKS_NETWORK;
     });
 
-    it("returns 'Stacks Devnet' by default", () => {
-      delete process.env.NEXT_PUBLIC_STACKS_NETWORK;
+    it("returns Stacks Devnet by default", () => {
       expect(getNetworkLabel()).toBe("Stacks Devnet");
     });
   });
 
   describe("getExplorerContractUrl", () => {
-    it("returns '#' when no contract address is configured", () => {
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
-      expect(getExplorerContractUrl()).toBe("#");
+    it("returns the deployed registry contract URL", () => {
+      expect(getExplorerContractUrl()).toContain(POW_REGISTRY_CONTRACT);
     });
   });
-
-  // -------------------------------------------------------------------------
-  // verifyHashOnChain
 
   describe("verifyHashOnChain", () => {
-    it("returns false when no contract address is set", async () => {
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
-      expect(await verifyHashOnChain("a".repeat(64))).toBe(false);
+    it("returns false for an invalid hash", async () => {
+      expect(await verifyHashOnChain("invalid")).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("returns true when hash is on-chain", async () => {
-      process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS = "ST1XXX";
-      vi.mocked(stacksTx.fetchCallReadOnlyFunction).mockResolvedValue({ type: "bool-true" } as any);
-      vi.mocked(stacksTx.cvToValue).mockReturnValue(true);
+    it("returns true when Hiro confirms the hash", async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ okay: true, result: "0x03" }),
+      } as Response);
+
       expect(await verifyHashOnChain("a".repeat(64))).toBe(true);
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
     });
 
-    it("strips 0x prefix before converting to buffer", async () => {
-      process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS = "ST1XXX";
-      vi.mocked(stacksTx.fetchCallReadOnlyFunction).mockResolvedValue({ type: "bool-true" } as any);
-      vi.mocked(stacksTx.cvToValue).mockReturnValue(true);
-      await expect(verifyHashOnChain("0x" + "f".repeat(64))).resolves.toBe(true);
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
+    it("strips the 0x prefix before encoding the hash buffer", async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ okay: true, result: "0x03" }),
+      } as Response);
+
+      await expect(verifyHashOnChain(`0x${"f".repeat(64)}`)).resolves.toBe(true);
+      const [, options] = vi.mocked(fetch).mock.calls[0];
+      expect(JSON.parse(String(options?.body)).arguments[0]).toBe(
+        `0x0200000020${"f".repeat(64)}`
+      );
     });
 
-    it("returns false on network error", async () => {
-      process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS = "ST1XXX";
-      vi.mocked(stacksTx.fetchCallReadOnlyFunction).mockRejectedValue(new Error("timeout"));
+    it("returns false on a network error", async () => {
+      vi.mocked(fetch).mockRejectedValue(new Error("timeout"));
       expect(await verifyHashOnChain("a".repeat(64))).toBe(false);
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
     });
   });
 
-  // -------------------------------------------------------------------------
-  // getOnChainSnapshot
-
   describe("getOnChainSnapshot", () => {
-    it("returns null when no contract address is set", async () => {
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
+    it("returns null when the snapshot is absent", async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ okay: false }),
+      } as Response);
+
       expect(await getOnChainSnapshot("ST1XXX")).toBeNull();
     });
 
-    it("returns null for an optional-none response", async () => {
-      process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS = "ST1XXX";
-      vi.mocked(stacksTx.fetchCallReadOnlyFunction).mockResolvedValue({
-        type: stacksTx.ClarityType.OptionalNone,
-      } as any);
+    it("returns null on a network error", async () => {
+      vi.mocked(fetch).mockRejectedValue(new Error("timeout"));
       expect(await getOnChainSnapshot("ST1XXX")).toBeNull();
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
-    });
-
-    it("returns null on network error", async () => {
-      process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS = "ST1XXX";
-      vi.mocked(stacksTx.fetchCallReadOnlyFunction).mockRejectedValue(new Error("timeout"));
-      expect(await getOnChainSnapshot("ST1XXX")).toBeNull();
-      delete process.env.NEXT_PUBLIC_POWR_REGISTRY_CONTRACT_ADDRESS;
     });
   });
 });

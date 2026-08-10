@@ -16,6 +16,20 @@ const allowedOrigins = [
   process.env.FRONTEND_URL?.replace(/\/$/, ""),
 ].filter(Boolean);
 
+function isAllowedTenantOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+    const isPowrHostname = hostname === "powr.localhost" ||
+      hostname.endsWith(".powr.localhost") ||
+      hostname === "powr.dev" ||
+      hostname.endsWith(".powr.dev");
+    return (url.protocol === "http:" || url.protocol === "https:") && isPowrHostname;
+  } catch {
+    return false;
+  }
+}
+
 console.log("Allowed origins at startup:", allowedOrigins); 
 
 app.use(cors({
@@ -24,14 +38,18 @@ app.use(cors({
     if (!origin) return callback(null, true);
     // Check if origin is allowed (strip trailing slash for comparison)
     const normalizedOrigin = origin.replace(/\/$/, "");
-    if (allowedOrigins.some(allowed => allowed === normalizedOrigin)) {
+    if (allowedOrigins.some(allowed => allowed === normalizedOrigin) || isAllowedTenantOrigin(normalizedOrigin)) {
       return callback(null, origin);
     }
     callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buffer) => {
+    (req as any).rawBody = Buffer.from(buffer);
+  },
+}));
 
 // Health check
 app.get("/health", (req, res) => {
@@ -81,6 +99,9 @@ import systemRoutes from "./routes/system";
 import recruiterRoutes from "./routes/recruiter";
 import badgeRoutes from "./routes/badges";
 import jobsRouter from "./routes/jobs";
+import tenantRoutes from "./routes/tenant";
+import referralRoutes from "./routes/referrals";
+import openSourceRoutes from "./routes/openSource";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -91,6 +112,9 @@ app.use("/api/system", systemRoutes);
 app.use("/api/recruiter", recruiterRoutes);
 app.use("/api/badges", badgeRoutes);
 app.use("/api", jobsRouter);
+app.use("/api/tenant", tenantRoutes);
+app.use("/api", openSourceRoutes);
+app.use("/api", referralRoutes);
 
 // Start scheduler service
 import { schedulerService } from "./services/schedulerService";

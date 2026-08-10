@@ -1,12 +1,23 @@
 // PoWR on-chain verification — Stacks / powr-registry contract
 // Network: testnet (Hiro API)
 
-const STACKS_NETWORK = process.env.NEXT_PUBLIC_STACKS_NETWORK || "testnet";
-const HIRO_API_URL =
-  process.env.NEXT_PUBLIC_STACKS_API_URL ||
-  (STACKS_NETWORK === "mainnet"
-    ? "https://api.hiro.so"
-    : "https://api.testnet.hiro.so");
+function getStacksNetwork(): string {
+  return process.env.NEXT_PUBLIC_STACKS_NETWORK || "testnet";
+}
+
+function getHiroApiUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_STACKS_API_URL ||
+    (getStacksNetwork() === "mainnet"
+      ? "https://api.hiro.so"
+      : "https://api.testnet.hiro.so")
+  );
+}
+
+function getExplorerChainQuery(): string {
+  const network = getStacksNetwork();
+  return network === "mainnet" ? "" : `?chain=${network}`;
+}
 
 // Stacks contract — deployed by oracle address
 export const POW_REGISTRY_ADDRESS =
@@ -26,15 +37,15 @@ export function getNetworkLabel(): string {
 
 export function getExplorerTxUrl(txId: string): string {
   const id = txId.startsWith("0x") ? txId : `0x${txId}`;
-  return `https://explorer.hiro.so/txid/${id}?chain=${STACKS_NETWORK}`;
+  return `https://explorer.hiro.so/txid/${id}${getExplorerChainQuery()}`;
 }
 
 export function getExplorerContractUrl(): string {
-  return `https://explorer.hiro.so/contract/${POW_REGISTRY_CONTRACT}?chain=${STACKS_NETWORK}`;
+  return `https://explorer.hiro.so/contract/${POW_REGISTRY_CONTRACT}${getExplorerChainQuery()}`;
 }
 
 export function getExplorerBlockUrl(blockHeight: number): string {
-  return `https://explorer.hiro.so/block/${blockHeight}?chain=${STACKS_NETWORK}`;
+  return `https://explorer.hiro.so/block/${blockHeight}${getExplorerChainQuery()}`;
 }
 
 // ─── On-chain verification ────────────────────────────────────────────────────
@@ -55,7 +66,7 @@ export async function verifyHashOnChain(hash: string): Promise<boolean> {
     const buffArg = `0x0200000020${hashHex}`;
 
     const res = await fetch(
-      `${HIRO_API_URL}/v2/contracts/call-read/${POW_REGISTRY_ADDRESS}/powr-registry/verify-snapshot`,
+      `${getHiroApiUrl()}/v2/contracts/call-read/${POW_REGISTRY_ADDRESS}/powr-registry/verify-snapshot`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,7 +105,7 @@ export async function getOnChainSnapshot(principal: string): Promise<{
       Buffer.from(principal).toString("hex");
 
     const res = await fetch(
-      `${HIRO_API_URL}/v2/contracts/call-read/${POW_REGISTRY_ADDRESS}/powr-registry/get-snapshot`,
+      `${getHiroApiUrl()}/v2/contracts/call-read/${POW_REGISTRY_ADDRESS}/powr-registry/get-snapshot`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

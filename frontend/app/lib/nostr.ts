@@ -20,33 +20,22 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-async function sha256Identifier(identifier: string): Promise<Uint8Array> {
-  const data = new TextEncoder().encode("powr:nostr:v1:" + identifier);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return new Uint8Array(buf);
-}
-
 /**
  * Derive the Nostr public key for any identifier deterministically.
  * Does NOT require localStorage — purely from the identifier string.
  * This allows any party to compute another user's pubkey from their username.
  */
-export async function getPubkeyForIdentifier(identifier: string): Promise<string> {
-  const sk = await sha256Identifier(identifier);
-  return getPublicKey(sk);
-}
-
 export async function getOrCreateKeypair(
   identifier: string
 ): Promise<{ sk: Uint8Array; pk: string }> {
   if (typeof window === "undefined") throw new Error("Client-side only");
-  const storageKey = `nostr_sk_${identifier}`;
+  const storageKey = `nostr_sk_v2_${identifier}`;
   const storedHex = localStorage.getItem(storageKey);
   let sk: Uint8Array;
   if (storedHex && storedHex.length === 64) {
     sk = hexToBytes(storedHex);
   } else {
-    sk = await sha256Identifier(identifier);
+    sk = crypto.getRandomValues(new Uint8Array(32));
     localStorage.setItem(storageKey, bytesToHex(sk));
   }
   const pk = getPublicKey(sk);

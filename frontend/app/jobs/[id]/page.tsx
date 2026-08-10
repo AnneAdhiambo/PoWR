@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Sidebar } from "../../components/layout/Sidebar";
 import { Card, Button } from "../../components/ui";
 import { Briefcase, MapPin, CurrencyDollar, Clock, Star, ArrowLeft, CheckCircle, XCircle, Buildings } from "phosphor-react";
 import { savedItems } from "../../lib/savedItems";
+import { apiClient } from "../../lib/api";
 import toast from "react-hot-toast";
+import { SquircleLoader } from "../../components/ui/SquircleLoader";
 
 interface Job {
   id: string;
@@ -22,6 +23,7 @@ interface Job {
   requirements?: string[];
   responsibilities?: string[];
   benefits?: string[];
+  screening_questions?: string[];
 }
 
 const mockJobs: Job[] = [
@@ -192,6 +194,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const isTenantHost = typeof window !== "undefined" && (window.location.hostname.endsWith(".powr.localhost") || window.location.hostname.endsWith(".powr.dev"));
 
   useEffect(() => {
     const storedUsername = localStorage.getItem("github_username");
@@ -205,27 +208,27 @@ export default function JobDetailPage() {
       setUserEmail(storedEmail);
     }
 
-    // Load job details
-    setTimeout(() => {
-      const foundJob = mockJobs.find(j => j.id === jobId);
-      if (foundJob) {
-        setJob(foundJob);
-        setSaved(savedItems.isJobSaved(foundJob.id));
+    apiClient.getJob(jobId).then(({ job: remoteJob }) => {
+      const hostname = window.location.hostname;
+      const isTenantHostname = hostname.endsWith(".powr.localhost") || hostname.endsWith(".powr.dev");
+      if (!isTenantHostname && remoteJob.organization_slug) {
+        const canonicalHost = hostname.endsWith("localhost")
+          ? `${remoteJob.organization_slug}.powr.localhost:${window.location.port || "3000"}`
+          : `${remoteJob.organization_slug}.powr.dev`;
+        window.location.replace(`${window.location.protocol}//${canonicalHost}/jobs/${remoteJob.public_slug || remoteJob.id}`);
+        return;
       }
-      setLoading(false);
-    }, 500);
+      const foundJob = { ...remoteJob, id: String(remoteJob.id), type: remoteJob.type || "full-time", salary: remoteJob.salary || "", description: remoteJob.description || "", tags: remoteJob.tags || [], posted: "Recently" } as Job;
+      setJob(foundJob);
+      setSaved(savedItems.isJobSaved(foundJob.id));
+    }).catch(() => setJob(null)).finally(() => setLoading(false));
   }, [jobId]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        <Sidebar 
-          username={username} 
-          email={userEmail || undefined}
-          displayName={displayName}
-        />
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+          <SquircleLoader size={32} label="Loading job" />
         </div>
       </div>
     );
@@ -234,15 +237,11 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex">
-        <Sidebar 
-          username={username} 
-          email={userEmail || undefined}
-          displayName={displayName}
-        />
-        <div className="flex-1 overflow-y-auto flex items-center justify-center ml-60">
+        <div className="flex-1 overflow-y-auto flex items-center justify-center">
           <div className="text-center">
             <XCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" weight="regular" />
-            <p className="text-gray-400 mb-2">Job not found</p>
+            <p className="text-gray-300 mb-2">This job is not currently available</p>
+            <p className="text-sm text-gray-500 mb-5">It may be paused, closed, expired, or no longer published.</p>
             <Button onClick={() => router.push("/jobs")} variant="outline" size="sm">
               Back to Jobs
             </Button>
@@ -254,13 +253,7 @@ export default function JobDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0c0f] flex">
-      <Sidebar 
-        username={username} 
-        email={userEmail || undefined}
-        displayName={displayName}
-      />
-
-      <div className="flex-1 overflow-y-auto ml-60">
+      <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1200px] mx-auto px-6 py-4">
           {/* Back Button */}
           <button
@@ -428,7 +421,22 @@ export default function JobDetailPage() {
                   variant="primary" 
                   size="lg"
                   onClick={() => {
-                    toast.success("Application functionality coming soon!");
+                    if (!username) {
+                      toast.error("Sign in to apply for this job");
+                      router.push("/auth");
+                      return;
+                    }
+                    const applicantEmail = userEmail || window.prompt("Your email address") || "";
+                    if (!applicantEmail) return;
+                    const coverNote = window.prompt("Optional cover note") || "";
+                    if (!window.confirm("Allow this company to store and review your application and PoWR profile?")) return;
+                    const screeningAnswers = Object.fromEntries((job.screening_questions || []).map((question) => [question, window.prompt(question) || ""]));
+                    apiClient.applyToJob(job.id, { applicant_email: applicantEmail, cover_note: coverNote, consent_given: true, screening_answers: screeningAnswers, shared_evidence: ["powr_profile"] })
+                      .then(({ application }) => {
+                        localStorage.setItem(`powr_application_${application.id}`, application.access_token);
+                        toast.success("Application submitted");
+                      })
+                      .catch((error) => toast.error(error.message || "Could not submit application"));
                   }}
                 >
                   Apply Now

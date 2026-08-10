@@ -5,6 +5,13 @@ function getRecruiterToken(): string | null {
   return localStorage.getItem("recruiter_token");
 }
 
+export function clearRecruiterSession() {
+  if (typeof window === "undefined") return;
+  ["recruiter_token", "recruiter_email", "recruiter_company", "recruiter_plan"].forEach((key) => localStorage.removeItem(key));
+  localStorage.setItem("powr_session_event", `recruiter-logout:${Date.now()}`);
+  window.dispatchEvent(new CustomEvent("powr:recruiter-logout"));
+}
+
 class RecruiterApiClient {
   private baseUrl: string;
 
@@ -12,13 +19,23 @@ class RecruiterApiClient {
     this.baseUrl = API_BASE_URL;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    behavior: { suppressUnauthorizedLogout?: boolean } = {},
+  ): Promise<T> {
     const token = getRecruiterToken();
+    const browserHostname = typeof window !== "undefined" ? window.location.hostname : "";
+    const tenantHostname = browserHostname.endsWith(".powr.localhost")
+      ? browserHostname.replace(/\.powr\.localhost$/, ".powr.dev")
+      : browserHostname;
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...(tenantHostname ? { "X-PoWR-Hostname": tenantHostname } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
@@ -26,6 +43,9 @@ class RecruiterApiClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      if (response.status === 401 && !endpoint.startsWith("/api/recruiter/auth/") && !behavior.suppressUnauthorizedLogout) {
+        clearRecruiterSession();
+      }
       const err = new Error(body.error || response.statusText) as any;
       err.status = response.status;
       err.upgradeRequired = body.upgradeRequired;
@@ -49,11 +69,109 @@ class RecruiterApiClient {
     });
   }
 
-  async getMe() {
-    return this.request<{ recruiter: any }>("/api/recruiter/me");
+  async getMe(options: { passive?: boolean } = {}) {
+    return this.request<{ recruiter: any }>(
+      "/api/recruiter/me",
+      {},
+      { suppressUnauthorizedLogout: options.passive },
+    );
+  }
+
+  async logout() {
+    try {
+      await this.request<{ success: boolean }>("/api/recruiter/auth/logout", { method: "POST" });
+    } finally {
+      clearRecruiterSession();
+    }
+  }
+
+  async getOrganizationProfile() {
+    return this.request<{ organization: any }>("/api/recruiter/organization/profile");
+  }
+
+  async updateOrganizationProfile(data: {
+    display_name: string;
+    summary?: string;
+    website?: string;
+    location?: string;
+    logo_url?: string;
+    benefits?: string[];
+    social_links?: Record<string, string>;
+  }) {
+    return this.request<{ organization: any }>("/api/recruiter/organization/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getTeamMembers() {
+    return this.request<{ members: any[] }>("/api/recruiter/team/members");
+  }
+
+  async inviteTeamMember(email: string, role: string) {
+    return this.request<{ invitation: any; token: string }>("/api/recruiter/team/invitations", {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    });
+  }
+
+  async acceptTeamInvitation(token: string) {
+    return this.request<{ accepted: boolean; organizationId: number; role: string }>("/api/recruiter/team/invitations/accept", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  async updateTeamMember(memberId: number, role: string) {
+    return this.request<{ member: any }>(`/api/recruiter/team/members/${memberId}`, { method: "PATCH", body: JSON.stringify({ role }) });
+  }
+
+  async removeTeamMember(memberId: number) {
+    return this.request<{ member: any }>(`/api/recruiter/team/members/${memberId}`, { method: "DELETE" });
+  }
+
+  async getApplications() {
+    return this.request<{ applications: any[] }>("/api/recruiter/applications");
+  }
+
+  async updateApplicationStage(applicationId: number, stage: string) {
+    return this.request<{ application: any }>(`/api/recruiter/applications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ stage }),
+    });
+  }
+
+  async addApplicationNote(applicationId: number, note: string) {
+    return this.request<{ note: any }>(`/api/recruiter/applications/${applicationId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    });
+  }
+
+  async saveApplicationScorecard(applicationId: number, score: number, recommendation: string, feedback?: string) {
+    return this.request<{ scorecard: any }>(`/api/recruiter/applications/${applicationId}/scorecard`, {
+      method: "PUT",
+      body: JSON.stringify({ score, recommendation, feedback }),
+    });
+  }
+
+  async convertApplicationToEmployee(applicationId: number, data: { start_date?: string; employment_type?: string; department?: string; manager_name?: string; onboarding_notes?: string }) {
+    return this.request<{ employee: any }>(`/api/recruiter/applications/${applicationId}/convert-to-employee`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getEmployees() {
+    return this.request<{ employees: any[] }>("/api/recruiter/employees");
+  }
+
+  async updateEmployee(employeeId: number, data: { employment_status?: string; start_date?: string; employment_type?: string; department?: string; manager_name?: string; onboarding_notes?: string }) {
+    return this.request<{ employee: any }>(`/api/recruiter/employees/${employeeId}`, { method: "PATCH", body: JSON.stringify(data) });
   }
 
   async searchDevelopers(params: {
+    jobId?: number;
     skills?: string[];
     minScore?: number;
     maxScore?: number;
@@ -63,6 +181,7 @@ class RecruiterApiClient {
     limit?: number;
   }) {
     const q = new URLSearchParams();
+    if (params.jobId !== undefined) q.set("jobId", String(params.jobId));
     if (params.skills?.length) q.set("skills", params.skills.join(","));
     if (params.minScore !== undefined) q.set("minScore", String(params.minScore));
     if (params.maxScore !== undefined) q.set("maxScore", String(params.maxScore));
@@ -145,7 +264,7 @@ class RecruiterApiClient {
 
 
   // Jobs CRUD
-  async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<{ job: any }> {
+  async createJob(data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[]; department?: string; remote_policy?: string; seniority?: string; closing_date?: string; screening_questions?: string[]; status?: string }): Promise<{ job: any }> {
     return this.request("/api/jobs", { method: "POST", body: JSON.stringify(data) });
   }
 
@@ -153,12 +272,30 @@ class RecruiterApiClient {
     return this.request("/api/jobs/my");
   }
 
-  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[] }>): Promise<{ job: any }> {
+  async updateJob(id: string, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<{ job: any }> {
     return this.request(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(data) });
   }
 
   async deleteJob(id: string): Promise<void> {
     await this.request(`/api/jobs/${id}`, { method: "DELETE" });
+  }
+
+  async updateJobSourcingRequirements(jobId: number, data: { requiredSkills: string[]; preferredSkills: string[]; minimumPowrScore?: number | null }) {
+    return this.request<{ requirements: any }>(`/api/recruiter/jobs/${jobId}/sourcing-requirements`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addSourcedCandidateToJob(jobId: number, username: string, matchSnapshotId: number) {
+    return this.request<{ candidate: any }>(`/api/recruiter/jobs/${jobId}/sourced-candidates`, {
+      method: "POST",
+      body: JSON.stringify({ username, matchSnapshotId }),
+    });
+  }
+
+  async duplicateJob(id: string): Promise<{ job: any }> {
+    return this.request(`/api/jobs/${id}/duplicate`, { method: "POST" });
   }
 
   // Gigs CRUD

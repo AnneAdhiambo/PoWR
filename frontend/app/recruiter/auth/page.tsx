@@ -26,13 +26,11 @@ export default function RecruiterAuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem("recruiter_token")) {
-      router.replace("/recruiter/search");
-    }
+    recruiterApiClient.getMe({ passive: true }).then(() => router.replace("/recruiter/search")).catch(() => undefined);
   }, [router]);
 
   const saveRecruiterSession = (token: string, recruiter: any) => {
-    localStorage.setItem("recruiter_token", token);
+    localStorage.removeItem("recruiter_token");
     localStorage.setItem("recruiter_email", recruiter.email || "");
     localStorage.setItem("recruiter_company", recruiter.companyName || "");
     localStorage.setItem("recruiter_plan", recruiter.plan || "free");
@@ -85,9 +83,7 @@ export default function RecruiterAuthPage() {
 
         {/* Logo */}
         <div className="absolute top-10 left-10 z-10 flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-white">
-            Po<span className="text-[#FF5500]">WR</span>
-          </span>
+          <img src="/logo.png" alt="PoWR" className="h-12 w-12 object-contain" />
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/25 font-semibold uppercase tracking-wide">
             Recruiter
           </span>
@@ -131,9 +127,7 @@ export default function RecruiterAuthPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden mb-10 text-center">
-            <span className="text-3xl font-bold text-white">
-              Po<span className="text-[#FF5500]">WR</span>
-            </span>
+            <img src="/logo.png" alt="PoWR" className="mx-auto h-14 w-14 object-contain" />
           </div>
 
           <p className="text-xs font-mono uppercase tracking-[0.15em] text-gray-600 mb-3">
@@ -151,7 +145,10 @@ export default function RecruiterAuthPage() {
             {(["login", "signup"] as const).map((t) => (
               <button
                 key={t}
+                type="button"
                 onClick={() => setTab(t)}
+                role="tab"
+                aria-selected={tab === t}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                   tab === t
                     ? "bg-[#FF5500] text-white shadow-lg shadow-[#FF5500]/20"
@@ -165,10 +162,11 @@ export default function RecruiterAuthPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Work Email</label>
+              <label htmlFor="recruiter-email" className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Work Email</label>
               <div className="relative">
                 <EnvelopeSimple className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
+                  id="recruiter-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -180,10 +178,11 @@ export default function RecruiterAuthPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Password</label>
+              <label htmlFor="recruiter-password" className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Password</label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
+                  id="recruiter-password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -194,6 +193,7 @@ export default function RecruiterAuthPage() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
                 >
@@ -205,10 +205,11 @@ export default function RecruiterAuthPage() {
             {tab === "signup" && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Company Name</label>
+                  <label htmlFor="recruiter-company" className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Company Name</label>
                   <div className="relative">
                     <Buildings className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
+                      id="recruiter-company"
                       type="text"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
@@ -224,6 +225,8 @@ export default function RecruiterAuthPage() {
                   </label>
                   <button
                     type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded={sizeOpen}
                     onClick={() => setSizeOpen((v) => !v)}
                     className={`w-full flex items-center justify-between px-4 py-3 bg-white/4 border rounded-xl text-sm transition-all focus:outline-none ${
                       sizeOpen ? "border-[#FF5500]/60" : "border-white/8 hover:border-white/20"

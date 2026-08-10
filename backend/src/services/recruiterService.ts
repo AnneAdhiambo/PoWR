@@ -7,7 +7,9 @@ const FREE_PLAN_VIEW_LIMIT = 10;
 const PRO_OUTREACH_LIMIT = 50;
 
 function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "dev_secret";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET is not configured");
+  return secret;
 }
 
 function startOfMonth(): Date {
@@ -34,9 +36,10 @@ export class RecruiterService {
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
     const row = await dbService.createRecruiter(email, passwordHash, companyName, companySize);
+    await dbService.ensureRecruiterOrganization(row.id, companyName);
 
     const token = jwt.sign(
-      { role: "recruiter", recruiterId: row.id, email: row.email },
+      { role: "recruiter", recruiterId: row.id, email: row.email, sessionVersion: Number(row.session_version || 0) },
       getJwtSecret(),
       { expiresIn: "30d" }
     );
@@ -66,10 +69,12 @@ export class RecruiterService {
       throw new Error("Invalid email or password");
     }
 
+    await dbService.ensureRecruiterOrganization(row.id, row.company_name);
     await dbService.updateRecruiterLastLogin(row.id);
+    const sessionVersion = await dbService.rotateRecruiterSession(row.id);
 
     const token = jwt.sign(
-      { role: "recruiter", recruiterId: row.id, email: row.email },
+      { role: "recruiter", recruiterId: row.id, email: row.email, sessionVersion },
       getJwtSecret(),
       { expiresIn: "30d" }
     );

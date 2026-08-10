@@ -14,7 +14,10 @@ router.post("/github", async (req, res) => {
     }
 
     // Verify webhook signature
-    const payload = JSON.stringify(req.body);
+    const payload = (req as any).rawBody as Buffer | undefined;
+    if (!payload) {
+      return res.status(400).json({ error: "Raw webhook payload unavailable" });
+    }
     const isValid = webhookService.verifyWebhookSignature(payload, signature);
 
     if (!isValid) {

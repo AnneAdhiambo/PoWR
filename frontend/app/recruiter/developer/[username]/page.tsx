@@ -4,9 +4,11 @@ import React, { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { ProofChainPanel } from "../../../components/recruiter/ProofChainPanel";
 import { SkillRadarChart } from "../../../components/recruiter/SkillRadarChart";
+import { apiClient } from "../../../lib/api";
 import { recruiterApiClient } from "../../../lib/recruiterApi";
-import { getOrCreateKeypair, getPubkeyForIdentifier, sendDM, RELAYS } from "../../../lib/nostr";
+import { getOrCreateKeypair, sendDM, RELAYS } from "../../../lib/nostr";
 import { SimplePool } from "nostr-tools";
+import { SquircleLoader } from "../../../components/ui/SquircleLoader";
 import {
   ArrowLeft, PaperPlaneTilt, BookmarkSimple, ShieldCheck,
   GithubLogo, GitCommit, GitPullRequest, Folder,
@@ -74,7 +76,6 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!localStorage.getItem("recruiter_token")) { router.replace("/recruiter/auth"); return; }
     loadProfile();
   }, [username]);
 
@@ -104,7 +105,8 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
       const recruiterCompany = localStorage.getItem("recruiter_company") || recruiterEmail;
 
       // Derive developer pubkey deterministically from their username — no DB needed
-      const devPubkey = await getPubkeyForIdentifier(username);
+      const devPubkey = await apiClient.getUserNostrPubkey(username);
+      if (!devPubkey) throw new Error("Developer messaging identity is not registered");
       const { sk } = await getOrCreateKeypair(recruiterEmail);
       const pool = new SimplePool();
 
@@ -132,7 +134,7 @@ export default function RecruiterDeveloperPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
+        <SquircleLoader size={32} label="Loading developer" />
       </div>
     );
   }

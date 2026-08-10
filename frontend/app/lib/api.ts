@@ -54,10 +54,12 @@ export interface Badge {
 }
 
 export interface GithubBadge {
-  id: number;
+  id: number | string;
   username: string;
   badgeKey: string;
   earnedAt: string;
+  imageUrl?: string;
+  source?: "github" | "powr";
   displayName: string;
   description: string;
 }
@@ -73,6 +75,13 @@ export interface Job {
   description?: string;
   tags?: string[];
   status?: string;
+  public_slug?: string;
+  organization_slug?: string;
+  department?: string;
+  remote_policy?: string;
+  seniority?: string;
+  closing_date?: string;
+  screening_questions?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -106,8 +115,10 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...(typeof window !== "undefined" && window.location.hostname ? { "X-PoWR-Hostname": window.location.hostname.replace(/\.powr\.localhost$/, ".powr.dev") } : {}),
         ...options.headers,
       },
     });
@@ -121,10 +132,7 @@ class ApiClient {
   }
 
   async getUserProfile(username: string, accessToken?: string): Promise<PoWProfile> {
-    const url = accessToken
-      ? `/api/user/profile?username=${username}&access_token=${accessToken}`
-      : `/api/user/profile?username=${username}`;
-    return this.request<PoWProfile>(url);
+    return this.request<PoWProfile>(`/api/user/profile?username=${username}`);
   }
 
   async getPublicProfile(username: string): Promise<{
@@ -139,15 +147,12 @@ class ApiClient {
 
   async getUserSkills(username: string, accessToken: string): Promise<{ skills: SkillPoWScore[] }> {
     return this.request<{ skills: SkillPoWScore[] }>(
-      `/api/user/skills?username=${username}&access_token=${accessToken}`
+      `/api/user/skills?username=${username}`
     );
   }
 
   async getUserArtifacts(username: string, accessToken?: string): Promise<{ artifacts: Artifact[] }> {
-    const url = accessToken
-      ? `/api/user/artifacts?username=${username}&access_token=${accessToken}`
-      : `/api/user/artifacts?username=${username}`;
-    return this.request<{ artifacts: Artifact[] }>(url);
+    return this.request<{ artifacts: Artifact[] }>(`/api/user/artifacts?username=${username}`);
   }
 
   async triggerAnalysis(
@@ -159,7 +164,7 @@ class ApiClient {
       `/api/user/analyze`,
       {
         method: "POST",
-        body: JSON.stringify({ username, access_token: accessToken, monthsBack }),
+        body: JSON.stringify({ username, monthsBack }),
       }
     );
   }
@@ -263,6 +268,18 @@ class ApiClient {
     if (params?.page) q.set("page", String(params.page));
     if (params?.limit) q.set("limit", String(params.limit));
     return this.request<{ jobs: Job[]; total: number }>(`/api/jobs?${q}`);
+  }
+
+  async getTenantContext(): Promise<{ organization: { id: number; slug: string; display_name: string; profile?: { logoUrl?: string; primaryColor?: string; summary?: string; location?: string; website?: string; benefits?: string[] } } }> {
+    return this.request("/api/tenant/context");
+  }
+
+  async getJob(id: string): Promise<{ job: Job }> {
+    return this.request(`/api/jobs/${id}`);
+  }
+
+  async applyToJob(id: string, data: { applicant_email: string; cover_note?: string; consent_given: boolean; screening_answers?: Record<string, string>; shared_evidence?: string[] }) {
+    return this.request<{ application: any }>(`/api/jobs/${id}/applications`, { method: "POST", body: JSON.stringify(data) });
   }
 
   async getGigs(params?: { page?: number; limit?: number }): Promise<{ gigs: Gig[]; total: number }> {

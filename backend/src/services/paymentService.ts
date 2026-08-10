@@ -30,19 +30,7 @@ async function fetchBtcPriceUsd(): Promise<number> {
   }
 }
 
-export interface RecruiterInvoice {
-  recruiterId: number;
-  plan: string;
-  amountSats: number;
-  amountUsd: number;
-  status: "pending" | "confirmed";
-  createdAt: Date;
-}
-
 export class PaymentService {
-  // In-memory map to store recruiter billing invoices to avoid DB foreign key constraints on users table
-  private recruiterInvoices = new Map<string, RecruiterInvoice>();
-
   private generateMockBolt11(sats: number, paymentHash: string): string {
     // Generate a realistic looking Bolt11 invoice
     const randomHex = crypto.randomBytes(32).toString("hex");
@@ -105,15 +93,7 @@ export class PaymentService {
     const paymentHash = crypto.randomBytes(32).toString("hex");
     const invoice = this.generateMockBolt11(amountSats, paymentHash);
 
-    // Save to recruiter invoices map
-    this.recruiterInvoices.set(paymentHash, {
-      recruiterId,
-      plan,
-      amountSats,
-      amountUsd: usdMonthly,
-      status: "pending",
-      createdAt: new Date(),
-    });
+    await dbService.saveRecruiterPaymentIntent(recruiterId, paymentHash, plan, amountSats, usdMonthly);
 
     return {
       invoice,
@@ -145,13 +125,13 @@ export class PaymentService {
     }
 
     // Check recruiter invoices
-    const recruiterTx = this.recruiterInvoices.get(paymentHash);
+    const recruiterTx = await dbService.getRecruiterPaymentIntent(paymentHash);
     if (recruiterTx) {
       const isConfirmed = recruiterTx.status === "confirmed";
       return {
         verified: isConfirmed,
         status: isConfirmed ? "confirmed" : "pending",
-        amount: recruiterTx.amountSats.toString(),
+        amount: recruiterTx.amount_sats.toString(),
         currency: "lightning",
       };
     }
@@ -191,14 +171,14 @@ export class PaymentService {
     }
 
     // 2. Try recruiter invoice
-    const recruiterTx = this.recruiterInvoices.get(paymentHash);
+    const recruiterTx = await dbService.getRecruiterPaymentIntent(paymentHash);
     if (recruiterTx) {
       if (recruiterTx.status === "confirmed") {
         return { success: false, message: "Invoice already paid" };
       }
-      recruiterTx.status = "confirmed";
-      this.recruiterInvoices.set(paymentHash, recruiterTx);
-      await dbService.updateRecruiterPlan(recruiterTx.recruiterId, recruiterTx.plan);
+      const confirmed = await dbService.confirmRecruiterPaymentIntent(paymentHash);
+      if (!confirmed) return { success: false, message: "Invoice already paid" };
+      await dbService.updateRecruiterPlan(confirmed.recruiter_id, confirmed.plan);
       return { success: true };
     }
 

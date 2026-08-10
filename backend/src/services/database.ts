@@ -1,17 +1,9 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import { Pool } from "pg";
 import { Artifact } from "./artifactIngestion";
 import { PoWProfile } from "./scoringEngine";
 
 // Force IPv4 for WebSocket connections — WSL2 has unreachable IPv6 routes
 // which cause Node.js happy-eyeballs to time out before falling back to IPv4
-class IPv4WebSocket extends ws {
-  constructor(url: string, protocols?: string | string[], options?: ws.ClientOptions) {
-    super(url, protocols as string, { ...options, family: 4 } as ws.ClientOptions);
-  }
-}
-neonConfig.webSocketConstructor = IPv4WebSocket;
-
 export interface Badge {
   id: number;
   username: string;
@@ -30,9 +22,40 @@ export interface GithubBadge {
   earnedAt: Date;
 }
 
+export function calculateJobMatch(
+  developerSkills: string[],
+  powrScore: number,
+  requirements: { requiredSkills: string[]; preferredSkills: string[]; minimumPowrScore?: number | null }
+) {
+  const normalizedSkills = developerSkills.map((skill) => skill.toLowerCase());
+  const requiredSkills = requirements.requiredSkills.map((skill) => skill.toLowerCase());
+  const preferredSkills = requirements.preferredSkills.map((skill) => skill.toLowerCase());
+  const matchedRequiredSkills = requiredSkills.filter((skill) => normalizedSkills.includes(skill));
+  const matchedPreferredSkills = preferredSkills.filter((skill) => normalizedSkills.includes(skill));
+  const missingRequiredSkills = requiredSkills.filter((skill) => !normalizedSkills.includes(skill));
+  const requiredFit = requiredSkills.length ? matchedRequiredSkills.length / requiredSkills.length : 1;
+  const preferredFit = preferredSkills.length ? matchedPreferredSkills.length / preferredSkills.length : 1;
+  const scoreFit = requirements.minimumPowrScore
+    ? Math.min(1, powrScore / requirements.minimumPowrScore)
+    : powrScore / 100;
+
+  return {
+    jobMatchScore: Math.round((requiredFit * 0.6 + preferredFit * 0.2 + scoreFit * 0.2) * 100),
+    explanation: {
+      matchedRequiredSkills,
+      missingRequiredSkills,
+      matchedPreferredSkills,
+      requiredSkillCoverage: Math.round(requiredFit * 100),
+    },
+  };
+}
+
 // Initialize PostgreSQL connection pool via Neon serverless WebSocket driver
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes("sslmode=require")
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 // Prevent unhandled pool errors from crashing the process
@@ -171,6 +194,21 @@ async function initializeTables() {
         last_login TIMESTAMP
       );
 
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE recruiters ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+
+      CREATE TABLE IF NOT EXISTS recruiter_payment_intents (
+        id SERIAL PRIMARY KEY,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id),
+        payment_hash TEXT UNIQUE NOT NULL,
+        plan TEXT NOT NULL,
+        amount_sats BIGINT NOT NULL,
+        amount_usd NUMERIC(12,2) NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        confirmed_at TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS recruiter_views (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES recruiters(id),
@@ -241,6 +279,79 @@ async function initializeTables() {
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_recruiter ON jobs(recruiter_id);
 
+      CREATE TABLE IF NOT EXISTS job_applications (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        developer_username TEXT NOT NULL,
+        applicant_email TEXT NOT NULL,
+        cover_note TEXT,
+        consent_given BOOLEAN NOT NULL DEFAULT false,
+        stage TEXT NOT NULL DEFAULT 'applied',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(job_id, developer_username)
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id, stage);
+      ALTER TABLE job_applications
+        ADD COLUMN IF NOT EXISTS access_token UUID,
+        ADD COLUMN IF NOT EXISTS screening_answers JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ADD COLUMN IF NOT EXISTS shared_evidence JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS consent_revoked_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS withdrawn_at TIMESTAMP;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_job_applications_access_token ON job_applications(access_token) WHERE access_token IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS job_application_events (
+        id BIGSERIAL PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        event_type TEXT NOT NULL,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_application_events_application ON job_application_events(application_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS job_application_scorecards (
+        id SERIAL PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id) ON DELETE CASCADE,
+        score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+        recommendation TEXT NOT NULL,
+        feedback TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(application_id, recruiter_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS job_application_notes (
+        id SERIAL PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id) ON DELETE CASCADE,
+        note TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_application_notes_application ON job_application_notes(application_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS employees (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL,
+        source_application_id INTEGER UNIQUE REFERENCES job_applications(id) ON DELETE SET NULL,
+        developer_username TEXT NOT NULL,
+        work_email TEXT NOT NULL,
+        job_title TEXT NOT NULL,
+        employment_status TEXT NOT NULL DEFAULT 'onboarding',
+        start_date DATE,
+        created_by_recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_employees_organization_status ON employees(organization_id, employment_status);
+      ALTER TABLE employees
+        ADD COLUMN IF NOT EXISTS employment_type TEXT,
+        ADD COLUMN IF NOT EXISTS department TEXT,
+        ADD COLUMN IF NOT EXISTS manager_name TEXT,
+        ADD COLUMN IF NOT EXISTS onboarding_notes TEXT;
+
       CREATE TABLE IF NOT EXISTS gigs (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES recruiters(id) ON DELETE CASCADE,
@@ -257,6 +368,167 @@ async function initializeTables() {
       );
       CREATE INDEX IF NOT EXISTS idx_gigs_status ON gigs(status);
       CREATE INDEX IF NOT EXISTS idx_gigs_recruiter ON gigs(recruiter_id);
+
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version TEXT PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS organizations (
+        id SERIAL PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by_recruiter_id INTEGER UNIQUE REFERENCES recruiters(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT organizations_status_check CHECK (status IN ('pending', 'active', 'suspended', 'archived'))
+      );
+
+      CREATE TABLE IF NOT EXISTS organization_domains (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        hostname TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL DEFAULT 'powr_subdomain',
+        verified_at TIMESTAMP,
+        is_primary BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_primary_domain
+        ON organization_domains(organization_id) WHERE is_primary = true;
+
+      CREATE TABLE IF NOT EXISTS organization_members (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        recruiter_id INTEGER NOT NULL REFERENCES recruiters(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'recruiter',
+        status TEXT NOT NULL DEFAULT 'active',
+        invited_by INTEGER REFERENCES recruiters(id),
+        joined_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(organization_id, recruiter_id),
+        CONSTRAINT organization_members_role_check CHECK (role IN ('owner', 'admin', 'recruiter', 'hiring_manager', 'interviewer')),
+        CONSTRAINT organization_members_status_check CHECK (status IN ('invited', 'active', 'suspended', 'removed'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_organization_members_recruiter
+        ON organization_members(recruiter_id, status);
+
+      CREATE TABLE IF NOT EXISTS organization_invitations (
+        id SERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'recruiter',
+        token_hash TEXT NOT NULL UNIQUE,
+        invited_by INTEGER NOT NULL REFERENCES recruiters(id),
+        expires_at TIMESTAMP NOT NULL,
+        accepted_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT organization_invitations_role_check CHECK (role IN ('admin', 'recruiter', 'hiring_manager', 'interviewer'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_organization_invitations_email
+        ON organization_invitations(lower(email), accepted_at);
+
+      CREATE TABLE IF NOT EXISTS audit_events (
+        id BIGSERIAL PRIMARY KEY,
+        organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        actor_recruiter_id INTEGER REFERENCES recruiters(id),
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_events_organization_created
+        ON audit_events(organization_id, created_at DESC);
+
+      ALTER TABLE jobs
+        ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+      ALTER TABLE jobs
+        ADD COLUMN IF NOT EXISTS public_slug TEXT,
+        ADD COLUMN IF NOT EXISTS department TEXT,
+        ADD COLUMN IF NOT EXISTS remote_policy TEXT,
+        ADD COLUMN IF NOT EXISTS seniority TEXT,
+        ADD COLUMN IF NOT EXISTS closing_date DATE,
+        ADD COLUMN IF NOT EXISTS screening_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE gigs
+        ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+      ALTER TABLE saved_pools
+        ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+
+      CREATE INDEX IF NOT EXISTS idx_jobs_organization_status
+        ON jobs(organization_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_organization_public_slug
+        ON jobs(organization_id, public_slug) WHERE public_slug IS NOT NULL;
+      UPDATE jobs
+        SET public_slug = trim(BOTH '-' FROM lower(regexp_replace(title, '[^a-zA-Z0-9]+', '-', 'g'))) || '-' || id::text
+        WHERE public_slug IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_gigs_organization_status
+        ON gigs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_saved_pools_organization
+        ON saved_pools(organization_id);
+
+      INSERT INTO organizations (slug, display_name, created_by_recruiter_id)
+      SELECT
+        COALESCE(
+          NULLIF(
+            trim(BOTH '-' FROM lower(regexp_replace(company_name, '[^a-zA-Z0-9]+', '-', 'g'))),
+            ''
+          ),
+          'company'
+        ) || '-' || id::text,
+        company_name,
+        id
+      FROM recruiters
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM organizations existing
+        WHERE existing.created_by_recruiter_id = recruiters.id
+      );
+
+      INSERT INTO organization_domains (organization_id, hostname, is_primary, verified_at)
+      SELECT o.id, o.slug || '.powr.dev', true, NOW()
+      FROM organizations o
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM organization_domains d
+        WHERE d.organization_id = o.id AND d.is_primary = true
+      );
+
+      INSERT INTO organization_members (organization_id, recruiter_id, role, status)
+      SELECT o.id, o.created_by_recruiter_id, 'owner', 'active'
+      FROM organizations o
+      WHERE o.created_by_recruiter_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM organization_members m
+          WHERE m.organization_id = o.id AND m.recruiter_id = o.created_by_recruiter_id
+        );
+
+      UPDATE jobs j
+      SET organization_id = o.id
+      FROM organizations o
+      WHERE o.created_by_recruiter_id = j.recruiter_id
+        AND j.organization_id IS NULL;
+
+      UPDATE gigs g
+      SET organization_id = o.id
+      FROM organizations o
+      WHERE o.created_by_recruiter_id = g.recruiter_id
+        AND g.organization_id IS NULL;
+
+      UPDATE saved_pools p
+      SET organization_id = o.id
+      FROM organizations o
+      WHERE o.created_by_recruiter_id = p.recruiter_id
+        AND p.organization_id IS NULL;
+
+      INSERT INTO schema_migrations (version)
+      VALUES ('recruiting_organizations_v1')
+      ON CONFLICT (version) DO NOTHING;
     `);
     console.log("PostgreSQL tables initialized successfully");
   } catch (error) {
@@ -665,6 +937,41 @@ export class DatabaseService {
     await this.updatePaymentStatus(txHash, status, blockNumber);
   }
 
+  async saveRecruiterPaymentIntent(recruiterId: number, paymentHash: string, plan: string, amountSats: number, amountUsd: number) {
+    await pool.query(
+      `INSERT INTO recruiter_payment_intents (recruiter_id, payment_hash, plan, amount_sats, amount_usd)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (payment_hash) DO NOTHING`,
+      [recruiterId, paymentHash, plan, amountSats, amountUsd],
+    );
+  }
+
+  async getRecruiterPaymentIntent(paymentHash: string): Promise<any | null> {
+    const result = await pool.query("SELECT * FROM recruiter_payment_intents WHERE payment_hash = $1", [paymentHash]);
+    return result.rows[0] || null;
+  }
+
+  async rotateDeveloperSession(username: string): Promise<number> {
+    const result = await pool.query("UPDATE users SET session_version = session_version + 1 WHERE username = $1 RETURNING session_version", [username]);
+    return Number(result.rows[0]?.session_version || 0);
+  }
+
+  async getDeveloperSessionVersion(username: string): Promise<number | null> {
+    const result = await pool.query("SELECT session_version FROM users WHERE username = $1", [username]);
+    return result.rowCount ? Number(result.rows[0].session_version) : null;
+  }
+
+  async confirmRecruiterPaymentIntent(paymentHash: string): Promise<any | null> {
+    const result = await pool.query(
+      `UPDATE recruiter_payment_intents
+       SET status = 'confirmed', confirmed_at = NOW()
+       WHERE payment_hash = $1 AND status = 'pending'
+       RETURNING *`,
+      [paymentHash],
+    );
+    return result.rows[0] || null;
+  }
+
   // Badge management
   async saveBadge(
     username: string,
@@ -736,13 +1043,196 @@ export class DatabaseService {
     return result.rows[0] || null;
   }
 
+  async getOrganizationForRecruiter(recruiterId: number): Promise<{ organization_id: number; role: string } | null> {
+    const result = await pool.query(
+      `SELECT organization_id, role
+       FROM organization_members
+       WHERE recruiter_id = $1 AND status = 'active'
+       ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [recruiterId],
+    );
+    return result.rows[0] || null;
+  }
+
+  async rotateRecruiterSession(id: number): Promise<number> {
+    const result = await pool.query("UPDATE recruiters SET session_version = session_version + 1 WHERE id = $1 RETURNING session_version", [id]);
+    return Number(result.rows[0]?.session_version || 0);
+  }
+
+  async getRecruiterSessionVersion(id: number): Promise<number | null> {
+    const result = await pool.query("SELECT session_version FROM recruiters WHERE id = $1", [id]);
+    return result.rowCount ? Number(result.rows[0].session_version) : null;
+  }
+
+  async getOrganizationByHostname(hostname: string): Promise<any | null> {
+    const result = await pool.query(
+      `SELECT o.id, o.slug, o.display_name, o.status, o.profile,
+              d.hostname, d.kind, d.is_primary
+       FROM organization_domains d
+       JOIN organizations o ON o.id = d.organization_id
+       WHERE lower(d.hostname) = lower($1) AND o.status = 'active'
+       LIMIT 1`,
+      [hostname],
+    );
+    return result.rows[0] || null;
+  }
+
+  async getOrganizationById(organizationId: number): Promise<any | null> {
+    const result = await pool.query(
+      `SELECT o.*, d.hostname
+       FROM organizations o
+       LEFT JOIN organization_domains d ON d.organization_id = o.id AND d.is_primary = true
+       WHERE o.id = $1`,
+      [organizationId],
+    );
+    return result.rows[0] || null;
+  }
+
+  async updateOrganizationProfile(organizationId: number, displayName: string, profile: Record<string, unknown>): Promise<any> {
+    const result = await pool.query(
+      `UPDATE organizations
+       SET display_name = $2, profile = COALESCE(profile, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [organizationId, displayName, JSON.stringify(profile)],
+    );
+    return result.rows[0];
+  }
+
+  async recordAuditEvent(organizationId: number, actorRecruiterId: number, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}): Promise<void> {
+    await pool.query(
+      `INSERT INTO audit_events (organization_id, actor_recruiter_id, action, entity_type, entity_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [organizationId, actorRecruiterId, action, entityType, entityId || null, JSON.stringify(metadata)],
+    );
+  }
+
+  async createOrganizationInvitation(organizationId: number, invitedBy: number, email: string, role: string, tokenHash: string, expiresAt: Date): Promise<any> {
+    const result = await pool.query(
+      `INSERT INTO organization_invitations (organization_id, email, role, token_hash, invited_by, expires_at)
+       VALUES ($1, lower($2), $3, $4, $5, $6) RETURNING id, organization_id, email, role, expires_at, created_at`,
+      [organizationId, email, role, tokenHash, invitedBy, expiresAt],
+    );
+    return result.rows[0];
+  }
+
+  async getOrganizationMembers(organizationId: number): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT m.id, m.recruiter_id, r.email, r.company_name, m.role, m.status, m.joined_at
+       FROM organization_members m JOIN recruiters r ON r.id = m.recruiter_id
+       WHERE m.organization_id = $1 ORDER BY m.joined_at ASC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  async updateOrganizationMember(organizationId: number, memberId: number, role: string): Promise<any | null> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await client.query(
+        `SELECT id, role, status FROM organization_members WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+        [memberId, organizationId],
+      );
+      if (!current.rowCount) { await client.query("ROLLBACK"); return null; }
+      if (current.rows[0].role === "owner" && role !== "owner") {
+        const owners = await client.query(
+          `SELECT COUNT(*)::int AS count FROM organization_members WHERE organization_id = $1 AND role = 'owner' AND status = 'active'`,
+          [organizationId],
+        );
+        if (owners.rows[0].count <= 1) throw new Error("The organization must retain an owner");
+      }
+      const updated = await client.query(
+        `UPDATE organization_members SET role = $3 WHERE id = $1 AND organization_id = $2 RETURNING id, recruiter_id, role, status, joined_at`,
+        [memberId, organizationId, role],
+      );
+      await client.query("COMMIT");
+      return updated.rows[0] || null;
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  }
+
+  async removeOrganizationMember(organizationId: number, memberId: number): Promise<any | null> {
+    const current = await pool.query(
+      `SELECT id, role FROM organization_members WHERE id = $1 AND organization_id = $2`,
+      [memberId, organizationId],
+    );
+    if (!current.rowCount) return null;
+    if (current.rows[0].role === "owner") throw new Error("The organization owner cannot be removed");
+    const removed = await pool.query(
+      `UPDATE organization_members SET status = 'removed' WHERE id = $1 AND organization_id = $2 RETURNING id, recruiter_id, role, status`,
+      [memberId, organizationId],
+    );
+    return removed.rows[0] || null;
+  }
+
+  async acceptOrganizationInvitation(tokenHash: string, recruiterId: number, email: string): Promise<any | null> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const invitation = await client.query(
+        `SELECT * FROM organization_invitations
+         WHERE token_hash = $1 AND lower(email) = lower($2) AND accepted_at IS NULL AND expires_at > NOW()
+         FOR UPDATE`,
+        [tokenHash, email],
+      );
+      if (!invitation.rowCount) { await client.query("ROLLBACK"); return null; }
+      const row = invitation.rows[0];
+      await client.query(
+        `INSERT INTO organization_members (organization_id, recruiter_id, role, status, invited_by)
+         VALUES ($1, $2, $3, 'active', $4)
+         ON CONFLICT (organization_id, recruiter_id) DO UPDATE SET role = EXCLUDED.role, status = 'active'`,
+        [row.organization_id, recruiterId, row.role, row.invited_by],
+      );
+      await client.query("UPDATE organization_invitations SET accepted_at = NOW() WHERE id = $1", [row.id]);
+      await client.query("COMMIT");
+      return row;
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  }
+
   async createRecruiter(email: string, passwordHash: string, companyName: string, companySize?: string): Promise<any> {
     const result = await pool.query(`
       INSERT INTO recruiters (email, password_hash, company_name, company_size)
       VALUES ($1, $2, $3, $4)
-      RETURNING id, email, company_name, company_size, plan, created_at
+      RETURNING id, email, company_name, company_size, plan, created_at, session_version
     `, [email, passwordHash, companyName, companySize || null]);
     return result.rows[0];
+  }
+
+  async ensureRecruiterOrganization(recruiterId: number, companyName: string): Promise<any> {
+    const slugBase = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "company";
+    const slug = `${slugBase}-${recruiterId}`;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const organization = await client.query(
+        `INSERT INTO organizations (slug, display_name, created_by_recruiter_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (created_by_recruiter_id) DO UPDATE SET display_name = EXCLUDED.display_name
+         RETURNING *`,
+        [slug, companyName, recruiterId],
+      );
+      const row = organization.rows[0];
+      await client.query(
+        `INSERT INTO organization_domains (organization_id, hostname, is_primary, verified_at)
+         VALUES ($1, $2, true, NOW()) ON CONFLICT (hostname) DO NOTHING`,
+        [row.id, `${row.slug}.powr.dev`],
+      );
+      await client.query(
+        `INSERT INTO organization_members (organization_id, recruiter_id, role, status)
+         VALUES ($1, $2, 'owner', 'active') ON CONFLICT (organization_id, recruiter_id) DO NOTHING`,
+        [row.id, recruiterId],
+      );
+      await client.query("COMMIT");
+      return row;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateRecruiterLastLogin(id: number): Promise<void> {
@@ -774,53 +1264,87 @@ export class DatabaseService {
     );
   }
 
-  async getSavedPools(recruiterId: number): Promise<any[]> {
+  async getTalentLists(organizationId: number): Promise<any[]> {
     const result = await pool.query(`
-      SELECT sp.*, COUNT(pm.id) AS member_count
-      FROM saved_pools sp
-      LEFT JOIN pool_members pm ON pm.pool_id = sp.id
-      WHERE sp.recruiter_id = $1
-      GROUP BY sp.id
-      ORDER BY sp.created_at DESC
-    `, [recruiterId]);
+      SELECT tl.*, COUNT(tlm.developer_username)::INTEGER AS member_count
+      FROM organization_talent_lists tl
+      LEFT JOIN organization_talent_list_members tlm ON tlm.talent_list_id = tl.id
+      WHERE tl.organization_id = $1
+      GROUP BY tl.id
+      ORDER BY tl.created_at DESC
+    `, [organizationId]);
     return result.rows;
   }
 
-  async createSavedPool(recruiterId: number, name: string): Promise<any> {
+  async createTalentList(organizationId: number, recruiterId: number, name: string): Promise<any> {
     const result = await pool.query(
-      "INSERT INTO saved_pools (recruiter_id, name) VALUES ($1, $2) RETURNING *",
-      [recruiterId, name]
+      `INSERT INTO organization_talent_lists (organization_id, name, created_by_recruiter_id)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [organizationId, name, recruiterId]
     );
     return result.rows[0];
   }
 
-  async getPoolMembers(poolId: number): Promise<string[]> {
+  async getTalentListMembers(organizationId: number, listId: number): Promise<any[] | null> {
     const result = await pool.query(
-      "SELECT developer_username FROM pool_members WHERE pool_id = $1 ORDER BY added_at DESC",
-      [poolId]
+      `SELECT tlm.developer_username, tlm.added_at, tlm.source, tlm.match_snapshot_id
+       FROM organization_talent_list_members tlm
+       JOIN organization_talent_lists tl ON tl.id = tlm.talent_list_id
+       WHERE tlm.talent_list_id = $1 AND tl.organization_id = $2
+       ORDER BY tlm.added_at DESC`,
+      [listId, organizationId]
     );
-    return result.rows.map((r: any) => r.developer_username);
+    const exists = await pool.query(
+      "SELECT 1 FROM organization_talent_lists WHERE id = $1 AND organization_id = $2",
+      [listId, organizationId]
+    );
+    return exists.rowCount ? result.rows : null;
   }
 
-  async addToPool(poolId: number, username: string): Promise<void> {
-    await pool.query(
-      "INSERT INTO pool_members (pool_id, developer_username) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [poolId, username]
+  async addTalentListMember(organizationId: number, listId: number, username: string, recruiterId: number): Promise<boolean> {
+    const result = await pool.query(
+      `INSERT INTO organization_talent_list_members
+         (talent_list_id, developer_username, added_by_recruiter_id)
+       SELECT tl.id, $3, $4
+       FROM organization_talent_lists tl
+       JOIN developer_recruiting_preferences pref ON pref.developer_username = $3
+       WHERE tl.id = $1 AND tl.organization_id = $2 AND pref.discoverable = TRUE
+       ON CONFLICT DO NOTHING
+       RETURNING developer_username`,
+      [listId, organizationId, username, recruiterId]
     );
+    return Boolean(result.rowCount);
   }
 
-  async removeFromPool(poolId: number, username: string): Promise<void> {
-    await pool.query(
-      "DELETE FROM pool_members WHERE pool_id = $1 AND developer_username = $2",
-      [poolId, username]
+  async removeTalentListMember(organizationId: number, listId: number, username: string): Promise<boolean> {
+    const result = await pool.query(
+      `DELETE FROM organization_talent_list_members tlm
+       USING organization_talent_lists tl
+       WHERE tlm.talent_list_id = tl.id
+         AND tl.id = $1 AND tl.organization_id = $2
+         AND tlm.developer_username = $3`,
+      [listId, organizationId, username]
     );
+    return Boolean(result.rowCount);
   }
 
-  async deleteSavedPool(poolId: number, recruiterId: number): Promise<void> {
-    await pool.query(
-      "DELETE FROM saved_pools WHERE id = $1 AND recruiter_id = $2",
-      [poolId, recruiterId]
+  async deleteTalentList(organizationId: number, listId: number): Promise<boolean> {
+    const result = await pool.query(
+      "DELETE FROM organization_talent_lists WHERE id = $1 AND organization_id = $2",
+      [listId, organizationId]
     );
+    return Boolean(result.rowCount);
+  }
+
+  async canDiscoverDeveloper(username: string, requireContact = false): Promise<boolean> {
+    const result = await pool.query(
+      `SELECT 1 FROM developer_recruiting_preferences
+       WHERE developer_username = $1 AND discoverable = TRUE
+         AND ($2::BOOLEAN = FALSE OR contactable = TRUE)`,
+      [username, requireContact]
+    );
+    return Boolean(result.rowCount);
   }
 
   async createOutreach(recruiterId: number, developerUsername: string, message: string): Promise<any> {
@@ -842,6 +1366,9 @@ export class DatabaseService {
 
   // Talent search for recruiters
   async searchDevelopers(params: {
+    organizationId: number;
+    recruiterId: number;
+    jobId?: number;
     skills?: string[];
     minScore?: number;
     maxScore?: number;
@@ -850,11 +1377,24 @@ export class DatabaseService {
     page?: number;
     limit?: number;
   }): Promise<{ developers: any[]; total: number }> {
-    const { skills, minScore, maxScore, activeWithinDays, hasOnChainProof, page = 1, limit = 20 } = params;
-    const offset = (page - 1) * limit;
+    const { organizationId, recruiterId, jobId, skills, minScore, maxScore, activeWithinDays, hasOnChainProof, page = 1, limit = 20 } = params;
     const conditions: string[] = [];
     const values: any[] = [];
-    let idx = 1;
+    let requirements: any = null;
+
+    if (jobId) {
+      const requirementsResult = await pool.query(
+        `SELECT j.id, COALESCE(r.required_skills, j.tags, '{}') AS required_skills,
+                COALESCE(r.preferred_skills, '{}') AS preferred_skills,
+                r.minimum_powr_score
+         FROM jobs j
+         LEFT JOIN job_sourcing_requirements r ON r.job_id = j.id
+         WHERE j.id = $1 AND j.organization_id = $2`,
+        [jobId, organizationId]
+      );
+      requirements = requirementsResult.rows[0];
+      if (!requirements) return { developers: [], total: 0 };
+    }
 
     // Base: must have a profile
     let query = `
@@ -867,6 +1407,8 @@ export class DatabaseService {
         s.plan_type
       FROM users u
       JOIN profiles p ON p.username = u.username
+      JOIN developer_recruiting_preferences pref
+        ON pref.developer_username = u.username AND pref.discoverable = TRUE
       LEFT JOIN subscriptions s ON s.username = u.username
     `;
 
@@ -884,15 +1426,8 @@ export class DatabaseService {
 
     query += ` ORDER BY p.last_analyzed DESC NULLS LAST`;
 
-    const countQuery = `SELECT COUNT(*) FROM (${query}) sub`;
-    const [dataResult, countResult] = await Promise.all([
-      pool.query(query + ` LIMIT $${idx} OFFSET $${idx + 1}`, [...values, limit, offset]),
-      pool.query(countQuery, values),
-    ]);
-
-    const total = parseInt(countResult.rows[0].count, 10);
-
-    const developers = dataResult.rows
+    const dataResult = await pool.query(query, values);
+    const matchedDevelopers: any[] = dataResult.rows
       .map((row: any) => {
         const profile = row.profile_data;
         if (!profile) return null;
@@ -912,19 +1447,110 @@ export class DatabaseService {
           if (!hasAllSkills) return null;
         }
 
+        const powrScore = Math.max(0, Math.min(100, Math.round(profile.overallIndex || 0)));
+        const match = calculateJobMatch(
+          (profile.skills || []).map((item: any) => String(item.skill)),
+          powrScore,
+          {
+            requiredSkills: requirements?.required_skills || [],
+            preferredSkills: requirements?.preferred_skills || [],
+            minimumPowrScore: requirements?.minimum_powr_score,
+          }
+        );
+
         return {
           username: row.username,
           topSkills,
-          overallIndex: profile.overallIndex || 0,
+          overallIndex: powrScore,
+          powrScore,
+          ...(jobId ? { jobMatchScore: match.jobMatchScore, matchExplanation: match.explanation } : {}),
           lastActive: row.last_analyzed,
           hasOnChainProof: row.has_on_chain_proof,
           proofCount: 0,
           artifactSummary: profile.artifactSummary || {},
         };
       })
-      .filter(Boolean);
+      .filter(Boolean) as any[];
+
+    const total = matchedDevelopers.length;
+    const offset = (page - 1) * limit;
+    const developers = matchedDevelopers.slice(offset, offset + limit);
+
+    if (jobId) {
+      for (const developer of developers) {
+        const snapshot = await pool.query(
+          `WITH existing AS (
+             SELECT id FROM sourcing_match_snapshots
+             WHERE organization_id = $1 AND job_id = $2 AND developer_username = $3
+               AND powr_score = $4 AND job_match_score = $5 AND explanation = $6::jsonb
+               AND created_at >= NOW() - INTERVAL '15 minutes'
+             ORDER BY created_at DESC
+             LIMIT 1
+           ), inserted AS (
+             INSERT INTO sourcing_match_snapshots
+               (organization_id, job_id, developer_username, powr_score, job_match_score, explanation, created_by_recruiter_id)
+             SELECT $1, $2, $3, $4, $5, $6::jsonb, $7
+             WHERE NOT EXISTS (SELECT 1 FROM existing)
+             RETURNING id
+           )
+           SELECT id FROM inserted UNION ALL SELECT id FROM existing LIMIT 1`,
+          [organizationId, jobId, developer.username, developer.powrScore, developer.jobMatchScore, JSON.stringify(developer.matchExplanation), recruiterId]
+        );
+        developer.matchSnapshotId = snapshot.rows[0].id;
+      }
+    }
 
     return { developers, total };
+  }
+
+  async upsertJobSourcingRequirements(
+    organizationId: number,
+    jobId: number,
+    recruiterId: number,
+    data: { requiredSkills?: string[]; preferredSkills?: string[]; minimumPowrScore?: number | null }
+  ): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO job_sourcing_requirements
+         (job_id, organization_id, required_skills, preferred_skills, minimum_powr_score, updated_by_recruiter_id)
+       SELECT j.id, j.organization_id, $3, $4, $5, $6
+       FROM jobs j WHERE j.id = $1 AND j.organization_id = $2
+       ON CONFLICT (job_id) DO UPDATE SET
+         required_skills = EXCLUDED.required_skills,
+         preferred_skills = EXCLUDED.preferred_skills,
+         minimum_powr_score = EXCLUDED.minimum_powr_score,
+         updated_by_recruiter_id = EXCLUDED.updated_by_recruiter_id,
+         updated_at = NOW()
+       RETURNING *`,
+      [jobId, organizationId, data.requiredSkills || [], data.preferredSkills || [], data.minimumPowrScore ?? null, recruiterId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async addSourcedCandidateToJob(
+    organizationId: number,
+    jobId: number,
+    username: string,
+    matchSnapshotId: number,
+    recruiterId: number
+  ): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO job_sourced_candidates
+         (organization_id, job_id, developer_username, match_snapshot_id, sourced_by_recruiter_id)
+       SELECT $1, j.id, s.developer_username, s.id, $5
+       FROM jobs j
+       JOIN sourcing_match_snapshots s ON s.id = $4
+       JOIN developer_recruiting_preferences pref ON pref.developer_username = s.developer_username
+       WHERE j.id = $2 AND j.organization_id = $1
+         AND s.organization_id = $1 AND s.job_id = j.id
+         AND s.developer_username = $3 AND pref.discoverable = TRUE
+       ON CONFLICT (job_id, developer_username) DO UPDATE SET
+         match_snapshot_id = EXCLUDED.match_snapshot_id,
+         sourced_by_recruiter_id = EXCLUDED.sourced_by_recruiter_id,
+         updated_at = NOW()
+       RETURNING *`,
+      [organizationId, jobId, username, matchSnapshotId, recruiterId]
+    );
+    return result.rows[0] || null;
   }
 
   // Cleanup
@@ -943,37 +1569,226 @@ export class DatabaseService {
   }
 
   // ── Jobs CRUD ──────────────────────────────────────────────────────────────
-  async createJob(recruiterId: number, data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[] }): Promise<any> {
+  async createJob(recruiterId: number, data: { title: string; company: string; location: string; salary?: string; type?: string; description?: string; tags?: string[]; department?: string; remote_policy?: string; seniority?: string; closing_date?: string; screening_questions?: string[]; status?: string }): Promise<any> {
     const result = await pool.query(`
-      INSERT INTO jobs (recruiter_id, title, company, location, salary, type, description, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags, department, remote_policy, seniority, closing_date, screening_questions, status)
+      SELECT $1, organization_id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13::jsonb, $14
+      FROM organization_members
+      WHERE recruiter_id = $1 AND status = 'active'
+      ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+      LIMIT 1
       RETURNING *
-    `, [recruiterId, data.title, data.company, data.location, data.salary || null, data.type || 'full-time', data.description || null, data.tags || []]);
-    return result.rows[0];
+    `, [recruiterId, data.title, data.company, data.location, data.salary || null, data.type || 'full-time', data.description || null, data.tags || [], data.department || null, data.remote_policy || null, data.seniority || null, data.closing_date || null, JSON.stringify(data.screening_questions || []), data.status || 'draft']);
+    const job = result.rows[0];
+    if (!job) return null;
+    const slugBase = data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";
+    const slugResult = await pool.query("UPDATE jobs SET public_slug = $2 WHERE id = $1 RETURNING *", [job.id, `${slugBase}-${job.id}`]);
+    return slugResult.rows[0];
   }
 
   async getJobs(params?: { status?: string; limit?: number; offset?: number }): Promise<{ jobs: any[]; total: number }> {
     const { status = 'active', limit = 20, offset = 0 } = params || {};
     const [dataResult, countResult] = await Promise.all([
-      pool.query('SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.status = $1 ORDER BY j.created_at DESC LIMIT $2 OFFSET $3', [status, limit, offset]),
-      pool.query('SELECT COUNT(*) FROM jobs WHERE status = $1', [status]),
+      pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.status = $1 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) ORDER BY j.created_at DESC LIMIT $2 OFFSET $3", [status, limit, offset]),
+      pool.query("SELECT COUNT(*) FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.status = $1 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [status]),
+    ]);
+    return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
+  }
+
+  async getOrganizationJobs(organizationId: number, params?: { status?: string; limit?: number; offset?: number }): Promise<{ jobs: any[]; total: number }> {
+    const { status = "active", limit = 20, offset = 0 } = params || {};
+    const [dataResult, countResult] = await Promise.all([
+      pool.query("SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND j.status = $2 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) ORDER BY j.created_at DESC LIMIT $3 OFFSET $4", [organizationId, status, limit, offset]),
+      pool.query("SELECT COUNT(*) FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND j.status = $2 AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [organizationId, status]),
     ]);
     return { jobs: dataResult.rows, total: parseInt(countResult.rows[0].count, 10) };
   }
 
   async getJobsByRecruiter(recruiterId: number): Promise<any[]> {
-    const result = await pool.query('SELECT * FROM jobs WHERE recruiter_id = $1 ORDER BY created_at DESC', [recruiterId]);
+    const result = await pool.query("SELECT j.* FROM jobs j JOIN organization_members m ON m.organization_id = j.organization_id WHERE m.recruiter_id = $1 AND m.status = 'active' ORDER BY j.created_at DESC", [recruiterId]);
     return result.rows;
   }
 
-  async getJobById(id: number): Promise<any | null> {
-    const result = await pool.query('SELECT j.*, r.company_name AS recruiter_company FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id WHERE j.id = $1', [id]);
+  async getJobByIdentifier(identifier: string): Promise<any | null> {
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company, o.slug AS organization_slug FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE (j.id::text = $1 OR j.public_slug = $1) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [identifier]);
     return result.rows[0] || null;
   }
 
-  async updateJob(id: number, recruiterId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string }>): Promise<any> {
+  async getOrganizationJobByIdentifier(organizationId: number, identifier: string): Promise<any | null> {
+    const result = await pool.query("SELECT j.*, r.company_name AS recruiter_company, o.slug AS organization_slug FROM jobs j LEFT JOIN recruiters r ON r.id = j.recruiter_id JOIN organizations o ON o.id = j.organization_id WHERE j.organization_id = $1 AND (j.id::text = $2 OR j.public_slug = $2) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE)", [organizationId, identifier]);
+    return result.rows[0] || null;
+  }
+
+  async createJobApplication(jobId: number, organizationId: number | null, username: string, email: string, coverNote: string | undefined, consentGiven: boolean, accessToken: string, screeningAnswers: Record<string, string>, sharedEvidence: string[]): Promise<any> {
+    const result = await pool.query(`INSERT INTO job_applications (job_id, developer_username, applicant_email, cover_note, consent_given, access_token, screening_answers, shared_evidence) SELECT j.id, $3, $4, $5, $6, $7::uuid, $8::jsonb, $9::jsonb FROM jobs j JOIN organizations o ON o.id = j.organization_id WHERE j.id = $1 AND ($2::INTEGER IS NULL OR j.organization_id = $2) AND j.status = 'active' AND o.status = 'active' AND (j.closing_date IS NULL OR j.closing_date >= CURRENT_DATE) RETURNING *`, [jobId, organizationId, username, email, coverNote || null, consentGiven, accessToken, JSON.stringify(screeningAnswers || {}), JSON.stringify(sharedEvidence || [])]);
+    const application = result.rows[0];
+    if (application) await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, 'application.created')", [application.id, username]);
+    return application;
+  }
+
+  async updateDeveloperApplication(accessToken: string, action: "withdraw" | "revoke_consent"): Promise<any | null> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = action === "withdraw"
+        ? await client.query("UPDATE job_applications SET stage = 'withdrawn', withdrawn_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid AND stage NOT IN ('hired', 'rejected', 'withdrawn') RETURNING *", [accessToken])
+        : await client.query("UPDATE job_applications SET consent_given = false, shared_evidence = '[]'::jsonb, consent_revoked_at = NOW(), updated_at = NOW() WHERE access_token = $1::uuid RETURNING *", [accessToken]);
+      const application = result.rows[0];
+      if (application && action === "revoke_consent") {
+        await client.query(
+          `INSERT INTO developer_recruiting_preferences (developer_username, discoverable, contactable, updated_at)
+           VALUES ($1, FALSE, FALSE, NOW())
+           ON CONFLICT (developer_username) DO UPDATE SET discoverable = FALSE, contactable = FALSE, updated_at = NOW()`,
+          [application.developer_username]
+        );
+        await client.query("DELETE FROM organization_talent_list_members WHERE developer_username = $1", [application.developer_username]);
+        await client.query("DELETE FROM job_sourced_candidates WHERE developer_username = $1", [application.developer_username]);
+      }
+      if (application) await client.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type) VALUES ($1, 'developer', $2, $3)", [application.id, application.developer_username, action === "withdraw" ? "application.withdrawn" : "application.consent_revoked"]);
+      await client.query("COMMIT");
+      return application || null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getOrganizationApplications(organizationId: number): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT
+         a.*,
+         j.title AS job_title,
+         j.company,
+         COALESCE((p.profile_data->>'overallIndex')::int, 0) AS powr_score,
+         COALESCE(p.profile_data->'skills', '[]'::jsonb) AS skills,
+         COALESCE(p.profile_data->>'summary', '') AS profile_summary,
+         COALESCE(p.profile_data->>'availability', '') AS availability,
+         COALESCE((
+           SELECT jsonb_agg(jsonb_build_object(
+             'id', n.id,
+             'note', n.note,
+             'created_at', n.created_at,
+             'recruiter_email', r.email
+           ) ORDER BY n.created_at DESC)
+           FROM job_application_notes n
+           JOIN recruiters r ON r.id = n.recruiter_id
+           WHERE n.application_id = a.id
+         ), '[]'::jsonb) AS notes,
+         COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.updated_at DESC) FROM job_application_scorecards s WHERE s.application_id = a.id), '[]'::jsonb) AS scorecards,
+         COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.created_at DESC) FROM job_application_events e WHERE e.application_id = a.id), '[]'::jsonb) AS events
+       FROM job_applications a
+       JOIN jobs j ON j.id = a.job_id
+       LEFT JOIN profiles p ON p.username = a.developer_username
+       WHERE j.organization_id = $1
+       ORDER BY a.created_at DESC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  async updateApplicationStage(organizationId: number, applicationId: number, stage: string): Promise<any | null> {
+    const result = await pool.query(`UPDATE job_applications a SET stage = $3, updated_at = NOW() FROM jobs j WHERE a.job_id = j.id AND a.id = $1 AND j.organization_id = $2 RETURNING a.*`, [applicationId, organizationId, stage]);
+    return result.rows[0] || null;
+  }
+
+  async addApplicationEvent(applicationId: number, actorId: string, eventType: string, metadata: Record<string, unknown> = {}): Promise<void> {
+    await pool.query("INSERT INTO job_application_events (application_id, actor_type, actor_id, event_type, metadata) VALUES ($1, 'recruiter', $2, $3, $4::jsonb)", [applicationId, actorId, eventType, JSON.stringify(metadata)]);
+  }
+
+  async upsertApplicationScorecard(organizationId: number, applicationId: number, recruiterId: number, score: number, recommendation: string, feedback?: string): Promise<any | null> {
+    const result = await pool.query(`
+      INSERT INTO job_application_scorecards (application_id, recruiter_id, score, recommendation, feedback)
+      SELECT a.id, $3, $4, $5, $6 FROM job_applications a JOIN jobs j ON j.id = a.job_id
+      WHERE a.id = $1 AND j.organization_id = $2
+      ON CONFLICT (application_id, recruiter_id) DO UPDATE SET score = EXCLUDED.score, recommendation = EXCLUDED.recommendation, feedback = EXCLUDED.feedback, updated_at = NOW()
+      RETURNING *
+    `, [applicationId, organizationId, recruiterId, score, recommendation, feedback || null]);
+    return result.rows[0] || null;
+  }
+
+  async addApplicationNote(organizationId: number, applicationId: number, recruiterId: number, note: string): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO job_application_notes (application_id, recruiter_id, note)
+       SELECT a.id, $3, $4
+       FROM job_applications a
+       JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1 AND j.organization_id = $2
+       RETURNING *`,
+      [applicationId, organizationId, recruiterId, note],
+    );
+    return result.rows[0] || null;
+  }
+
+  async createEmployeeFromApplication(organizationId: number, applicationId: number, recruiterId: number, data: { startDate?: string; employmentType?: string; department?: string; managerName?: string; onboardingNotes?: string }): Promise<any | null> {
+    const result = await pool.query(
+      `INSERT INTO employees (
+         organization_id,
+         source_application_id,
+         developer_username,
+         work_email,
+         job_title,
+         start_date,
+         employment_type,
+         department,
+         manager_name,
+         onboarding_notes,
+         created_by_recruiter_id
+       )
+       SELECT
+         j.organization_id,
+         a.id,
+         a.developer_username,
+         a.applicant_email,
+         j.title,
+         $4::date,
+         $5,
+         $6,
+         $7,
+         $8,
+         $3
+       FROM job_applications a
+       JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1 AND j.organization_id = $2 AND a.stage = 'hired'
+       ON CONFLICT (source_application_id) DO NOTHING
+       RETURNING *`,
+      [applicationId, organizationId, recruiterId, data.startDate || null, data.employmentType || null, data.department || null, data.managerName || null, data.onboardingNotes || null],
+    );
+    return result.rows[0] || null;
+  }
+
+  async getOrganizationEmployees(organizationId: number): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT e.*, COALESCE((p.profile_data->>'overallIndex')::int, 0) AS powr_score
+       FROM employees e
+       LEFT JOIN profiles p ON p.username = e.developer_username
+       WHERE e.organization_id = $1
+       ORDER BY e.created_at DESC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  async updateOrganizationEmployee(organizationId: number, employeeId: number, data: { employmentStatus?: string; startDate?: string; employmentType?: string; department?: string; managerName?: string; onboardingNotes?: string }): Promise<any | null> {
+    const result = await pool.query(`
+      UPDATE employees SET
+        employment_status = COALESCE($3, employment_status),
+        start_date = COALESCE($4::date, start_date),
+        employment_type = COALESCE($5, employment_type),
+        department = COALESCE($6, department),
+        manager_name = COALESCE($7, manager_name),
+        onboarding_notes = COALESCE($8, onboarding_notes),
+        updated_at = NOW()
+      WHERE id = $1 AND organization_id = $2
+      RETURNING *
+    `, [employeeId, organizationId, data.employmentStatus || null, data.startDate || null, data.employmentType || null, data.department || null, data.managerName || null, data.onboardingNotes || null]);
+    return result.rows[0] || null;
+  }
+
+  async updateJob(id: number, organizationId: number, data: Partial<{ title: string; company: string; location: string; salary: string; type: string; description: string; tags: string[]; status: string; department: string; remote_policy: string; seniority: string; closing_date: string; screening_questions: string[] }>): Promise<any> {
     const fields: string[] = [];
-    const values: any[] = [id, recruiterId];
+    const values: any[] = [id, organizationId];
     let idx = 3;
     if (data.title !== undefined) { fields.push(`title = $${idx++}`); values.push(data.title); }
     if (data.company !== undefined) { fields.push(`company = $${idx++}`); values.push(data.company); }
@@ -982,21 +1797,49 @@ export class DatabaseService {
     if (data.type !== undefined) { fields.push(`type = $${idx++}`); values.push(data.type); }
     if (data.description !== undefined) { fields.push(`description = $${idx++}`); values.push(data.description); }
     if (data.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(data.tags); }
+    if (data.department !== undefined) { fields.push(`department = $${idx++}`); values.push(data.department || null); }
+    if (data.remote_policy !== undefined) { fields.push(`remote_policy = $${idx++}`); values.push(data.remote_policy || null); }
+    if (data.seniority !== undefined) { fields.push(`seniority = $${idx++}`); values.push(data.seniority || null); }
+    if (data.closing_date !== undefined) { fields.push(`closing_date = $${idx++}::date`); values.push(data.closing_date || null); }
+    if (data.screening_questions !== undefined) { fields.push(`screening_questions = $${idx++}::jsonb`); values.push(JSON.stringify(data.screening_questions)); }
     if (data.status !== undefined) { fields.push(`status = $${idx++}`); values.push(data.status); }
     fields.push('updated_at = NOW()');
-    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND recruiter_id = $2 RETURNING *`, values);
+    const result = await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $1 AND organization_id = $2 RETURNING *`, values);
     return result.rows[0] || null;
   }
 
-  async deleteJob(id: number, recruiterId: number): Promise<void> {
-    await pool.query('DELETE FROM jobs WHERE id = $1 AND recruiter_id = $2', [id, recruiterId]);
+  async duplicateJob(id: number, organizationId: number, recruiterId: number): Promise<any | null> {
+    const result = await pool.query(`
+      INSERT INTO jobs (recruiter_id, organization_id, title, company, location, salary, type, description, tags, status, department, remote_policy, seniority, closing_date, screening_questions)
+      SELECT $3, j.organization_id, j.title || ' (Copy)', j.company, j.location, j.salary, j.type, j.description, j.tags, 'draft', j.department, j.remote_policy, j.seniority, j.closing_date, j.screening_questions
+      FROM jobs j
+      WHERE j.id = $1 AND j.organization_id = $2
+      RETURNING *
+    `, [id, organizationId, recruiterId]);
+    const job = result.rows[0];
+    if (!job) return null;
+    const slugBase = job.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";
+    const slugResult = await pool.query("UPDATE jobs SET public_slug = $2 WHERE id = $1 RETURNING *", [job.id, `${slugBase}-${job.id}`]);
+    return slugResult.rows[0];
+  }
+
+  async deleteJob(id: number, organizationId: number): Promise<boolean> {
+    const result = await pool.query(
+      "DELETE FROM jobs WHERE id = $1 AND organization_id = $2",
+      [id, organizationId]
+    );
+    return Boolean(result.rowCount);
   }
 
   // ── Gigs CRUD ──────────────────────────────────────────────────────────────
   async createGig(recruiterId: number, data: { title: string; client: string; location: string; rate?: string; duration?: string; description?: string; tags?: string[] }): Promise<any> {
     const result = await pool.query(`
-      INSERT INTO gigs (recruiter_id, title, client, location, rate, duration, description, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO gigs (recruiter_id, organization_id, title, client, location, rate, duration, description, tags)
+      SELECT $1, organization_id, $2, $3, $4, $5, $6, $7, $8
+      FROM organization_members
+      WHERE recruiter_id = $1 AND status = 'active'
+      ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END
+      LIMIT 1
       RETURNING *
     `, [recruiterId, data.title, data.client, data.location, data.rate || null, data.duration || null, data.description || null, data.tags || []]);
     return result.rows[0];

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, CircleNotch, Wallet } from "phosphor-react";
+import { X, Wallet } from "phosphor-react";
+import { SquircleLoader } from "../ui/SquircleLoader";
 import {
   getLeatherProvider,
   getXverseProvider,
@@ -106,7 +107,7 @@ export const WalletPickerModal: React.FC<WalletPickerModalProps> = ({
           >
             <div className="w-10 h-10 rounded-xl bg-[rgba(255,85,0,0.20)] flex items-center justify-center flex-shrink-0">
               {connecting === "native" ? (
-                <CircleNotch className="w-5 h-5 text-[#FF5500] animate-spin" weight="bold" />
+                <SquircleLoader size={20} label="Finding wallets" />
               ) : (
                 <Wallet className="w-5 h-5 text-[#FF5500]" weight="fill" />
               )}
@@ -148,7 +149,7 @@ export const WalletPickerModal: React.FC<WalletPickerModalProps> = ({
               >
                 {connecting === "leather" ? (
                   <>
-                    <CircleNotch className="w-3.5 h-3.5 animate-spin" weight="bold" />
+                    <SquircleLoader size={14} color="currentColor" label="Connecting" />
                     Connecting
                   </>
                 ) : (
@@ -186,7 +187,7 @@ export const WalletPickerModal: React.FC<WalletPickerModalProps> = ({
               >
                 {connecting === "xverse" ? (
                   <>
-                    <CircleNotch className="w-3.5 h-3.5 animate-spin" weight="bold" />
+                    <SquircleLoader size={14} color="currentColor" label="Connecting" />
                     Connecting
                   </>
                 ) : (

@@ -142,7 +142,7 @@ export function SkillBadgeCard({ badge }: { badge: Badge }) {
 export function AchievementBadgeCard({
   badge,
 }: {
-  badge: GithubBadge & { displayName: string; description: string };
+  badge: GithubBadge;
 }) {
   const meta = ACHIEVEMENT_META[badge.badgeKey] || {
     icon: Medal,
@@ -151,14 +151,18 @@ export function AchievementBadgeCard({
     border: "rgba(107,114,128,0.3)",
   };
   const Icon = meta.icon;
+  const isGithub = badge.source === "github" && badge.imageUrl;
+  const earnedDate = badge.earnedAt ? new Date(badge.earnedAt) : null;
+  const hasValidEarnedDate = earnedDate && !Number.isNaN(earnedDate.getTime()) && earnedDate.getFullYear() > 1970;
 
   return (
     <div
       className="group relative flex flex-col items-center gap-1.5 cursor-default"
-      title={`${badge.displayName}\n${badge.description}\nEarned: ${new Date(badge.earnedAt).toLocaleDateString()}`}
+      title={`${badge.displayName}\n${badge.description}${hasValidEarnedDate ? `\nEarned: ${earnedDate.toLocaleDateString()}` : badge.source === "github" ? "\nVisible on the public GitHub profile" : ""}`}
     >
-      {/* Circle body */}
-      <div
+      {isGithub ? <div className="relative h-16 w-16 transition-transform duration-200 group-hover:scale-105">
+        <img src={badge.imageUrl} alt={`GitHub achievement: ${badge.displayName}`} className="h-full w-full object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,.3)]" />
+      </div> : <div
         className="relative w-12 h-12 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
         style={{
           background: meta.bg,
@@ -167,7 +171,7 @@ export function AchievementBadgeCard({
         }}
       >
         <Icon className="w-5 h-5" style={{ color: meta.color }} weight="fill" />
-      </div>
+      </div>}
 
       {/* Display name */}
       <span className="text-[9px] text-gray-400 text-center leading-tight max-w-[60px]">

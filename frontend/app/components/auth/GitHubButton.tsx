@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { Button } from "../ui";
-import { Github, Loader2 } from "lucide-react";
+import { Github } from "lucide-react";
+import { SquircleLoader } from "../ui/SquircleLoader";
 
 interface GitHubButtonProps {
   onClick?: () => void;
@@ -36,7 +37,7 @@ export const GitHubButton: React.FC<GitHubButtonProps> = ({
     >
       {isLoading ? (
         <>
-          <Loader2 className="w-5 h-5 animate-spin" />
+          <SquircleLoader size={20} color="currentColor" label="Connecting to GitHub" />
           <span>Connecting...</span>
         </>
       ) : (

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card } from "../../components/ui";
+import { SquircleLoader } from "../../components/ui/SquircleLoader";
 import {
   ArrowLeft,
   House,
@@ -26,6 +27,7 @@ import { apiClient, PoWProfile, Artifact, Proof, Badge, GithubBadge } from "../.
 import { BadgeGrid } from "../../components/profile/BadgeGrid";
 import { EndorsementSection } from "../../components/profile/EndorsementSection";
 import { ReputationTimeline } from "../../components/profile/ReputationTimeline";
+import { OpenSourceEvidence } from "../../components/profile/OpenSourceEvidence";
 import toast from "react-hot-toast";
 
 const PercentileBadge = ({ percentile, score }: { percentile: number; score: number }) => {
@@ -68,9 +70,8 @@ export default function PublicProfilePage() {
 
   useEffect(() => {
     // Check if user is logged in
-    const token = localStorage.getItem("github_token");
     const storedUsername = localStorage.getItem("github_username") || "";
-    setIsLoggedIn(!!token);
+    setIsLoggedIn(!!storedUsername);
     setLoggedInUsername(storedUsername);
 
     // Load endorsement count from localStorage
@@ -85,8 +86,8 @@ export default function PublicProfilePage() {
     }
 
     // Fetch viewer's score if logged in
-    if (token && storedUsername) {
-      apiClient.getUserProfile(storedUsername, token)
+    if (storedUsername) {
+      apiClient.getUserProfile(storedUsername)
         .then(data => setViewerScore(Math.round(data.overallIndex || 0)))
         .catch(() => {});
     }
@@ -167,7 +168,7 @@ export default function PublicProfilePage() {
     return (
       <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="mx-auto mb-4"><SquircleLoader size={48} label="Loading profile" /></div>
           <p className="text-gray-400 text-sm">Loading profile...</p>
         </div>
       </div>
@@ -423,6 +424,8 @@ export default function PublicProfilePage() {
 
         {/* Reputation Timeline */}
         <ReputationTimeline username={username} profile={profile} proofs={proofs} />
+
+        <OpenSourceEvidence username={username} />
 
         {/* Endorsements */}
         <EndorsementSection

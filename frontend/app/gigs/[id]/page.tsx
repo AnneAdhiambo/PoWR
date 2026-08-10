@@ -7,6 +7,7 @@ import { Card, Button } from "../../components/ui";
 import { FileText, MapPin, CurrencyDollar, Clock, Star, ArrowLeft, CheckCircle, XCircle, User } from "phosphor-react";
 import { savedItems } from "../../lib/savedItems";
 import toast from "react-hot-toast";
+import { SquircleLoader } from "../../components/ui/SquircleLoader";
 
 interface Gig {
   id: string;
@@ -225,7 +226,7 @@ export default function GigDetailPage() {
           displayName={displayName}
         />
         <div className="flex-1 overflow-y-auto flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
+          <SquircleLoader size={32} label="Loading gig" />
         </div>
       </div>
     );

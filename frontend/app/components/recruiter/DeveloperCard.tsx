@@ -40,10 +40,11 @@ function inferRole(skills: Array<{ skill: string }>): string {
 interface DeveloperCardProps {
   developer: DeveloperCardData;
   onShortlist?: (username: string) => void;
+  shortlistLabel?: string;
   onContact?: (username: string) => void;
 }
 
-export const DeveloperCard: React.FC<DeveloperCardProps> = ({ developer, onShortlist, onContact }) => {
+export const DeveloperCard: React.FC<DeveloperCardProps> = ({ developer, onShortlist, shortlistLabel = "Add to job", onContact }) => {
   const router = useRouter();
   const { username, topSkills, overallIndex, hasOnChainProof } = developer;
   const role = inferRole(topSkills);
@@ -137,7 +138,7 @@ export const DeveloperCard: React.FC<DeveloperCardProps> = ({ developer, onShort
           className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-gray-300 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,85,0,0.1)] hover:text-[#FF5500] border border-[rgba(255,255,255,0.06)] hover:border-[#FF5500]/25 transition-colors"
         >
           <Heart className="w-3.5 h-3.5" weight="regular" />
-          Shortlist
+          {shortlistLabel}
         </button>
         <button
           onClick={() => onContact?.(username)}

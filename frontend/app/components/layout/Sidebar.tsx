@@ -18,6 +18,7 @@ import {
   Medal,
   Crown,
   Lightning,
+  GitBranch,
 } from "phosphor-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { apiClient } from "../../lib/api";
@@ -61,27 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (storedAvatar) {
       setGithubAvatarUrl(storedAvatar);
     } else if (username) {
-      // Fetch avatar from GitHub API if we have a token
-      const token = localStorage.getItem("github_token");
-      if (token) {
-        fetch("https://api.github.com/user", {
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: "application/vnd.github.v3+json",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.avatar_url) {
-              setGithubAvatarUrl(data.avatar_url);
-              localStorage.setItem("github_avatar_url", data.avatar_url);
-            }
-          })
-          .catch((error) => {
-            console.error("Failed to fetch GitHub avatar:", error);
-          });
-      } else {
-        // Fallback: try public API without token
+      if (username) {
         fetch(`https://api.github.com/users/${username}`, {
           headers: {
             Accept: "application/vnd.github.v3+json",
@@ -111,11 +92,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       .catch(() => {});
   }, [username]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    await fetch(`${apiBaseUrl}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
     // Clear all auth data
-    localStorage.removeItem("github_token");
     localStorage.removeItem("github_username");
-    localStorage.removeItem("github_token_timestamp");
     localStorage.removeItem("github_avatar_url");
     localStorage.removeItem("github_email");
 
@@ -131,6 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { icon: SquaresFour, label: "Dashboard", href: "/dashboard" },
     { icon: ShieldCheck, label: "On-Chain Proofs", href: "/proofs" },
+    { icon: GitBranch, label: "Open Source", href: "/open-source" },
     { icon: Briefcase, label: "Jobs", href: "/jobs" },
     { icon: FileText, label: "Gigs", href: "/gigs" },
     { icon: Star, label: "Saved", href: "/saved" },
@@ -153,7 +135,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alt="PoWR Logo"
             className="h-9 w-auto"
           />
-          <span className="text-lg font-semibold text-white tracking-tight">PoWR</span>
         </Link>
       </div>
 

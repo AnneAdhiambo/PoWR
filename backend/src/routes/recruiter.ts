@@ -1,23 +1,215 @@
 import express from "express";
 import { recruiterService } from "../services/recruiterService";
 import { dbService } from "../services/database";
-import { requireRecruiter, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import { requireRecruiter, requireOrganizationMember, requireOrganizationRole, RecruiterJwtPayload } from "../middleware/requireRecruiter";
+import crypto from "crypto";
 import { paymentService } from "../services/paymentService";
+import { rateLimit } from "../middleware/rateLimit";
 
 // Recruiter plan pricing (USD/month)
 const RECRUITER_PLAN_PRICES: Record<string, number> = { pro: 49, enterprise: 299 };
 
 const router = express.Router();
+const recruiterAuthRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "recruiter-auth" });
+
+function setRecruiterSession(res: express.Response, token: string) {
+  res.cookie("powr_recruiter_session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+}
+
+router.get("/organization/profile", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ organization: await dbService.getOrganizationById(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.put("/organization/profile", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organizationContext = (req as any).organization as { organizationId: number };
+    const { display_name, summary, website, location, logo_url, benefits = [], social_links = {} } = req.body;
+    if (!String(display_name || "").trim()) return res.status(400).json({ error: "Organization name is required" });
+    const organization = await dbService.updateOrganizationProfile(organizationContext.organizationId, String(display_name).trim(), {
+      summary: String(summary || "").trim(),
+      website: String(website || "").trim(),
+      location: String(location || "").trim(),
+      logoUrl: String(logo_url || "").trim(),
+      benefits: Array.isArray(benefits) ? benefits.filter(Boolean) : [],
+      socialLinks: social_links,
+    });
+    await dbService.recordAuditEvent(organizationContext.organizationId, recruiterId, "organization.profile_updated", "organization", String(organizationContext.organizationId));
+    res.json({ organization });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.get("/applications", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ applications: await dbService.getOrganizationApplications(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.patch("/applications/:applicationId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter", "hiring_manager"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    if (!["applied", "screening", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"].includes(req.body.stage)) return res.status(400).json({ error: "Invalid application stage" });
+    const application = await dbService.updateApplicationStage(organization.organizationId, Number(req.params.applicationId), req.body.stage);
+    if (!application) return res.status(404).json({ error: "Application not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.stage_updated", "job_application", req.params.applicationId, { stage: req.body.stage });
+    await dbService.addApplicationEvent(Number(req.params.applicationId), String(recruiterId), "application.stage_updated", { stage: req.body.stage });
+    res.json({ application });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+  });
+
+router.put("/applications/:applicationId/scorecard", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter", "hiring_manager", "interviewer"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const score = Number(req.body.score);
+    const recommendation = String(req.body.recommendation || "").trim();
+    if (!Number.isInteger(score) || score < 1 || score > 5 || !recommendation) return res.status(400).json({ error: "Score from 1 to 5 and recommendation are required" });
+    const scorecard = await dbService.upsertApplicationScorecard(organization.organizationId, Number(req.params.applicationId), recruiterId, score, recommendation, req.body.feedback);
+    if (!scorecard) return res.status(404).json({ error: "Application not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.scorecard_updated", "job_application", req.params.applicationId, { score, recommendation });
+    await dbService.addApplicationEvent(Number(req.params.applicationId), String(recruiterId), "application.scorecard_updated", { score, recommendation });
+    res.json({ scorecard });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.post("/applications/:applicationId/notes", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter", "hiring_manager", "interviewer"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const noteText = String(req.body.note || "").trim();
+    if (!noteText) return res.status(400).json({ error: "Note is required" });
+    const note = await dbService.addApplicationNote(organization.organizationId, Number(req.params.applicationId), recruiterId, noteText);
+    if (!note) return res.status(404).json({ error: "Application not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "application.note_added", "job_application", req.params.applicationId);
+    res.status(201).json({ note });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.post("/applications/:applicationId/convert-to-employee", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const employee = await dbService.createEmployeeFromApplication(organization.organizationId, Number(req.params.applicationId), recruiterId, {
+      startDate: req.body.start_date,
+      employmentType: req.body.employment_type,
+      department: req.body.department,
+      managerName: req.body.manager_name,
+      onboardingNotes: req.body.onboarding_notes,
+    });
+    if (!employee) return res.status(409).json({ error: "Application is not hired or already has an employee record" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "employee.created_from_application", "employee", String(employee.id), { applicationId: Number(req.params.applicationId) });
+    res.status(201).json({ employee });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.get("/employees", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ employees: await dbService.getOrganizationEmployees(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.patch("/employees/:employeeId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const allowedStatuses = ["onboarding", "ready", "active", "paused", "offboarded"];
+    if (req.body.employment_status && !allowedStatuses.includes(req.body.employment_status)) return res.status(400).json({ error: "Invalid employment status" });
+    const employee = await dbService.updateOrganizationEmployee(organization.organizationId, Number(req.params.employeeId), {
+      employmentStatus: req.body.employment_status,
+      startDate: req.body.start_date,
+      employmentType: req.body.employment_type,
+      department: req.body.department,
+      managerName: req.body.manager_name,
+      onboardingNotes: req.body.onboarding_notes,
+    });
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "employee.onboarding_updated", "employee", req.params.employeeId, { fields: Object.keys(req.body) });
+    res.json({ employee });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.get("/team/members", requireRecruiter, requireOrganizationMember, async (req, res) => {
+  try {
+    const organization = (req as any).organization as { organizationId: number };
+    res.json({ members: await dbService.getOrganizationMembers(organization.organizationId) });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.patch("/team/members/:memberId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const memberId = parseInt(req.params.memberId, 10);
+    const { role } = req.body;
+    if (!Number.isInteger(memberId) || !["admin", "recruiter", "hiring_manager", "interviewer"].includes(role)) return res.status(400).json({ error: "Valid member and role are required" });
+    const member = await dbService.updateOrganizationMember(organization.organizationId, memberId, role);
+    if (!member) return res.status(404).json({ error: "Team member not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "team.member_role_updated", "organization_member", String(memberId), { role });
+    res.json({ member });
+  } catch (error: any) { res.status(400).json({ error: error.message }); }
+});
+
+router.delete("/team/members/:memberId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const memberId = parseInt(req.params.memberId, 10);
+    if (!Number.isInteger(memberId)) return res.status(400).json({ error: "Valid member is required" });
+    const member = await dbService.removeOrganizationMember(organization.organizationId, memberId);
+    if (!member) return res.status(404).json({ error: "Team member not found" });
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "team.member_removed", "organization_member", String(memberId));
+    res.json({ member });
+  } catch (error: any) { res.status(400).json({ error: error.message }); }
+});
+
+router.post("/team/invitations", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const organization = (req as any).organization as { organizationId: number };
+    const { email, role = "recruiter" } = req.body;
+    if (!email || !["admin", "recruiter", "hiring_manager", "interviewer"].includes(role)) return res.status(400).json({ error: "Valid email and role are required" });
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const invitation = await dbService.createOrganizationInvitation(organization.organizationId, recruiterId, email, role, tokenHash, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    await dbService.recordAuditEvent(organization.organizationId, recruiterId, "team.invitation_created", "organization_invitation", String(invitation.id), { email, role });
+    res.status(201).json({ invitation, token: rawToken });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
+router.post("/team/invitations/accept", requireRecruiter, async (req, res) => {
+  try {
+    const { recruiterId, email } = (req as any).recruiter as RecruiterJwtPayload;
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Invitation token is required" });
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const invitation = await dbService.acceptOrganizationInvitation(tokenHash, recruiterId, email);
+    if (!invitation) return res.status(400).json({ error: "Invalid, expired, or mismatched invitation" });
+    res.json({ accepted: true, organizationId: invitation.organization_id, role: invitation.role });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
 
 
 // POST /api/recruiter/auth/signup
-router.post("/auth/signup", async (req, res) => {
+router.post("/auth/signup", recruiterAuthRateLimit, async (req, res) => {
   try {
     const { email, password, company_name, company_size } = req.body;
     if (!email || !password || !company_name) {
       return res.status(400).json({ error: "Email, password, and company_name required" });
     }
     const result = await recruiterService.signup(email, password, company_name, company_size);
+    setRecruiterSession(res, result.token);
     res.json(result);
   } catch (error: any) {
     console.error("[Recruiter] Signup error:", error.message);
@@ -27,18 +219,31 @@ router.post("/auth/signup", async (req, res) => {
 });
 
 // POST /api/recruiter/auth/login
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", recruiterAuthRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
     const result = await recruiterService.login(email, password);
+    setRecruiterSession(res, result.token);
     res.json(result);
   } catch (error: any) {
     console.error("[Recruiter] Login error:", error.message);
     res.status(401).json({ error: error.message });
   }
+});
+
+router.post("/auth/logout", requireRecruiter, async (req, res) => {
+  const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+  await dbService.rotateRecruiterSession(recruiterId);
+  res.clearCookie("powr_recruiter_session", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+  res.json({ success: true });
 });
 
 // GET /api/recruiter/me
@@ -65,14 +270,16 @@ router.get("/me", requireRecruiter, async (req, res) => {
 });
 
 // GET /api/recruiter/search
-router.get("/search", requireRecruiter, async (req, res) => {
+router.get("/search", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
-    const { recruiterId, role } = (req as any).recruiter as RecruiterJwtPayload;
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { organizationId } = (req as any).organization;
     const recruiterRow = await dbService.getRecruiterById(recruiterId);
     if (!recruiterRow) return res.status(404).json({ error: "Recruiter not found" });
 
     const {
       skills,
+      jobId,
       minScore,
       maxScore,
       activeWithin,
@@ -86,6 +293,9 @@ router.get("/search", requireRecruiter, async (req, res) => {
       : undefined;
 
     const result = await dbService.searchDevelopers({
+      organizationId,
+      recruiterId,
+      jobId: jobId ? parseInt(jobId as string, 10) : undefined,
       skills: skillList,
       minScore: minScore ? parseInt(minScore as string, 10) : undefined,
       maxScore: maxScore ? parseInt(maxScore as string, 10) : undefined,
@@ -103,10 +313,13 @@ router.get("/search", requireRecruiter, async (req, res) => {
 });
 
 // GET /api/recruiter/developer/:username
-router.get("/developer/:username", requireRecruiter, async (req, res) => {
+router.get("/developer/:username", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const { username } = req.params;
+    if (!(await dbService.canDiscoverDeveloper(username))) {
+      return res.status(404).json({ error: "Developer not available for discovery" });
+    }
 
     const recruiterRow = await dbService.getRecruiterById(recruiterId);
     if (!recruiterRow) return res.status(404).json({ error: "Recruiter not found" });
@@ -445,11 +658,14 @@ router.get("/developer/:username", requireRecruiter, async (req, res) => {
 });
 
 // POST /api/recruiter/developer/:username/contact
-router.post("/developer/:username/contact", requireRecruiter, async (req, res) => {
+router.post("/developer/:username/contact", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
     const { username } = req.params;
     const { message } = req.body;
+    if (!(await dbService.canDiscoverDeveloper(username, true))) {
+      return res.status(403).json({ error: "Developer is not accepting recruiter contact" });
+    }
 
     const recruiterRow = await dbService.getRecruiterById(recruiterId);
     if (!recruiterRow) return res.status(404).json({ error: "Recruiter not found" });
@@ -473,10 +689,10 @@ router.post("/developer/:username/contact", requireRecruiter, async (req, res) =
 });
 
 // GET /api/recruiter/saved
-router.get("/saved", requireRecruiter, async (req, res) => {
+router.get("/saved", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
-    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
-    const pools = await dbService.getSavedPools(recruiterId);
+    const { organizationId } = (req as any).organization;
+    const pools = await dbService.getTalentLists(organizationId);
     res.json({ pools });
   } catch (error: any) {
     console.error("[Recruiter] Get saved pools error:", error.message);
@@ -485,12 +701,13 @@ router.get("/saved", requireRecruiter, async (req, res) => {
 });
 
 // POST /api/recruiter/saved
-router.post("/saved", requireRecruiter, async (req, res) => {
+router.post("/saved", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
     const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { organizationId } = (req as any).organization;
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: "Pool name required" });
-    const pool = await dbService.createSavedPool(recruiterId, name);
+    const pool = await dbService.createTalentList(organizationId, recruiterId, name);
     res.json({ pool });
   } catch (error: any) {
     console.error("[Recruiter] Create pool error:", error.message);
@@ -499,10 +716,12 @@ router.post("/saved", requireRecruiter, async (req, res) => {
 });
 
 // GET /api/recruiter/saved/:poolId/members
-router.get("/saved/:poolId/members", requireRecruiter, async (req, res) => {
+router.get("/saved/:poolId/members", requireRecruiter, requireOrganizationMember, async (req, res) => {
   try {
+    const { organizationId } = (req as any).organization;
     const poolId = parseInt(req.params.poolId, 10);
-    const members = await dbService.getPoolMembers(poolId);
+    const members = await dbService.getTalentListMembers(organizationId, poolId);
+    if (!members) return res.status(404).json({ error: "Talent list not found" });
     res.json({ members });
   } catch (error: any) {
     console.error("[Recruiter] Get pool members error:", error.message);
@@ -511,12 +730,15 @@ router.get("/saved/:poolId/members", requireRecruiter, async (req, res) => {
 });
 
 // POST /api/recruiter/saved/:poolId/members
-router.post("/saved/:poolId/members", requireRecruiter, async (req, res) => {
+router.post("/saved/:poolId/members", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { organizationId } = (req as any).organization;
     const poolId = parseInt(req.params.poolId, 10);
     const { username } = req.body;
     if (!username) return res.status(400).json({ error: "Username required" });
-    await dbService.addToPool(poolId, username);
+    const added = await dbService.addTalentListMember(organizationId, poolId, username, recruiterId);
+    if (!added) return res.status(404).json({ error: "Talent list or discoverable developer not found" });
     res.json({ success: true });
   } catch (error: any) {
     console.error("[Recruiter] Add to pool error:", error.message);
@@ -525,11 +747,13 @@ router.post("/saved/:poolId/members", requireRecruiter, async (req, res) => {
 });
 
 // DELETE /api/recruiter/saved/:poolId/members/:username
-router.delete("/saved/:poolId/members/:username", requireRecruiter, async (req, res) => {
+router.delete("/saved/:poolId/members/:username", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
   try {
+    const { organizationId } = (req as any).organization;
     const poolId = parseInt(req.params.poolId, 10);
     const { username } = req.params;
-    await dbService.removeFromPool(poolId, username);
+    const removed = await dbService.removeTalentListMember(organizationId, poolId, username);
+    if (!removed) return res.status(404).json({ error: "Talent list member not found" });
     res.json({ success: true });
   } catch (error: any) {
     console.error("[Recruiter] Remove from pool error:", error.message);
@@ -538,15 +762,57 @@ router.delete("/saved/:poolId/members/:username", requireRecruiter, async (req, 
 });
 
 // DELETE /api/recruiter/saved/:poolId
-router.delete("/saved/:poolId", requireRecruiter, async (req, res) => {
+router.delete("/saved/:poolId", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin"), async (req, res) => {
   try {
-    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { organizationId } = (req as any).organization;
     const poolId = parseInt(req.params.poolId, 10);
-    await dbService.deleteSavedPool(poolId, recruiterId);
+    const deleted = await dbService.deleteTalentList(organizationId, poolId);
+    if (!deleted) return res.status(404).json({ error: "Talent list not found" });
     res.json({ success: true });
   } catch (error: any) {
     console.error("[Recruiter] Delete pool error:", error.message);
     res.status(500).json({ error: "Failed to delete pool" });
+  }
+});
+
+router.put("/jobs/:jobId/sourcing-requirements", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { organizationId } = (req as any).organization;
+    const requirements = await dbService.upsertJobSourcingRequirements(
+      organizationId,
+      parseInt(req.params.jobId, 10),
+      recruiterId,
+      req.body || {}
+    );
+    if (!requirements) return res.status(404).json({ error: "Job not found" });
+    res.json({ requirements });
+  } catch (error: any) {
+    console.error("[Recruiter] Sourcing requirements error:", error.message);
+    res.status(500).json({ error: "Failed to update sourcing requirements" });
+  }
+});
+
+router.post("/jobs/:jobId/sourced-candidates", requireRecruiter, requireOrganizationMember, requireOrganizationRole("owner", "admin", "recruiter"), async (req, res) => {
+  try {
+    const { recruiterId } = (req as any).recruiter as RecruiterJwtPayload;
+    const { organizationId } = (req as any).organization;
+    const { username, matchSnapshotId } = req.body;
+    if (!username || !matchSnapshotId) {
+      return res.status(400).json({ error: "username and matchSnapshotId are required" });
+    }
+    const candidate = await dbService.addSourcedCandidateToJob(
+      organizationId,
+      parseInt(req.params.jobId, 10),
+      username,
+      Number(matchSnapshotId),
+      recruiterId
+    );
+    if (!candidate) return res.status(404).json({ error: "Matching job, developer, or snapshot not found" });
+    res.status(201).json({ candidate });
+  } catch (error: any) {
+    console.error("[Recruiter] Add sourced candidate error:", error.message);
+    res.status(500).json({ error: "Failed to add sourced candidate" });
   }
 });
 
@@ -610,6 +876,7 @@ router.post("/billing/verify", requireRecruiter, async (req, res) => {
 // Mock pays a recruiter invoice in development sandbox
 router.post("/billing/lightning/pay-mock", requireRecruiter, async (req, res) => {
   try {
+    if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") return res.status(404).json({ error: "Not found" });
     const { paymentHash } = req.body;
     if (!paymentHash) {
       return res.status(400).json({ error: "paymentHash is required" });
