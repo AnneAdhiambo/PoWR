@@ -2,6 +2,7 @@
 
 PoWR is a proof-of-work reputation and hiring platform built to help developers earn trust through what they have actually created, contributed, and delivered.
 
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?name=powr&type=git&repository=AnneAdhiambo%2FPoWR&branch=main&workdir=.%2Fbackend&privileged=true&instance_type=free&regions=fra&instances_min=0&autoscaling_sleep_idle_delay=3900)
 ## Why We Built It
 
 Traditional hiring relies heavily on resumes, self-reported skills, and interviews that do not always reflect real ability. Strong developers can be overlooked, while recruiters spend too much time trying to verify claims.
@@ -26,3 +27,7 @@ Our goal is to become the trust for technical work and hiring.
 > We want developers to be recognized for what they can prove, companies to hire with greater confidence, and professional reputation to be built on meaningful work rather than polished claims, generic AI language, or carefully written resumes.
 
 > Anyone can create a strong resume or pay someone to write one. Real work is different. It leaves evidence, shows capability, and is much harder to fake.
+
+
+---
+
