@@ -50,11 +50,10 @@ export function OpenSourceIssueCarousel() {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % issues.length), 3600);
+    const timer = window.setInterval(() => setActive((current) => (current + 1) % issues.length), 5200);
     return () => window.clearInterval(timer);
   }, []);
 
-  const issue = issues[active];
   const move = (direction: number) => setActive((current) => (current + direction + issues.length) % issues.length);
 
   return (
@@ -63,36 +62,40 @@ export function OpenSourceIssueCarousel() {
       aria-roledescription="carousel"
       aria-label="Open-source issues"
     >
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><GitBranch01Icon className="size-5" /></span>
-          <div className="min-w-0"><p className="truncate font-semibold text-white">{issue.project}</p><p className="mt-1 truncate text-xs text-gray-500">{issue.detail}</p></div>
-        </div>
-        <span className="shrink-0 text-xs font-semibold text-orange-400">#{issue.number}</span>
-      </div>
+      <div className="relative min-h-[410px] sm:min-h-[350px]">
+        {issues.map((issue, index) => (
+          <section
+            key={issue.url}
+            aria-hidden={active !== index}
+            className={`absolute inset-0 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(.22,1,.36,1)] ${active === index ? "translate-x-0 opacity-100" : index < active ? "pointer-events-none -translate-x-8 opacity-0" : "pointer-events-none translate-x-8 opacity-0"}`}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500"><GitBranch01Icon className="size-5" /></span>
+                <div className="min-w-0"><p className="truncate font-semibold text-white">{issue.project}</p><p className="mt-1 truncate text-xs text-gray-500">{issue.detail}</p></div>
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-orange-400">#{issue.number}</span>
+            </div>
 
-      <a
-        key={issue.url}
-        href={issue.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`Open ${issue.project} issue ${issue.number} on GitHub`}
-        className="group mt-7 block cursor-pointer animate-[issue-enter_800ms_ease-out] rounded-2xl bg-[#1a1b20] p-5 transition-colors hover:bg-[#202126] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:p-6"
-      >
-        <div className="flex items-start justify-between gap-5">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.13em] text-gray-500">Open issue</p>
-            <h3 className="mt-3 text-xl font-semibold leading-8 text-white">{issue.title}</h3>
-          </div>
-          <div className="shrink-0 text-right"><p className="text-2xl font-semibold text-orange-500">{issue.points}</p><p className="text-[11px] text-gray-500">Street Points</p></div>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {issue.labels.map((label, index) => <span key={label} className={`rounded-md px-2.5 py-1 text-xs ${index === 0 ? "bg-orange-500/10 text-orange-300" : "bg-white/[0.05] text-gray-400"}`}>{label}</span>)}
-        </div>
-        <span className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 text-sm font-semibold text-white transition-colors group-hover:bg-orange-600">
-          Open on GitHub <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </a>
+            <div className="group relative mt-7 rounded-2xl bg-[#1a1b20] p-5 transition-colors hover:bg-[#202126] sm:p-6">
+              <a href={issue.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${issue.project} issue ${issue.number} on GitHub`} className="absolute inset-0 z-10 cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500" />
+              <div className="pointer-events-none relative z-20 flex items-start justify-between gap-5">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.13em] text-gray-500">Open issue</p>
+                  <h3 className="mt-3 text-xl font-semibold leading-8 text-white">{issue.title}</h3>
+                </div>
+                <div className="shrink-0 text-right"><p className="text-2xl font-semibold text-orange-500">{issue.points}</p><p className="text-[11px] text-gray-500">Street Points</p></div>
+              </div>
+              <div className="pointer-events-none relative z-20 mt-5 flex flex-wrap gap-2">
+                {issue.labels.map((label, labelIndex) => <span key={label} className={`rounded-md px-2.5 py-1 text-xs ${labelIndex === 0 ? "bg-orange-500/10 text-orange-300" : "bg-white/[0.05] text-gray-400"}`}>{label}</span>)}
+              </div>
+              <a href={`/open-source?search=${encodeURIComponent(issue.project)}`} className="relative z-30 mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-orange-600">
+                Open on PoWR <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </a>
+            </div>
+          </section>
+        ))}
+      </div>
 
       <div className="mt-6 flex items-center justify-between">
         <div className="flex gap-2" aria-label="Choose issue">
