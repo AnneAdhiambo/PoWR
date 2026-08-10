@@ -47,14 +47,45 @@ const issues = [
 ] as const;
 
 export function OpenSourceIssueCarousel() {
-  const [active, setActive] = useState(0);
+  const [position, setPosition] = useState(0);
+  const [animateTrack, setAnimateTrack] = useState(true);
+  const slides = [...issues, issues[0]];
+  const active = position === issues.length ? 0 : position;
 
   useEffect(() => {
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % issues.length), 5200);
+    const timer = window.setInterval(() => {
+      setAnimateTrack(true);
+      setPosition((current) => current + 1);
+    }, 5200);
     return () => window.clearInterval(timer);
   }, []);
 
-  const move = (direction: number) => setActive((current) => (current + direction + issues.length) % issues.length);
+  const next = () => {
+    setAnimateTrack(true);
+    setPosition((current) => current + 1);
+  };
+
+  const previous = () => {
+    if (position > 0) {
+      setAnimateTrack(true);
+      setPosition((current) => current - 1);
+      return;
+    }
+
+    setAnimateTrack(false);
+    setPosition(issues.length);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        setAnimateTrack(true);
+        setPosition(issues.length - 1);
+      });
+    });
+  };
+
+  const choose = (index: number) => {
+    setAnimateTrack(true);
+    setPosition(index);
+  };
 
   return (
     <article
@@ -62,12 +93,21 @@ export function OpenSourceIssueCarousel() {
       aria-roledescription="carousel"
       aria-label="Open-source issues"
     >
-      <div className="relative min-h-[410px] sm:min-h-[350px]">
-        {issues.map((issue, index) => (
+      <div className="overflow-hidden">
+        <div
+          className={`flex ${animateTrack ? "transition-transform duration-1000 ease-[cubic-bezier(.22,1,.36,1)]" : ""}`}
+          style={{ transform: `translate3d(-${position * 100}%, 0, 0)` }}
+          onTransitionEnd={(event) => {
+            if (event.target !== event.currentTarget || position !== issues.length) return;
+            setAnimateTrack(false);
+            setPosition(0);
+          }}
+        >
+        {slides.map((issue, index) => (
           <section
-            key={issue.url}
-            aria-hidden={active !== index}
-            className={`absolute inset-0 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(.22,1,.36,1)] ${active === index ? "translate-x-0 opacity-100" : index < active ? "pointer-events-none -translate-x-8 opacity-0" : "pointer-events-none translate-x-8 opacity-0"}`}
+            key={`${issue.url}-${index}`}
+            aria-hidden={position !== index}
+            className="min-h-[410px] w-full shrink-0 sm:min-h-[350px]"
           >
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
@@ -95,15 +135,16 @@ export function OpenSourceIssueCarousel() {
             </div>
           </section>
         ))}
+        </div>
       </div>
 
       <div className="mt-6 flex items-center justify-between">
         <div className="flex gap-2" aria-label="Choose issue">
-          {issues.map((item, index) => <button key={item.url} type="button" onClick={() => setActive(index)} aria-label={`Show issue ${index + 1}`} aria-current={active === index} className={`h-1.5 cursor-pointer rounded-full transition-all ${active === index ? "w-8 bg-orange-500" : "w-3 bg-white/15 hover:bg-white/30"}`} />)}
+          {issues.map((item, index) => <button key={item.url} type="button" onClick={() => choose(index)} aria-label={`Show issue ${index + 1}`} aria-current={active === index} className={`h-1.5 cursor-pointer rounded-full transition-all ${active === index ? "w-8 bg-orange-500" : "w-3 bg-white/15 hover:bg-white/30"}`} />)}
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => move(-1)} aria-label="Previous issue" className="flex size-10 cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] text-gray-300 transition-colors hover:bg-orange-500 hover:text-white"><ArrowLeftIcon className="size-4" /></button>
-          <button type="button" onClick={() => move(1)} aria-label="Next issue" className="flex size-10 cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] text-gray-300 transition-colors hover:bg-orange-500 hover:text-white"><ArrowRightIcon className="size-4" /></button>
+          <button type="button" onClick={previous} aria-label="Previous issue" className="flex size-10 cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] text-gray-300 transition-colors hover:bg-orange-500 hover:text-white"><ArrowLeftIcon className="size-4" /></button>
+          <button type="button" onClick={next} aria-label="Next issue" className="flex size-10 cursor-pointer items-center justify-center rounded-xl bg-white/[0.05] text-gray-300 transition-colors hover:bg-orange-500 hover:text-white"><ArrowRightIcon className="size-4" /></button>
         </div>
       </div>
     </article>
